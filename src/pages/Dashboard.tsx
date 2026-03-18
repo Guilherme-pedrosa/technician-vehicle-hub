@@ -62,11 +62,11 @@ export default function Dashboard() {
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Total Frota",
-      value: summary.totalKmAtual.toLocaleString("pt-BR"),
-      icon: Gauge,
+      label: "KM Hoje",
+      value: loadingResumo ? "..." : totalKmHoje.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      icon: CalendarDays,
       color: "text-success",
-      subtitle: `Odômetro acumulado`,
+      subtitle: `${totalTelemetrias} telemetrias · ${summary.emMovimento} em movimento`,
       subtitleColor: "text-muted-foreground",
     },
     {
