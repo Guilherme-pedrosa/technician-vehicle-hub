@@ -141,6 +141,7 @@ export default function Dashboard() {
             <TableHeader>
               <TableRow>
                 <TableHead>Técnico</TableHead>
+                <TableHead>Placas</TableHead>
                 <TableHead className="text-right">Soma de KM Rodado</TableHead>
                 <TableHead className="text-right">Telemetrias</TableHead>
                 <TableHead className="text-right">KM por Telemetria</TableHead>
@@ -149,7 +150,7 @@ export default function Dashboard() {
             <TableBody>
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Nenhum dado de telemetria encontrado
                   </TableCell>
                 </TableRow>
@@ -158,6 +159,7 @@ export default function Dashboard() {
                   {driverTelemetryRows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">{row.nome}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{row.placas?.join(", ") ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">
                         {row.kmRodado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
@@ -167,9 +169,9 @@ export default function Dashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {/* Total row */}
                   <TableRow className="bg-muted/50 font-bold">
                     <TableCell>Total</TableCell>
+                    <TableCell />
                     <TableCell className="text-right tabular-nums">
                       {driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </TableCell>
