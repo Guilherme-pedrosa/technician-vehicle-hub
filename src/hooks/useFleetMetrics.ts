@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { startOfDay, startOfMonth, startOfWeek, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import { getRelatorioKmRodado } from "@/services/rotaexata";
+import { getResumoDia } from "@/services/rotaexata";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
 
 export type FleetMetricRow = {
@@ -98,21 +98,13 @@ export function useFleetMetrics() {
     queryFn: async () => {
       const vehicles = vehiclesQuery.data?.filter((vehicle) => vehicle.adesao_id) ?? [];
 
+      // Use resumo-dia for today's km per vehicle
       const results = await Promise.allSettled(
         vehicles.map(async (vehicle) => {
           const adesaoId = vehicle.adesao_id!;
-          const [dia, semana, mes] = await Promise.allSettled([
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.hoje, data_fim: ranges.fim }),
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.semana, data_fim: ranges.fim }),
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.mes, data_fim: ranges.fim }),
-          ]);
-
-          return {
-            adesaoId,
-            kmDia: dia.status === "fulfilled" ? extractKmValue(dia.value) : 0,
-            kmSemana: semana.status === "fulfilled" ? extractKmValue(semana.value) : 0,
-            kmMes: mes.status === "fulfilled" ? extractKmValue(mes.value) : 0,
-          };
+          const result = await getResumoDia(adesaoId, ranges.fim);
+          const km = extractKmValue(result);
+          return { adesaoId, kmDia: km, kmSemana: 0, kmMes: 0 };
         })
       );
 
