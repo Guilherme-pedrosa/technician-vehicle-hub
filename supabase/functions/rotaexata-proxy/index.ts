@@ -18,16 +18,24 @@ async function getRotaExataToken(): Promise<string> {
     return cachedToken;
   }
 
-  const email = Deno.env.get("ROTAEXATA_EMAIL");
+  const username = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
 
-  if (!email) throw new Error("ROTAEXATA_EMAIL is not configured");
+  if (!username) throw new Error("ROTAEXATA_EMAIL is not configured");
   if (!password) throw new Error("ROTAEXATA_PASSWORD is not configured");
 
-  const res = await fetch(`${ROTAEXATA_API}/login`, {
+  // Rota Exata API uses /token with form-urlencoded (OAuth2 password grant)
+  const formBody = new URLSearchParams({
+    grant_type: "password",
+    username,
+    password,
+    companyId: "1",
+  });
+
+  const res = await fetch(`${ROTAEXATA_API}/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, senha: password }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formBody.toString(),
   });
 
   if (!res.ok) {
@@ -36,7 +44,7 @@ async function getRotaExataToken(): Promise<string> {
   }
 
   const data = await res.json();
-  cachedToken = data.token || data.access_token || data.authorization;
+  cachedToken = data.access_token || data.token || data.authorization;
 
   if (!cachedToken) {
     throw new Error(`Rota Exata login returned no token: ${JSON.stringify(data)}`);
