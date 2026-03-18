@@ -98,22 +98,13 @@ export function useFleetMetrics() {
     queryFn: async () => {
       const vehicles = vehiclesQuery.data?.filter((vehicle) => vehicle.adesao_id) ?? [];
 
+      // Use resumo-dia for today's km per vehicle
       const results = await Promise.allSettled(
         vehicles.map(async (vehicle) => {
           const adesaoId = vehicle.adesao_id!;
-          const { getResumoDia } = await import("@/services/rotaexata");
-          const [dia, semana, mes] = await Promise.allSettled([
-            getResumoDia(adesaoId, ranges.hoje),
-            getResumoDia(adesaoId, ranges.semana),
-            getResumoDia(adesaoId, ranges.mes),
-          ]);
-
-          return {
-            adesaoId,
-            kmDia: dia.status === "fulfilled" ? extractKmValue(dia.value) : 0,
-            kmSemana: semana.status === "fulfilled" ? extractKmValue(semana.value) : 0,
-            kmMes: mes.status === "fulfilled" ? extractKmValue(mes.value) : 0,
-          };
+          const result = await getResumoDia(adesaoId, ranges.fim);
+          const km = extractKmValue(result);
+          return { adesaoId, kmDia: km, kmSemana: 0, kmMes: 0 };
         })
       );
 
