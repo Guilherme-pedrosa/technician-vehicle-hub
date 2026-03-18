@@ -1,8 +1,9 @@
+import { useMemo } from "react";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { getResumoDia } from "@/services/rotaexata";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
-import { useMemo } from "react";
-import { format } from "date-fns";
+import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
 
 type ResumoDiaMotorista = {
   id: number;
@@ -38,7 +39,8 @@ export type ResumoDiaRow = {
   placa: string;
   kmHoje: number;
   telemetrias: number;
-  motorista?: { id: number; nome: string };
+  motoristaId?: number;
+  motoristaNome?: string;
 };
 
 const ROTA_EXATA_LOCAL_OFFSET_MS = 3 * 60 * 60 * 1000;
@@ -49,7 +51,9 @@ function toRotaExataLocalDate(value?: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
 
-  return new Date(parsed.getTime() - ROTA_EXATA_LOCAL_OFFSET_MS).toISOString().slice(0, 10);
+  return new Date(parsed.getTime() - ROTA_EXATA_LOCAL_OFFSET_MS)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function hasDriverContextForDate(raw: ResumoDiaResponse, targetDate: string) {
@@ -65,15 +69,22 @@ function hasDriverContextForDate(raw: ResumoDiaResponse, targetDate: string) {
 
 export function useResumoDiaFrota(dateStr?: string) {
   const { rows: vehicles, isLoading: loadingVehicles } = useFleetMetrics();
+  const { data: rotaExataUsuarios = [], isLoading: loadingUsuarios } = useRotaExataUsuarios();
   const hoje = dateStr ?? format(new Date(), "yyyy-MM-dd");
+  const isToday = hoje === format(new Date(), "yyyy-MM-dd");
 
   const adesaoIds = useMemo(
     () => vehicles.filter((v) => v.adesaoId).map((v) => v.adesaoId!),
     [vehicles]
   );
 
+  const usuariosById = useMemo(
+    () => new Map(rotaExataUsuarios.map((usuario) => [Number(usuario.id), usuario.nome])),
+    [rotaExataUsuarios]
+  );
+
   const query = useQuery({
-    queryKey: ["resumo-dia-frota", hoje, adesaoIds.join(",")],
+    queryKey: ["resumo-dia-frota", hoje, isToday, adesaoIds.join(",")],
     queryFn: async () => {
       if (!adesaoIds.length) return [];
 
@@ -81,22 +92,27 @@ export function useResumoDiaFrota(dateStr?: string) {
         adesaoIds.map(async (adesaoId) => {
           const raw = (await getResumoDia(adesaoId, hoje)) as ResumoDiaResponse;
           const vehicle = vehicles.find((v) => v.adesaoId === adesaoId);
-
-          const kmMeters = raw?.basico?.km?.total ?? 0;
-          const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
-          const hasValidDriverContext = hasDriverContextForDate(raw, hoje);
-          const motorista = hasValidDriverContext
+          const resumoMotorista = hasDriverContextForDate(raw, hoje)
             ? raw?.posicao?.deslocamento?.motorista ?? raw?.posicao?.motorista ?? undefined
             : undefined;
+
+          const motoristaId = isToday
+            ? vehicle?.posicao?.motorista_id ?? undefined
+            : resumoMotorista?.id;
+
+          const motoristaNome = isToday
+            ? (motoristaId ? usuariosById.get(Number(motoristaId)) : undefined) ??
+              vehicle?.posicao?.motorista_key ??
+              undefined
+            : resumoMotorista?.nome;
 
           return {
             adesaoId,
             placa: vehicle?.placa ?? adesaoId,
-            kmHoje: kmMeters / 1000,
-            telemetrias,
-            motorista: motorista?.id
-              ? { id: motorista.id, nome: motorista.nome }
-              : undefined,
+            kmHoje: (raw?.basico?.km?.total ?? 0) / 1000,
+            telemetrias: raw?.basico?.telemetria?.quantidade ?? 0,
+            motoristaId: motoristaId ? Number(motoristaId) : undefined,
+            motoristaNome,
           } satisfies ResumoDiaRow;
         })
       );
@@ -115,11 +131,13 @@ export function useResumoDiaFrota(dateStr?: string) {
     const groups = new Map<string, { nome: string; kmHoje: number; telemetrias: number }>();
 
     data.forEach((row) => {
-      const key = row.motorista ? String(row.motorista.id) : "sem-condutor";
-      const nome = row.motorista?.nome ?? "Sem condutor vinculado";
+      const resolvedName = row.motoristaId
+        ? usuariosById.get(row.motoristaId) ?? row.motoristaNome ?? `Motorista ${row.motoristaId}`
+        : "Sem condutor vinculado";
+      const key = row.motoristaId ? String(row.motoristaId) : "sem-condutor";
 
       if (!groups.has(key)) {
-        groups.set(key, { nome, kmHoje: 0, telemetrias: 0 });
+        groups.set(key, { nome: resolvedName, kmHoje: 0, telemetrias: 0 });
       }
 
       const group = groups.get(key)!;
@@ -144,7 +162,7 @@ export function useResumoDiaFrota(dateStr?: string) {
         };
       })
       .sort((a, b) => b.kmRodado - a.kmRodado);
-  }, [query.data]);
+  }, [query.data, usuariosById]);
 
   const totalKmHoje = useMemo(
     () => (query.data ?? []).reduce((sum, row) => sum + row.kmHoje, 0),
@@ -161,7 +179,7 @@ export function useResumoDiaFrota(dateStr?: string) {
     driverRows,
     totalKmHoje: Math.round(totalKmHoje * 100) / 100,
     totalTelemetrias,
-    isLoading: loadingVehicles || query.isLoading,
+    isLoading: loadingVehicles || loadingUsuarios || query.isLoading,
     isError: query.isError,
   };
 }
