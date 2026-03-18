@@ -53,15 +53,23 @@ export default function Dashboard() {
     });
   }
 
-  // Vehicles with telemetry
-  const vehiclesWithTelemetry = vehicles.filter((v) => v.adesao_id).map((v) => {
-    const pos = posicaoMap.get(v.adesao_id!);
-    return { ...v, posicao: pos };
-  });
+  const vehiclesWithTelemetry = vehicles
+    .filter((v) => v.adesao_id)
+    .map((v) => ({ ...v, posicao: posicaoMap.get(v.adesao_id!) }));
 
-  const movingCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade > 0).length;
-  const stoppedIgnOnCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade === 0 && v.posicao.ignicao).length;
-  const stoppedIgnOffCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade === 0 && !v.posicao.ignicao).length;
+  const externalTelemetryVehicles = (Array.isArray(posicoes) ? posicoes : []).map((posicao) => ({
+    id: `rotaexata-${String(posicao.adesao_id)}`,
+    placa: posicao.placa ?? `Adesão ${String(posicao.adesao_id)}`,
+    marca: "Rota Exata",
+    modelo: "Telemetria",
+    posicao,
+  }));
+
+  const telemetryVehicles = vehiclesWithTelemetry.length > 0 ? vehiclesWithTelemetry : externalTelemetryVehicles;
+
+  const movingCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade > 0).length;
+  const stoppedIgnOnCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && v.posicao.ignicao).length;
+  const stoppedIgnOffCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && !v.posicao.ignicao).length;
 
   const stats = [
     {
@@ -135,21 +143,26 @@ export default function Dashboard() {
               <p className="text-sm font-medium">Erro ao conectar com o Rota Exata</p>
               <p className="text-xs">Verifique as credenciais de acesso</p>
             </div>
-          ) : !posicoes || posicoes.length === 0 ? (
+          ) : telemetryVehicles.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {loadingPosicoes ? (
                 <p className="text-sm">Carregando posições...</p>
               ) : (
                 <>
                   <MapPin className="w-8 h-8 mx-auto mb-2" />
-                  <p className="text-sm">Nenhum veículo com rastreamento vinculado</p>
-                  <p className="text-xs">Vincule o ID de adesão nos veículos cadastrados</p>
+                  <p className="text-sm">Nenhum dado de rastreamento encontrado</p>
+                  <p className="text-xs">Quando houver telemetria ativa, ela aparecerá aqui</p>
                 </>
               )}
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Summary badges */}
+              {vehiclesWithTelemetry.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Exibindo telemetria direto da integração, mesmo sem veículos cadastrados localmente.
+                </p>
+              )}
+
               <div className="flex flex-wrap gap-3">
                 <Badge className="bg-success text-success-foreground gap-1 py-1 px-3">
                   <Gauge className="w-3 h-3" /> {movingCount} em movimento
@@ -162,9 +175,8 @@ export default function Dashboard() {
                 </Badge>
               </div>
 
-              {/* Vehicle list with positions */}
               <div className="divide-y divide-border">
-                {vehiclesWithTelemetry.map((v) => (
+                {telemetryVehicles.map((v) => (
                   <div key={v.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-3">
                       <div className={`w-2.5 h-2.5 rounded-full ${
@@ -172,7 +184,12 @@ export default function Dashboard() {
                         v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"
                       }`} />
                       <div>
-                        <p className="text-sm font-medium">{v.placa} <span className="text-muted-foreground font-normal">— {v.marca} {v.modelo}</span></p>
+                        <p className="text-sm font-medium">
+                          {v.placa}
+                          {(v.marca || v.modelo) && (
+                            <span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span>
+                          )}
+                        </p>
                         {v.posicao?.endereco && (
                           <p className="text-xs text-muted-foreground truncate max-w-[300px]">{v.posicao.endereco}</p>
                         )}
@@ -188,7 +205,9 @@ export default function Dashboard() {
                             </p>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            {v.posicao.data_posicao
+                              ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                              : "—"}
                           </div>
                         </>
                       ) : (
