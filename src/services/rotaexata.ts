@@ -52,6 +52,8 @@ type RawRotaExataPosicao = {
   odometro_original?: number;
   odometro_gps?: number;
   direcao?: number;
+  motorista_id?: number | null;
+  motorista_key?: string | null;
   adesao?: {
     id?: number | string;
     vei_placa?: string;
