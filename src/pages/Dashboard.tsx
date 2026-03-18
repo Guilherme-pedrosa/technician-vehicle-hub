@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, UserCheck,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays,
 } from "lucide-react";
 import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
-import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
+import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
