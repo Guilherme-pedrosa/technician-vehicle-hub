@@ -24,15 +24,10 @@ type ResumoDiaResponse = {
     deslocamento?: {
       dtInicio?: string;
       dtFinal?: string;
+      kmRodado?: number;
       motorista?: ResumoDiaMotorista;
     };
   };
-  // Some responses have motoristas array with per-session breakdown
-  motoristas?: Array<{
-    motorista?: ResumoDiaMotorista;
-    km?: number;
-    tempo_movimento?: number;
-  }>;
 };
 
 export type ResumoDiaRow = {
