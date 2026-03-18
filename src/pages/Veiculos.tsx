@@ -30,8 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Truck } from "lucide-react";
+import { Plus, Search, Pencil, Truck, RefreshCw, Radio } from "lucide-react";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { useUltimaPosicaoTodos, useRotaExataAdesoes, type RotaExataPosicao } from "@/hooks/useRotaExata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
