@@ -102,8 +102,8 @@ export function useResumoDiaFrota(dateStr?: string) {
       );
 
       return results
-        .filter((r): r is PromiseFulfilledResult<ResumoDiaRow> => r.status === "fulfilled")
-        .map((r) => r.value);
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value as ResumoDiaRow);
     },
     enabled: adesaoIds.length > 0,
     staleTime: 60 * 1000,
