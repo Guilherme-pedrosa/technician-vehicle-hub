@@ -64,6 +64,15 @@ export default function Veiculos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<VehicleInsert>>(emptyForm);
 
+  // Rota Exata - positions
+  const { data: posicoes } = useUltimaPosicaoTodos();
+  const posicaoMap = new Map<string, RotaExataPosicao>();
+  if (Array.isArray(posicoes)) {
+    posicoes.forEach((p) => {
+      if (p.adesao_id) posicaoMap.set(String(p.adesao_id), p);
+    });
+  }
+
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
