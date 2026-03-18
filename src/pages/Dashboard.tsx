@@ -100,27 +100,27 @@ export default function Dashboard() {
 
   const stats = [
     {
-      label: "KM Hoje",
-      value: summary.totalKmDia.toLocaleString("pt-BR"),
-      icon: CalendarDays,
+      label: "Veículos",
+      value: summary.totalVeiculos,
+      icon: Truck,
       color: "text-primary",
-      subtitle: `${summary.emMovimento} veículos em movimento`,
-      subtitleColor: "text-muted-foreground",
-    },
-    {
-      label: "KM Semana",
-      value: summary.totalKmSemana.toLocaleString("pt-BR"),
-      icon: CalendarRange,
-      color: "text-success",
       subtitle: `${vehiclesAvailable} disp. · ${vehiclesInUse} uso · ${vehiclesMaintenance} manut.`,
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Mês",
-      value: summary.totalKmMes.toLocaleString("pt-BR"),
-      icon: Calendar,
+      label: "KM Total Frota",
+      value: summary.totalKmAtual.toLocaleString("pt-BR"),
+      icon: Gauge,
+      color: "text-success",
+      subtitle: `Odômetro acumulado`,
+      subtitleColor: "text-muted-foreground",
+    },
+    {
+      label: "Telemetria Ativa",
+      value: `${summary.emMovimento + summary.paradoLigado + summary.paradoDesligado}`,
+      icon: Radio,
       color: "text-info",
-      subtitle: `${summary.totalKmAtual.toLocaleString("pt-BR")} km total`,
+      subtitle: `${summary.emMovimento} mov. · ${summary.paradoLigado} lig. · ${summary.paradoDesligado} desl.`,
       subtitleColor: "text-muted-foreground",
     },
     {
