@@ -2,15 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2, RefreshCw } from "lucide-react";
 import { isPast } from "date-fns";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
+import { useSyncVehiclesFromRotaExata } from "@/hooks/useSyncRotaExata";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
+  const { isAdmin } = useAuth();
+  const syncMutation = useSyncVehiclesFromRotaExata();
+
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("id, status, placa, modelo, marca, adesao_id");
+      const { data, error } = await supabase.from("vehicles").select("id, status, placa, modelo, marca, adesao_id, km_atual");
       if (error) throw error;
       return data;
     },
@@ -34,7 +40,6 @@ export default function Dashboard() {
     },
   });
 
-  // Rota Exata - Última posição de todos os veículos
   const { data: posicoes, isLoading: loadingPosicoes, isError: errorPosicoes } = useUltimaPosicaoTodos();
 
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
@@ -53,6 +58,7 @@ export default function Dashboard() {
     });
   }
 
+  // Build telemetry list - prefer local vehicles, fallback to raw telemetry
   const vehiclesWithTelemetry = vehicles
     .filter((v) => v.adesao_id)
     .map((v) => ({ ...v, posicao: posicaoMap.get(v.adesao_id!) }));
@@ -60,8 +66,9 @@ export default function Dashboard() {
   const externalTelemetryVehicles = (Array.isArray(posicoes) ? posicoes : []).map((posicao) => ({
     id: `rotaexata-${String(posicao.adesao_id)}`,
     placa: posicao.placa ?? `Adesão ${String(posicao.adesao_id)}`,
-    marca: "Rota Exata",
-    modelo: "Telemetria",
+    marca: "",
+    modelo: "",
+    km_atual: posicao.odometro ? Math.round(posicao.odometro / 1000) : 0,
     posicao,
   }));
 
@@ -70,22 +77,34 @@ export default function Dashboard() {
   const movingCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade > 0).length;
   const stoppedIgnOnCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && v.posicao.ignicao).length;
   const stoppedIgnOffCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && !v.posicao.ignicao).length;
+  const totalTelemetry = telemetryVehicles.length;
+
+  // Total KM from odometers
+  const totalKm = telemetryVehicles.reduce((sum, v) => sum + (v.km_atual ?? 0), 0);
 
   const stats = [
     {
-      label: "Condutores Ativos",
-      value: activeDrivers,
-      icon: Users,
+      label: "Veículos Rastreados",
+      value: totalTelemetry,
+      icon: Radio,
       color: "text-primary",
-      subtitle: cnhVencidas > 0 ? `${cnhVencidas} CNH vencida` : "Todos regulares",
-      subtitleColor: cnhVencidas > 0 ? "text-destructive" : "text-muted-foreground",
+      subtitle: `${movingCount} em movimento · ${stoppedIgnOnCount + stoppedIgnOffCount} parados`,
+      subtitleColor: "text-muted-foreground",
     },
     {
-      label: "Veículos em Operação",
-      value: vehiclesInUse,
+      label: "Veículos Cadastrados",
+      value: vehicles.length,
       icon: Truck,
       color: "text-success",
-      subtitle: `${vehiclesAvailable} disponíveis · ${vehiclesMaintenance} manutenção`,
+      subtitle: `${vehiclesAvailable} disp. · ${vehiclesInUse} uso · ${vehiclesMaintenance} manut.`,
+      subtitleColor: "text-muted-foreground",
+    },
+    {
+      label: "KM Total Frota",
+      value: totalKm > 0 ? `${(totalKm / 1000).toFixed(0)}k` : "—",
+      icon: Gauge,
+      color: "text-info",
+      subtitle: totalKm > 0 ? `${totalKm.toLocaleString("pt-BR")} km` : "Sincronize veículos",
       subtitleColor: "text-muted-foreground",
     },
     {
@@ -93,24 +112,32 @@ export default function Dashboard() {
       value: openTickets,
       icon: Wrench,
       color: "text-warning",
-      subtitle: `${tickets.length} total`,
-      subtitleColor: "text-muted-foreground",
-    },
-    {
-      label: "Não Conformidades",
-      value: naoConformidades,
-      icon: AlertTriangle,
-      color: "text-destructive",
-      subtitle: "Chamados do tipo NC",
-      subtitleColor: "text-muted-foreground",
+      subtitle: naoConformidades > 0 ? `${naoConformidades} não conformidades` : `${tickets.length} total`,
+      subtitleColor: naoConformidades > 0 ? "text-destructive" : "text-muted-foreground",
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Visão geral da sua frota</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Visão geral da sua frota</p>
+        </div>
+        {isAdmin && vehicles.length === 0 && (
+          <Button
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-2" />
+            )}
+            Sincronizar Veículos
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -151,18 +178,11 @@ export default function Dashboard() {
                 <>
                   <MapPin className="w-8 h-8 mx-auto mb-2" />
                   <p className="text-sm">Nenhum dado de rastreamento encontrado</p>
-                  <p className="text-xs">Quando houver telemetria ativa, ela aparecerá aqui</p>
                 </>
               )}
             </div>
           ) : (
             <div className="space-y-4">
-              {vehiclesWithTelemetry.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Exibindo telemetria direto da integração, mesmo sem veículos cadastrados localmente.
-                </p>
-              )}
-
               <div className="flex flex-wrap gap-3">
                 <Badge className="bg-success text-success-foreground gap-1 py-1 px-3">
                   <Gauge className="w-3 h-3" /> {movingCount} em movimento
@@ -186,7 +206,7 @@ export default function Dashboard() {
                       <div>
                         <p className="text-sm font-medium">
                           {v.placa}
-                          {(v.marca || v.modelo) && (
+                          {v.marca && v.modelo && (
                             <span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span>
                           )}
                         </p>
@@ -204,6 +224,11 @@ export default function Dashboard() {
                               {v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}
                             </p>
                           </div>
+                          {v.km_atual > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              {v.km_atual.toLocaleString("pt-BR")} km
+                            </div>
+                          )}
                           <div className="text-xs text-muted-foreground">
                             {v.posicao.data_posicao
                               ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
