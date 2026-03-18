@@ -30,9 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Truck, RefreshCw, Radio } from "lucide-react";
-import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
-import { useUltimaPosicaoTodos, useRotaExataAdesoes, type RotaExataPosicao } from "@/hooks/useRotaExata";
+import { Plus, Search, Pencil, Truck, RefreshCw, Loader2 } from "lucide-react";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
+import { useSyncVehiclesFromRotaExata } from "@/hooks/useSyncRotaExata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
@@ -66,6 +67,8 @@ export default function Veiculos() {
 
   // Rota Exata - positions
   const { data: posicoes } = useUltimaPosicaoTodos();
+  const syncMutation = useSyncVehiclesFromRotaExata();
+
   const posicaoMap = new Map<string, RotaExataPosicao>();
   if (Array.isArray(posicoes)) {
     posicoes.forEach((p) => {
@@ -182,12 +185,40 @@ export default function Veiculos() {
           <h1 className="text-2xl font-bold tracking-tight">Veículos</h1>
           <p className="text-muted-foreground">Cadastro e status dos veículos da frota</p>
         </div>
-        {isAdmin && (
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Veículo
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Sincronizar Rota Exata
+            </Button>
+          )}
+          {isAdmin && (
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Veículo
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Sync hint when empty */}
+      {vehicles.length === 0 && !isLoading && (
+        <div className="ai-banner">
+          <RefreshCw className="ai-banner-icon" />
+          <div className="ai-banner-content">
+            <p className="ai-banner-text font-medium">
+              Nenhum veículo cadastrado. Clique em "Sincronizar Rota Exata" para importar seus veículos automaticamente.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Status filter cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -238,7 +269,7 @@ export default function Veiculos() {
               <p className="text-lg font-medium">Nenhum veículo encontrado</p>
               <p className="text-sm">
                 {vehicles.length === 0
-                  ? "Clique em 'Novo Veículo' para cadastrar"
+                  ? "Sincronize do Rota Exata ou cadastre manualmente"
                   : "Tente alterar os filtros"}
               </p>
             </div>
