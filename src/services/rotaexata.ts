@@ -211,7 +211,13 @@ export async function getRelatorioKmRodado(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/kmrodado", "GET", params);
+  // Rota Exata expects report params as POST body
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(
+    "/relatorios/rastreamento/kmrodado",
+    "POST",
+    undefined,
+    { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim }
+  );
   return unwrapRotaExataResponse(response);
 }
 
