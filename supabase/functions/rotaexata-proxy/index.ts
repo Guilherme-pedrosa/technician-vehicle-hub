@@ -67,17 +67,28 @@ async function proxyRequest(
 ): Promise<Response> {
   const url = `${ROTAEXATA_API}${path}${queryParams ? `?${queryParams}` : ""}`;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+  const buildOptions = (authorization: string): RequestInit => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: authorization,
+    };
+
+    const fetchOptions: RequestInit = { method, headers };
+    if (body && (method === "POST" || method === "PUT")) {
+      fetchOptions.body = body;
+    }
+
+    return fetchOptions;
   };
 
-  const fetchOptions: RequestInit = { method, headers };
-  if (body && (method === "POST" || method === "PUT")) {
-    fetchOptions.body = body;
+  let res = await fetch(url, buildOptions(`Bearer ${token}`));
+
+  // Rota Exata docs indicate the raw token is placed directly in Authorization.
+  // Retry without Bearer prefix when upstream rejects the bearer format.
+  if (res.status === 401) {
+    res = await fetch(url, buildOptions(token));
   }
 
-  const res = await fetch(url, fetchOptions);
   const responseBody = await res.text();
 
   return new Response(responseBody, {
