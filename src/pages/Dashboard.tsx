@@ -13,6 +13,7 @@ import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
+import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
