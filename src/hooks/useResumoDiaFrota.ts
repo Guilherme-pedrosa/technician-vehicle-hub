@@ -58,17 +58,28 @@ export function useResumoDiaFrota(dateStr?: string) {
           const raw = (await getResumoDia(adesaoId, hoje)) as ResumoDiaResponse;
           const vehicle = vehicles.find((v) => v.adesaoId === adesaoId);
 
-          const kmTotal = raw?.basico?.km?.total ?? 0;
-          const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
+          // === FIX: Check if the vehicle actually had activity on the requested date ===
+          // The API returns phantom KM for vehicles whose last position is from a different day.
+          const dtPosicao = raw?.posicao?.dt_posicao;
+          const posicaoDate = dtPosicao ? dtPosicao.substring(0, 10) : null;
+          const isFromRequestedDate = posicaoDate === hoje;
+
+          // Also check tempo.movimento: if the vehicle had 0 or near-0 movement seconds, skip
           const tempoMovimento = raw?.basico?.tempo?.movimento ?? 0;
 
-          // Skip vehicles with no KM at all (truly idle)
-          // Use a threshold: < 50 meters is GPS noise
-          const kmMeters = kmTotal;
-          const kmReal = kmMeters > 50 ? kmMeters / 1000 : 0;
-          const telemetriasReal = kmReal > 0 ? telemetrias : 0;
+          const kmTotal = raw?.basico?.km?.total ?? 0;
+          const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
 
-          // Driver info: use resumo-dia's motorista (this is the QR Code driver, not system user)
+          // Vehicle is truly active only if:
+          // 1. Its last position is from the requested date
+          // 2. It had meaningful movement time (> 60 seconds)
+          // 3. KM exceeds GPS noise threshold (50 meters)
+          const isRealMovement = isFromRequestedDate && tempoMovimento > 60 && kmTotal > 50;
+
+          const kmReal = isRealMovement ? kmTotal / 1000 : 0;
+          const telemetriasReal = isRealMovement ? telemetrias : 0;
+
+          // Driver info: always prioritize resumo-dia's motorista data
           const motorista =
             raw?.posicao?.deslocamento?.motorista ??
             raw?.posicao?.motorista ??
