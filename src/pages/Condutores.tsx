@@ -67,6 +67,7 @@ function CnhBadge({ validade }: { validade: string }) {
 export default function Condutores() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const syncMutation = useSyncAllFromRotaExata();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
