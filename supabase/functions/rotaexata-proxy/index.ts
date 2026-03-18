@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
   try {
     // Verify the caller is authenticated via Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
+    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) {
