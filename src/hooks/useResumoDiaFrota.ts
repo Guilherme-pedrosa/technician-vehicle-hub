@@ -20,7 +20,9 @@ type ResumoDiaBasico = {
 };
 
 type ResumoDiaResponse = {
-  basico?: ResumoDiaBasico;
+  basico?: ResumoDiaBasico & {
+    tempo?: { movimento: number; parado: number; total: number };
+  };
   posicao?: {
     dt_posicao?: string;
     dt_final_vinculo_motorista?: string;
