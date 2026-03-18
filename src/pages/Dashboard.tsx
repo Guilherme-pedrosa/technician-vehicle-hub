@@ -180,7 +180,8 @@ export default function Dashboard() {
                       {(() => {
                         const totalKm = driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0);
                         const totalTel = driverTelemetryRows.reduce((s, r) => s + r.telemetrias, 0);
-                        return totalTel > 0 ? (totalKm / totalTel).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00";
+                        const val = totalTel > 0 ? totalKm / totalTel : totalKm;
+                        return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       })()}
                     </TableCell>
                   </TableRow>
