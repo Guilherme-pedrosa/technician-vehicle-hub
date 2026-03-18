@@ -20,7 +20,9 @@ type ResumoDiaBasico = {
 };
 
 type ResumoDiaResponse = {
-  basico?: ResumoDiaBasico;
+  basico?: ResumoDiaBasico & {
+    tempo?: { movimento: number; parado: number; total: number };
+  };
   posicao?: {
     dt_posicao?: string;
     dt_final_vinculo_motorista?: string;
@@ -92,6 +94,11 @@ export function useResumoDiaFrota(dateStr?: string) {
         adesaoIds.map(async (adesaoId) => {
           const raw = (await getResumoDia(adesaoId, hoje)) as ResumoDiaResponse;
           const vehicle = vehicles.find((v) => v.adesaoId === adesaoId);
+          const tempoMovimento = raw?.basico?.tempo?.movimento ?? 0;
+          // Only count KM if the vehicle actually moved (filters GPS drift on parked vehicles)
+          const kmReal = tempoMovimento > 0 ? (raw?.basico?.km?.total ?? 0) / 1000 : 0;
+          const telemetriasReal = tempoMovimento > 0 ? (raw?.basico?.telemetria?.quantidade ?? 0) : 0;
+
           const resumoMotorista = hasDriverContextForDate(raw, hoje)
             ? raw?.posicao?.deslocamento?.motorista ?? raw?.posicao?.motorista ?? undefined
             : undefined;
@@ -109,8 +116,8 @@ export function useResumoDiaFrota(dateStr?: string) {
           return {
             adesaoId,
             placa: vehicle?.placa ?? adesaoId,
-            kmHoje: (raw?.basico?.km?.total ?? 0) / 1000,
-            telemetrias: raw?.basico?.telemetria?.quantidade ?? 0,
+            kmHoje: kmReal,
+            telemetrias: telemetriasReal,
             motoristaId: motoristaId ? Number(motoristaId) : undefined,
             motoristaNome,
           } satisfies ResumoDiaRow;
