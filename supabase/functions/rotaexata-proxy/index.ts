@@ -18,36 +18,40 @@ async function getRotaExataToken(): Promise<string> {
     return cachedToken;
   }
 
-  const username = Deno.env.get("ROTAEXATA_EMAIL");
+  const email = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
 
-  if (!username) throw new Error("ROTAEXATA_EMAIL is not configured");
+  if (!email) throw new Error("ROTAEXATA_EMAIL is not configured");
   if (!password) throw new Error("ROTAEXATA_PASSWORD is not configured");
 
-  // Rota Exata API uses /token with form-urlencoded (OAuth2 password grant)
-  const formBody = new URLSearchParams({
-    grant_type: "password",
-    username,
-    password,
-    companyId: "1",
+  console.log(`Attempting login with email: ${email}`);
+
+  const loginBody = { email, password };
+
+  const res = await fetch(`${ROTAEXATA_API}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(loginBody),
   });
 
-  const res = await fetch(`${ROTAEXATA_API}/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formBody.toString(),
-  });
+  const responseText = await res.text();
+  console.log(`Login response status: ${res.status}, body: ${responseText}`);
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Rota Exata login failed [${res.status}]: ${body}`);
+    throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
   }
 
-  const data = await res.json();
-  cachedToken = data.access_token || data.token || data.authorization;
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`Rota Exata login returned non-JSON: ${responseText}`);
+  }
+
+  cachedToken = data.token || data.access_token || data.authorization;
 
   if (!cachedToken) {
-    throw new Error(`Rota Exata login returned no token: ${JSON.stringify(data)}`);
+    throw new Error(`Rota Exata login returned no token: ${responseText}`);
   }
 
   tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
