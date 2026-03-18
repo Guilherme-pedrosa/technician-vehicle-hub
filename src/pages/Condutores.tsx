@@ -32,7 +32,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Users, AlertTriangle } from "lucide-react";
+import { Plus, Search, Pencil, Users, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
+import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Driver = Tables<"drivers">;
