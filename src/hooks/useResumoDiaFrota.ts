@@ -102,16 +102,20 @@ export function useResumoDiaFrota(dateStr?: string) {
     });
 
     return Array.from(groups.entries())
-      .map(([id, g]) => ({
-        id,
-        nome: g.nome,
-        kmRodado: Math.round(g.kmHoje * 100) / 100,
-        telemetrias: g.telemetrias,
-        kmPorTelemetria:
+      .map(([id, g]) => {
+        const kmRodado = Math.round(g.kmHoje * 100) / 100;
+        const kmPorTelemetria =
           g.telemetrias > 0
             ? Math.round((g.kmHoje / g.telemetrias) * 100) / 100
-            : 0,
-      }))
+            : kmRodado; // se telemetria=0, km por telemetria = km rodado
+        return {
+          id,
+          nome: g.nome,
+          kmRodado,
+          telemetrias: g.telemetrias,
+          kmPorTelemetria,
+        };
+      })
       .sort((a, b) => b.kmRodado - a.kmRodado);
   }, [query.data]);
 

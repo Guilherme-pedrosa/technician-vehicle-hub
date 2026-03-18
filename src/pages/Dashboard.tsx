@@ -1,14 +1,16 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
   Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays,
 } from "lucide-react";
-import { isPast } from "date-fns";
+import { isPast, format } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
@@ -17,13 +19,14 @@ import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const syncMutation = useSyncAllFromRotaExata();
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
   const {
     driverRows: driverTelemetryRows,
     totalKmHoje,
     totalTelemetrias,
     isLoading: loadingResumo,
-  } = useResumoDiaFrota();
+  } = useResumoDiaFrota(selectedDate);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -61,7 +64,7 @@ export default function Dashboard() {
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Hoje",
+      label: selectedDate === format(new Date(), "yyyy-MM-dd") ? "KM Hoje" : `KM ${new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
       value: loadingResumo ? "..." : totalKmHoje.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
       icon: CalendarDays,
       color: "text-success",
@@ -118,11 +121,20 @@ export default function Dashboard() {
 
       {/* === TABELA POR TÉCNICO === */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
             {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-40 h-8 text-xs"
+              max={format(new Date(), "yyyy-MM-dd")}
+            />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table className="table-enterprise">
@@ -168,7 +180,8 @@ export default function Dashboard() {
                       {(() => {
                         const totalKm = driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0);
                         const totalTel = driverTelemetryRows.reduce((s, r) => s + r.telemetrias, 0);
-                        return totalTel > 0 ? (totalKm / totalTel).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00";
+                        const val = totalTel > 0 ? totalKm / totalTel : totalKm;
+                        return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       })()}
                     </TableCell>
                   </TableRow>
