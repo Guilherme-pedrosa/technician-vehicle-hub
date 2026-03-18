@@ -116,8 +116,8 @@ export function useResumoDiaFrota(dateStr?: string) {
           return {
             adesaoId,
             placa: vehicle?.placa ?? adesaoId,
-            kmHoje: (raw?.basico?.km?.total ?? 0) / 1000,
-            telemetrias: raw?.basico?.telemetria?.quantidade ?? 0,
+            kmHoje: kmReal,
+            telemetrias: telemetriasReal,
             motoristaId: motoristaId ? Number(motoristaId) : undefined,
             motoristaNome,
           } satisfies ResumoDiaRow;
