@@ -7,62 +7,17 @@ import {
   getRespostas,
   getRelatorioKmRodado,
   getResumoDia,
+  type RotaExataAdesaoResponse,
+  type RotaExataPosicaoResponse,
+  type RotaExataUsuarioResponse,
+  type RotaExataChecklistResponse,
 } from "@/services/rotaexata";
 
-// ===========================
-// TIPOS
-// ===========================
-
-export interface RotaExataAdesao {
-  id: number;
-  placa: string;
-  veiculo_marca?: string;
-  veiculo_modelo?: string;
-  veiculo_ano?: number;
-  veiculo_cor?: string;
-  equipamento_codigo?: string;
-  grupo_id?: number;
-  grupo_nome?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface RotaExataPosicao {
-  adesao_id: number;
-  placa?: string;
-  latitude: number;
-  longitude: number;
-  velocidade: number;
-  ignicao: boolean;
-  data_posicao: string;
-  endereco?: string;
-  odometro?: number;
-  direcao?: number;
-  [key: string]: unknown;
-}
-
-export interface RotaExataUsuario {
-  id: number;
-  nome: string;
-  email?: string;
-  cpf?: string;
-  telefone?: string;
-  cnh?: string;
-  cnh_validade?: string;
-  cnh_categoria?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface RotaExataChecklist {
-  id: number;
-  adesao_id?: number;
-  usuario_id?: number;
-  formulario_nome?: string;
-  data_resposta?: string;
-  respostas?: unknown[];
-  [key: string]: unknown;
-}
+// Re-export types with simpler names
+export type RotaExataAdesao = RotaExataAdesaoResponse;
+export type RotaExataPosicao = RotaExataPosicaoResponse;
+export type RotaExataUsuario = RotaExataUsuarioResponse;
+export type RotaExataChecklist = RotaExataChecklistResponse;
 
 // ===========================
 // HOOKS
@@ -72,8 +27,8 @@ export interface RotaExataChecklist {
 export function useRotaExataAdesoes() {
   return useQuery<RotaExataAdesao[]>({
     queryKey: ["rotaexata", "adesoes"],
-    queryFn: () => getAdesoes(),
-    staleTime: 5 * 60 * 1000, // 5 min
+    queryFn: () => getAdesoes() as Promise<RotaExataAdesao[]>,
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }
@@ -83,7 +38,7 @@ export function useUltimaPosicaoTodos() {
   return useQuery<RotaExataPosicao[]>({
     queryKey: ["rotaexata", "ultima-posicao-todos"],
     queryFn: () => getUltimaPosicaoTodos(),
-    refetchInterval: 60 * 1000, // refresh every 60s
+    refetchInterval: 60 * 1000,
     staleTime: 30 * 1000,
     retry: 1,
   });
@@ -104,7 +59,7 @@ export function useUltimaPosicao(adesaoId: string | null) {
 export function useRotaExataUsuarios() {
   return useQuery<RotaExataUsuario[]>({
     queryKey: ["rotaexata", "usuarios"],
-    queryFn: () => getUsuariosRotaExata(),
+    queryFn: () => getUsuariosRotaExata() as Promise<RotaExataUsuario[]>,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
