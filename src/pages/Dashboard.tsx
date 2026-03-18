@@ -262,7 +262,7 @@ export default function Dashboard() {
                       <div className={`w-2.5 h-2.5 rounded-full ${v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" : v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
                       <div>
                         <p className="text-sm font-medium">{v.placa}<span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span></p>
-                        <p className="text-xs text-muted-foreground">Hoje: {v.kmDia.toLocaleString("pt-BR")} km · Semana: {v.kmSemana.toLocaleString("pt-BR")} km · Mês: {v.kmMes.toLocaleString("pt-BR")} km</p>
+                        <p className="text-xs text-muted-foreground">Odômetro: {v.kmAtual.toLocaleString("pt-BR")} km</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-right">
