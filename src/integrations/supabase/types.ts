@@ -1,0 +1,474 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.4"
+  }
+  public: {
+    Tables: {
+      driver_performance_records: {
+        Row: {
+          checklists_completos: number
+          checklists_esperados: number
+          comprovantes_perdidos: number
+          created_at: string
+          created_by: string
+          danos_veiculo: number
+          defeitos_sem_lancamento: number
+          driver_id: string
+          ferramentas_danificadas: number
+          id: string
+          km_sem_telemetria: number
+          observacoes: string | null
+          period_end: string
+          period_start: string
+        }
+        Insert: {
+          checklists_completos?: number
+          checklists_esperados?: number
+          comprovantes_perdidos?: number
+          created_at?: string
+          created_by: string
+          danos_veiculo?: number
+          defeitos_sem_lancamento?: number
+          driver_id: string
+          ferramentas_danificadas?: number
+          id?: string
+          km_sem_telemetria?: number
+          observacoes?: string | null
+          period_end: string
+          period_start: string
+        }
+        Update: {
+          checklists_completos?: number
+          checklists_esperados?: number
+          comprovantes_perdidos?: number
+          created_at?: string
+          created_by?: string
+          danos_veiculo?: number
+          defeitos_sem_lancamento?: number
+          driver_id?: string
+          ferramentas_danificadas?: number
+          id?: string
+          km_sem_telemetria?: number
+          observacoes?: string | null
+          period_end?: string
+          period_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_performance_records_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_vehicle_assignments: {
+        Row: {
+          assigned_at: string
+          created_by: string
+          driver_id: string
+          id: string
+          km_fim: number | null
+          km_inicio: number
+          returned_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          created_by: string
+          driver_id: string
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number
+          returned_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          assigned_at?: string
+          created_by?: string
+          driver_id?: string
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number
+          returned_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_vehicle_assignments_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_vehicle_assignments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drivers: {
+        Row: {
+          categoria_cnh: string
+          cnh: string
+          cnh_validade: string
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          status: Database["public"]["Enums"]["driver_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          categoria_cnh?: string
+          cnh: string
+          cnh_validade: string
+          created_at?: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["driver_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          categoria_cnh?: string
+          cnh?: string
+          cnh_validade?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["driver_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      maintenance_tickets: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string
+          descricao: string | null
+          driver_id: string | null
+          fotos: string[] | null
+          id: string
+          prioridade: Database["public"]["Enums"]["ticket_priority"]
+          status: Database["public"]["Enums"]["ticket_status"]
+          tipo: Database["public"]["Enums"]["ticket_type"]
+          titulo: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          driver_id?: string | null
+          fotos?: string[] | null
+          id?: string
+          prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          status?: Database["public"]["Enums"]["ticket_status"]
+          tipo?: Database["public"]["Enums"]["ticket_type"]
+          titulo: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          driver_id?: string | null
+          fotos?: string[] | null
+          id?: string
+          prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          status?: Database["public"]["Enums"]["ticket_status"]
+          tipo?: Database["public"]["Enums"]["ticket_type"]
+          titulo?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_tickets_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          cargo: string | null
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          adesao_id: string | null
+          ano: number | null
+          created_at: string
+          id: string
+          km_atual: number
+          marca: string
+          modelo: string
+          placa: string
+          status: Database["public"]["Enums"]["vehicle_status"]
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          adesao_id?: string | null
+          ano?: number | null
+          created_at?: string
+          id?: string
+          km_atual?: number
+          marca: string
+          modelo: string
+          placa: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adesao_id?: string | null
+          ano?: number | null
+          created_at?: string
+          id?: string
+          km_atual?: number
+          marca?: string
+          modelo?: string
+          placa?: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      app_role: "admin" | "tecnico"
+      driver_status: "ativo" | "inativo"
+      ticket_priority: "baixa" | "media" | "alta" | "critica"
+      ticket_status: "aberto" | "em_andamento" | "aguardando_peca" | "concluido"
+      ticket_type: "preventiva" | "corretiva" | "nao_conformidade"
+      vehicle_status: "disponivel" | "em_uso" | "manutencao"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "tecnico"],
+      driver_status: ["ativo", "inativo"],
+      ticket_priority: ["baixa", "media", "alta", "critica"],
+      ticket_status: ["aberto", "em_andamento", "aguardando_peca", "concluido"],
+      ticket_type: ["preventiva", "corretiva", "nao_conformidade"],
+      vehicle_status: ["disponivel", "em_uso", "manutencao"],
+    },
+  },
+} as const
