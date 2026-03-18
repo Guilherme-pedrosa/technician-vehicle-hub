@@ -44,25 +44,30 @@ function extractKmValue(payload: unknown): number {
     "odometro_percorrido",
   ];
 
-  if (typeof payload === "number") return payload;
+  if (typeof payload === "number") return Number.isFinite(payload) ? payload : 0;
+
   if (typeof payload === "string") {
-    const normalized = Number(payload.replace(".", "").replace(",", "."));
+    const normalized = Number(payload.replace(/\./g, "").replace(",", "."));
     return Number.isFinite(normalized) ? normalized : 0;
   }
 
   if (Array.isArray(payload)) {
-    return payload.reduce((sum, item) => sum + extractKmValue(item), 0);
+    return payload.reduce<number>((sum, item) => sum + extractKmValue(item), 0);
   }
 
   if (payload && typeof payload === "object") {
     const record = payload as Record<string, unknown>;
+
     for (const key of candidates) {
       const value = record[key];
       if (value !== undefined) return extractKmValue(value);
     }
 
     if ("data" in record) return extractKmValue(record.data);
-    return Object.values(record).reduce((sum, value) => sum + extractKmValue(value), 0);
+
+    return Object.values(record).reduce<number>((sum, value) => {
+      return sum + extractKmValue(value);
+    }, 0);
   }
 
   return 0;
