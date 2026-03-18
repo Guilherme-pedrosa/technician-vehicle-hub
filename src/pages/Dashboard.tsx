@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, CalendarDays, CalendarRange, Calendar,
-  UserCheck,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck,
 } from "lucide-react";
 import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
