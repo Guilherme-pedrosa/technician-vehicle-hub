@@ -149,8 +149,8 @@ export default function Condutores() {
 
   const filtered = drivers.filter((d) => {
     const matchSearch =
-      d.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      d.cnh.includes(search);
+      (d.full_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (d.cnh ?? "").includes(search);
     const matchStatus = statusFilter === "todos" || d.status === statusFilter;
     return matchSearch && matchStatus;
   });

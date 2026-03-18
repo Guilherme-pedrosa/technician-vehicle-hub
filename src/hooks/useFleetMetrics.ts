@@ -101,10 +101,11 @@ export function useFleetMetrics() {
       const results = await Promise.allSettled(
         vehicles.map(async (vehicle) => {
           const adesaoId = vehicle.adesao_id!;
+          const { getResumoDia } = await import("@/services/rotaexata");
           const [dia, semana, mes] = await Promise.allSettled([
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.hoje, data_fim: ranges.fim }),
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.semana, data_fim: ranges.fim }),
-            getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.mes, data_fim: ranges.fim }),
+            getResumoDia(adesaoId, ranges.hoje),
+            getResumoDia(adesaoId, ranges.semana),
+            getResumoDia(adesaoId, ranges.mes),
           ]);
 
           return {
