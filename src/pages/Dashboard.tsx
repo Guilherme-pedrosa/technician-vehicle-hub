@@ -1,9 +1,15 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2, RefreshCw, CalendarDays, CalendarRange, Calendar } from "lucide-react";
+import {
+  Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
+  Gauge, Radio, Loader2, RefreshCw, CalendarDays, CalendarRange, Calendar,
+  UserCheck,
+} from "lucide-react";
 import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,7 +23,7 @@ export default function Dashboard() {
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("drivers").select("id, status, cnh_validade");
+      const { data, error } = await supabase.from("drivers").select("id, full_name, status, cnh_validade");
       if (error) throw error;
       return data;
     },
@@ -31,6 +37,58 @@ export default function Dashboard() {
       return data;
     },
   });
+
+  // Active assignments for driver ↔ vehicle mapping
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["assignments-dashboard"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("driver_vehicle_assignments")
+        .select("driver_id, vehicle_id")
+        .is("returned_at", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Build driver → vehicles map
+  const driverTelemetryRows = useMemo(() => {
+    if (!drivers.length || !telemetryVehicles.length) return [];
+
+    // Map vehicle_id → telemetry row
+    const vehicleMap = new Map(telemetryVehicles.map(v => [v.id, v]));
+
+    // Group assignments by driver
+    const driverVehicles = new Map<string, typeof telemetryVehicles>();
+    assignments.forEach(a => {
+      const vehicle = vehicleMap.get(a.vehicle_id);
+      if (vehicle) {
+        const list = driverVehicles.get(a.driver_id) ?? [];
+        list.push(vehicle);
+        driverVehicles.set(a.driver_id, list);
+      }
+    });
+
+    // Build rows per driver
+    return drivers
+      .filter(d => d.status === "ativo" && driverVehicles.has(d.id))
+      .map(d => {
+        const vehicles = driverVehicles.get(d.id) ?? [];
+        const kmRodado = vehicles.reduce((sum, v) => sum + v.kmAtual, 0);
+        const telemetrias = vehicles.filter(v => v.posicao).length;
+        const kmPorTelemetria = telemetrias > 0 ? kmRodado / telemetrias : 0;
+
+        return {
+          id: d.id,
+          nome: d.full_name,
+          kmRodado,
+          telemetrias,
+          kmPorTelemetria,
+          vehicles,
+        };
+      })
+      .sort((a, b) => b.kmRodado - a.kmRodado);
+  }, [drivers, telemetryVehicles, assignments]);
 
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
   const cnhVencidas = drivers.filter((d) => d.status === "ativo" && isPast(new Date(d.cnh_validade))).length;
@@ -105,10 +163,76 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* === TABELA POR TÉCNICO === */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Radio className="w-4 h-4 text-primary" /> Telemetria por KM
+            <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
+            {loadingMetrics && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table className="table-enterprise">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Técnico</TableHead>
+                <TableHead className="text-right">Soma de KM Rodado</TableHead>
+                <TableHead className="text-right">Telemetrias</TableHead>
+                <TableHead className="text-right">KM por Telemetria</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {driverTelemetryRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    {assignments.length === 0
+                      ? "Vincule condutores aos veículos para ver os dados"
+                      : "Nenhum dado de telemetria encontrado"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <>
+                  {driverTelemetryRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.nome}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {row.kmRodado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{row.telemetrias}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.kmPorTelemetria.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* Total row */}
+                  <TableRow className="bg-muted/50 font-bold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {driverTelemetryRows.reduce((s, r) => s + r.telemetrias, 0)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {(() => {
+                        const totalKm = driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0);
+                        const totalTel = driverTelemetryRows.reduce((s, r) => s + r.telemetrias, 0);
+                        return totalTel > 0 ? (totalKm / totalTel).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00";
+                      })()}
+                    </TableCell>
+                  </TableRow>
+                </>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* === TELEMETRIA POR VEÍCULO === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Radio className="w-4 h-4 text-primary" /> Telemetria por Veículo
             {loadingMetrics && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
         </CardHeader>
