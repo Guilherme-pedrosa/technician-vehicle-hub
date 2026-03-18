@@ -181,18 +181,21 @@ export default function Veiculos() {
 
       {/* Status filter cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {(["todos", "disponivel", "em_uso", "manutencao"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`status-card ${statusFilter === s ? "status-card-active status-card-${s === "todos" ? "total" : s === "disponivel" ? "paid" : s === "em_uso" ? "upcoming" : "overdue"}" : ""}`}
-          >
-            <span className="status-card-count">{counts[s]}</span>
-            <span className="status-card-label">
-              {s === "todos" ? "Todos" : STATUS_MAP[s].label}
-            </span>
-          </button>
-        ))}
+        {(["todos", "disponivel", "em_uso", "manutencao"] as const).map((s) => {
+          const borderClass = s === "todos" ? "status-card-total" : s === "disponivel" ? "status-card-paid" : s === "em_uso" ? "status-card-upcoming" : "status-card-overdue";
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`status-card ${statusFilter === s ? `status-card-active ${borderClass}` : ""}`}
+            >
+              <span className="status-card-count">{counts[s]}</span>
+              <span className="status-card-label">
+                {s === "todos" ? "Todos" : STATUS_MAP[s].label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}

@@ -187,18 +187,21 @@ export default function Condutores() {
 
       {/* Status filter */}
       <div className="grid grid-cols-3 gap-3 max-w-md">
-        {(["todos", "ativo", "inativo"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`status-card ${statusFilter === s ? "status-card-active status-card-${s === "todos" ? "total" : s === "ativo" ? "paid" : "overdue"}" : ""}`}
-          >
-            <span className="status-card-count">{counts[s]}</span>
-            <span className="status-card-label">
-              {s === "todos" ? "Todos" : s === "ativo" ? "Ativos" : "Inativos"}
-            </span>
-          </button>
-        ))}
+        {(["todos", "ativo", "inativo"] as const).map((s) => {
+          const borderClass = s === "todos" ? "status-card-total" : s === "ativo" ? "status-card-paid" : "status-card-overdue";
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`status-card ${statusFilter === s ? `status-card-active ${borderClass}` : ""}`}
+            >
+              <span className="status-card-count">{counts[s]}</span>
+              <span className="status-card-label">
+                {s === "todos" ? "Todos" : s === "ativo" ? "Ativos" : "Inativos"}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
