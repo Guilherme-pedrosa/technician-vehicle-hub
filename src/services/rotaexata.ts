@@ -4,6 +4,37 @@ const FUNCTION_NAME = "rotaexata-proxy";
 
 type RotaExataEnvelope<T> = T | { data: T };
 
+export type RotaExataAdesaoResponse = {
+  id: number;
+  placa: string;
+  [key: string]: unknown;
+};
+
+export type RotaExataPosicaoResponse = {
+  adesao_id: number;
+  placa?: string;
+  latitude: number;
+  longitude: number;
+  velocidade: number;
+  ignicao: boolean;
+  data_posicao: string;
+  endereco?: string;
+  odometro?: number;
+  direcao?: number;
+  [key: string]: unknown;
+};
+
+export type RotaExataUsuarioResponse = {
+  id: number;
+  nome: string;
+  [key: string]: unknown;
+};
+
+export type RotaExataChecklistResponse = {
+  id: number;
+  [key: string]: unknown;
+};
+
 type RawRotaExataPosicao = {
   posicao?: Record<string, unknown>;
   adesao_id?: number | string;
@@ -34,13 +65,14 @@ function unwrapRotaExataResponse<T>(payload: RotaExataEnvelope<T>): T {
   return payload as T;
 }
 
-function normalizePosicao(item: RawRotaExataPosicao) {
+function normalizePosicao(item: RawRotaExataPosicao): RotaExataPosicaoResponse {
   const posicao = ((item.posicao as Record<string, unknown> | undefined) ?? item) as RawRotaExataPosicao;
   const ignicao = posicao.ignicao;
+  const adesaoId = Number(posicao.adesao_id ?? posicao.adesao?.id ?? item.adesao_id ?? 0);
 
   return {
     ...posicao,
-    adesao_id: posicao.adesao_id ?? posicao.adesao?.id ?? item.adesao_id,
+    adesao_id: Number.isFinite(adesaoId) ? adesaoId : 0,
     placa: posicao.placa ?? posicao.adesao?.vei_placa ?? item.placa,
     latitude: Number(posicao.latitude ?? 0),
     longitude: Number(posicao.longitude ?? 0),
@@ -53,7 +85,6 @@ function normalizePosicao(item: RawRotaExataPosicao) {
   };
 }
 
-// Direct fetch approach for query param support
 async function rotaExataFetch<T = unknown>(
   path: string,
   method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
@@ -100,62 +131,53 @@ async function rotaExataFetch<T = unknown>(
 // API DE RASTREAMENTO
 // ===========================
 
-/** Retorna todas as adesões (veículos rastreados) */
-export async function getAdesoes(where?: string) {
+export async function getAdesoes(where?: string): Promise<RotaExataAdesaoResponse[]> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown[]>>("/adesoes", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<RotaExataAdesaoResponse[]>>("/adesoes", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna uma adesão específica */
-export async function getAdesao(id: string) {
+export async function getAdesao(id: string): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(`/adesoes/${id}`);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna a última posição de todos os veículos */
-export async function getUltimaPosicaoTodos() {
+export async function getUltimaPosicaoTodos(): Promise<RotaExataPosicaoResponse[]> {
   const response = await rotaExataFetch<RotaExataEnvelope<RawRotaExataPosicao[]>>("/ultima-posicao/todos");
   const items = unwrapRotaExataResponse(response);
   return Array.isArray(items) ? items.map(normalizePosicao) : [];
 }
 
-/** Retorna a última posição de um veículo */
-export async function getUltimaPosicao(adesaoId: string) {
+export async function getUltimaPosicao(adesaoId: string): Promise<RotaExataPosicaoResponse> {
   const response = await rotaExataFetch<RotaExataEnvelope<RawRotaExataPosicao | RawRotaExataPosicao[]>>(`/ultima-posicao/${adesaoId}`);
   const item = unwrapRotaExataResponse(response);
   return Array.isArray(item) ? normalizePosicao(item[0] ?? {}) : normalizePosicao(item ?? {});
 }
 
-/** Retorna todas as posições de um veículo no dia */
-export async function getPosicoes(adesaoId: string, data: string) {
+export async function getPosicoes(adesaoId: string, data: string): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(`/posicoes/${adesaoId}/${data}`);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna posições tratadas de um veículo no dia */
-export async function getAtivar(adesaoId: string, data: string) {
+export async function getAtivar(adesaoId: string, data: string): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(`/ativar/${adesaoId}/${data}`);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna resumo do dia de um veículo */
-export async function getResumoDia(adesaoId: string, data: string) {
+export async function getResumoDia(adesaoId: string, data: string): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(`/resumo-dia/${adesaoId}/${data}`);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna dados do odômetro */
-export async function getOdometro(where?: string) {
+export async function getOdometro(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/odometro", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Atualiza o odômetro */
-export async function updateOdometro(body: { adesao_id: number; odometro: number }) {
+export async function updateOdometro(body: { adesao_id: number; odometro: number }): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/odometro", "POST", undefined, body);
   return unwrapRotaExataResponse(response);
 }
@@ -164,18 +186,16 @@ export async function updateOdometro(body: { adesao_id: number; odometro: number
 // COMANDOS
 // ===========================
 
-/** Envia comando para veículo (bloqueio/desbloqueio) */
 export async function enviarComando(body: {
   adesao_id: number;
   comando: "bloqueio" | "desbloqueio";
   expirar: number;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/comando", "POST", undefined, body);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna comandos enviados */
-export async function getComandosEnviados(where?: string) {
+export async function getComandosEnviados(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/comandos-enviados", "GET", params);
@@ -186,92 +206,83 @@ export async function getComandosEnviados(where?: string) {
 // RELATÓRIOS DE RASTREAMENTO
 // ===========================
 
-/** Relatório de KM rodado */
 export async function getRelatorioKmRodado(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/kmrodado", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de dirigibilidade (freada brusca, curva, etc) */
 export async function getRelatorioDirigibilidade(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/dirigibilidade", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de deslocamento ponto a ponto */
 export async function getRelatorioDeslocamento(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/deslocamento", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de jornada de trabalho analítico */
 export async function getRelatorioJornadaAnalitico(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_analitico", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de jornada de trabalho sumarizado */
 export async function getRelatorioJornadaSumarizado(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_sumarizado", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de uso indevido */
 export async function getRelatorioUsoIndevido(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/uso_indevido", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de paradas e passagens */
 export async function getRelatorioParadasPassagens(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/paradas_passagens", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório de log de motorista */
 export async function getRelatorioLogMotorista(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/log_motorista", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Relatório rua por rua */
 export async function getRelatorioRuaPorRua(params: {
   adesao_id: string;
   data_inicio: string;
   data_fim: string;
-}) {
+}): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/ruaPorRua", "GET", params);
   return unwrapRotaExataResponse(response);
 }
@@ -280,7 +291,7 @@ export async function getRelatorioRuaPorRua(params: {
 // CERCAS
 // ===========================
 
-export async function getCercas(where?: string) {
+export async function getCercas(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/cercas", "GET", params);
@@ -291,16 +302,14 @@ export async function getCercas(where?: string) {
 // MÓDULOS - GESTÃO
 // ===========================
 
-/** Retorna custos registrados */
-export async function getCustos(where?: string) {
+export async function getCustos(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-/** Retorna multas registradas */
-export async function getMultas(where?: string) {
+export async function getMultas(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/multas", "GET", params);
@@ -311,11 +320,10 @@ export async function getMultas(where?: string) {
 // MÓDULOS - AUTOMAÇÃO
 // ===========================
 
-/** Retorna respostas de formulários */
-export async function getRespostas(where?: string) {
+export async function getRespostas(where?: string): Promise<RotaExataChecklistResponse[]> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/respostas", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<RotaExataChecklistResponse[]>>("/respostas", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
@@ -323,14 +331,14 @@ export async function getRespostas(where?: string) {
 // DESTINOS
 // ===========================
 
-export async function getDestinos(where?: string) {
+export async function getDestinos(where?: string): Promise<unknown> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/destinos", "GET", params);
   return unwrapRotaExataResponse(response);
 }
 
-export async function getDestinosProximos(lat: number, long: number, raio: number) {
+export async function getDestinosProximos(lat: number, long: number, raio: number): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(`/destinos-proximos/${lat}/${long}/${raio}`);
   return unwrapRotaExataResponse(response);
 }
@@ -339,9 +347,9 @@ export async function getDestinosProximos(lat: number, long: number, raio: numbe
 // USUÁRIOS (Motoristas no Rota Exata)
 // ===========================
 
-export async function getUsuariosRotaExata(where?: string) {
+export async function getUsuariosRotaExata(where?: string): Promise<RotaExataUsuarioResponse[]> {
   const params: Record<string, string> = {};
   if (where) params.where = where;
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown[]>>("/usuarios", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<RotaExataUsuarioResponse[]>>("/usuarios", "GET", params);
   return unwrapRotaExataResponse(response);
 }
