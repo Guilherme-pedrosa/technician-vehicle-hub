@@ -21,8 +21,13 @@ type ResumoDiaBasico = {
 type ResumoDiaResponse = {
   basico?: ResumoDiaBasico;
   posicao?: {
+    dt_posicao?: string;
+    dt_final_vinculo_motorista?: string;
     motorista?: ResumoDiaMotorista;
+    telemetry?: Array<unknown>;
     deslocamento?: {
+      dtInicio?: string;
+      dtFinal?: string;
       motorista?: ResumoDiaMotorista;
     };
   };
@@ -31,16 +36,37 @@ type ResumoDiaResponse = {
 export type ResumoDiaRow = {
   adesaoId: string;
   placa: string;
-  kmHoje: number; // in km
+  kmHoje: number;
   telemetrias: number;
   motorista?: { id: number; nome: string };
 };
+
+const ROTA_EXATA_LOCAL_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function toRotaExataLocalDate(value?: string) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Date(parsed.getTime() - ROTA_EXATA_LOCAL_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function hasDriverContextForDate(raw: ResumoDiaResponse, targetDate: string) {
+  const candidateDates = [
+    raw.posicao?.dt_final_vinculo_motorista,
+    raw.posicao?.dt_posicao,
+    raw.posicao?.deslocamento?.dtInicio,
+    raw.posicao?.deslocamento?.dtFinal,
+  ];
+
+  return candidateDates.some((value) => toRotaExataLocalDate(value) === targetDate);
+}
 
 export function useResumoDiaFrota(dateStr?: string) {
   const { rows: vehicles, isLoading: loadingVehicles } = useFleetMetrics();
   const hoje = dateStr ?? format(new Date(), "yyyy-MM-dd");
 
-  // Get adesao IDs for all vehicles that have telemetry
   const adesaoIds = useMemo(
     () => vehicles.filter((v) => v.adesaoId).map((v) => v.adesaoId!),
     [vehicles]
@@ -51,7 +77,6 @@ export function useResumoDiaFrota(dateStr?: string) {
     queryFn: async () => {
       if (!adesaoIds.length) return [];
 
-      // Fetch resumo-dia for all vehicles in parallel
       const results = await Promise.allSettled(
         adesaoIds.map(async (adesaoId) => {
           const raw = (await getResumoDia(adesaoId, hoje)) as ResumoDiaResponse;
@@ -59,20 +84,20 @@ export function useResumoDiaFrota(dateStr?: string) {
 
           const kmMeters = raw?.basico?.km?.total ?? 0;
           const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
-
-          // Get motorista from posicao or deslocamento
-          const motorista =
-            raw?.posicao?.motorista ?? raw?.posicao?.deslocamento?.motorista ?? undefined;
+          const hasValidDriverContext = hasDriverContextForDate(raw, hoje);
+          const motorista = hasValidDriverContext
+            ? raw?.posicao?.deslocamento?.motorista ?? raw?.posicao?.motorista ?? undefined
+            : undefined;
 
           return {
             adesaoId,
             placa: vehicle?.placa ?? adesaoId,
-            kmHoje: kmMeters / 1000, // meters to km
+            kmHoje: kmMeters / 1000,
             telemetrias,
             motorista: motorista?.id
               ? { id: motorista.id, nome: motorista.nome }
               : undefined,
-          } as ResumoDiaRow;
+          } satisfies ResumoDiaRow;
         })
       );
 
@@ -85,7 +110,6 @@ export function useResumoDiaFrota(dateStr?: string) {
     refetchInterval: 2 * 60 * 1000,
   });
 
-  // Aggregate by driver
   const driverRows = useMemo(() => {
     const data = query.data ?? [];
     const groups = new Map<string, { nome: string; kmHoje: number; telemetrias: number }>();
@@ -93,26 +117,29 @@ export function useResumoDiaFrota(dateStr?: string) {
     data.forEach((row) => {
       const key = row.motorista ? String(row.motorista.id) : "sem-condutor";
       const nome = row.motorista?.nome ?? "Sem condutor vinculado";
+
       if (!groups.has(key)) {
         groups.set(key, { nome, kmHoje: 0, telemetrias: 0 });
       }
-      const g = groups.get(key)!;
-      g.kmHoje += row.kmHoje;
-      g.telemetrias += row.telemetrias;
+
+      const group = groups.get(key)!;
+      group.kmHoje += row.kmHoje;
+      group.telemetrias += row.telemetrias;
     });
 
     return Array.from(groups.entries())
-      .map(([id, g]) => {
-        const kmRodado = Math.round(g.kmHoje * 100) / 100;
+      .map(([id, group]) => {
+        const kmRodado = Math.round(group.kmHoje * 100) / 100;
         const kmPorTelemetria =
-          g.telemetrias > 0
-            ? Math.round((g.kmHoje / g.telemetrias) * 100) / 100
-            : kmRodado; // se telemetria=0, km por telemetria = km rodado
+          group.telemetrias > 0
+            ? Math.round((group.kmHoje / group.telemetrias) * 100) / 100
+            : kmRodado;
+
         return {
           id,
-          nome: g.nome,
+          nome: group.nome,
           kmRodado,
-          telemetrias: g.telemetrias,
+          telemetrias: group.telemetrias,
           kmPorTelemetria,
         };
       })
@@ -120,12 +147,12 @@ export function useResumoDiaFrota(dateStr?: string) {
   }, [query.data]);
 
   const totalKmHoje = useMemo(
-    () => (query.data ?? []).reduce((sum, r) => sum + r.kmHoje, 0),
+    () => (query.data ?? []).reduce((sum, row) => sum + row.kmHoje, 0),
     [query.data]
   );
 
   const totalTelemetrias = useMemo(
-    () => (query.data ?? []).reduce((sum, r) => sum + r.telemetrias, 0),
+    () => (query.data ?? []).reduce((sum, row) => sum + row.telemetrias, 0),
     [query.data]
   );
 
