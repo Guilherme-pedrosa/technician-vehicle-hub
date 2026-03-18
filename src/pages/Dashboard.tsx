@@ -200,9 +200,7 @@ export default function Dashboard() {
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    {assignments.length === 0
-                      ? "Vincule condutores aos veículos para ver os dados"
-                      : "Nenhum dado de telemetria encontrado"}
+                    Nenhum dado de telemetria encontrado
                   </TableCell>
                 </TableRow>
               ) : (
