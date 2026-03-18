@@ -1,55 +1,152 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* FleetDesk - Enterprise Design System v2.0
+   Referência: WAI ERP Ecosystem
+   Ultra clean, sofisticado, profissional
+*/
+
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
+    /* Font - Inter */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-    --card: 224 71% 7%;
-    --card-foreground: 213 31% 91%;
+    /* ===========================================
+       PALETA DE CORES - Especificação v2.0
+       =========================================== */
+    
+    /* Background - Branco puro */
+    --background: 0 0% 100%;
+    --foreground: 215 25% 17%; /* #1E293B */
 
-    --popover: 224 71% 7%;
-    --popover-foreground: 213 31% 91%;
+    /* Fundo alternativo - Cinza Fundo */
+    --background-muted: 210 40% 98%; /* #F8FAFC */
 
-    --primary: 213 94% 55%;
-    --primary-foreground: 224 71% 4%;
+    /* Cards - Branco puro */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
 
-    --secondary: 224 50% 14%;
-    --secondary-foreground: 213 31% 91%;
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
 
-    --muted: 224 50% 12%;
-    --muted-foreground: 215 20% 55%;
+    /* Primary - Azul Elétrico (Ação) */
+    --primary: 217 100% 50%; /* #0066FF */
+    --primary-foreground: 0 0% 100%;
 
-    --accent: 224 50% 14%;
-    --accent-foreground: 213 31% 91%;
+    /* Secondary - Branco com borda */
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 215 25% 17%;
 
-    --destructive: 0 72% 51%;
+    /* Muted */
+    --muted: 210 40% 98%; /* #F8FAFC */
+    --muted-foreground: 215 16% 47%; /* #64748B */
+
+    /* Accent */
+    --accent: 210 40% 98%;
+    --accent-foreground: 215 25% 17%;
+
+    /* Destructive - Erro */
+    --destructive: 0 84% 60%; /* #EF4444 */
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
+    /* Borders - Borda sutil */
+    --border: 214 32% 91%; /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 217 100% 50%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 0%;
+    --radius: 0.5rem; /* 8px base */
 
-    --border: 224 30% 18%;
-    --input: 224 30% 18%;
-    --ring: 213 94% 55%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 224 71% 5%;
-    --sidebar-foreground: 213 31% 85%;
-    --sidebar-primary: 213 94% 55%;
+    /* ===========================================
+       SIDEBAR - Navy (#0A1628)
+       =========================================== */
+    --sidebar-background: 216 60% 10%; /* #0A1628 */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 217 100% 50%; /* #0066FF */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 224 50% 12%;
-    --sidebar-accent-foreground: 213 31% 91%;
-    --sidebar-border: 224 30% 15%;
-    --sidebar-ring: 213 94% 55%;
+    --sidebar-accent: 216 60% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 216 50% 18%;
+    --sidebar-ring: 217 100% 50%;
+    --sidebar-muted: 216 40% 25%;
+
+    /* ===========================================
+       CORES SEMÂNTICAS
+       =========================================== */
+    --success: 160 84% 39%; /* #10B981 */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%; /* #F59E0B */
+    --warning-foreground: 215 25% 17%;
+    --error: 0 84% 60%; /* #EF4444 */
+    --error-foreground: 0 0% 100%;
+    --info: 217 100% 50%; /* #0066FF */
+    --info-foreground: 0 0% 100%;
+
+    /* ===========================================
+       CHART COLORS
+       =========================================== */
+    --chart-1: 217 100% 50%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 0 84% 60%;
+  }
+
+  .dark {
+    --background: 216 60% 6%;
+    --foreground: 210 40% 98%;
+    --background-muted: 216 60% 10%;
+
+    --card: 216 60% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 216 60% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 100% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 216 60% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 216 60% 15%;
+    --muted-foreground: 215 16% 55%;
+
+    --accent: 216 60% 15%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 50% 20%;
+    --input: 216 50% 20%;
+    --ring: 217 100% 55%;
+
+    --sidebar-background: 216 60% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 60% 10%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 216 50% 15%;
+    --sidebar-ring: 217 100% 55%;
+    --sidebar-muted: 216 40% 18%;
+
+    --success: 160 84% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 216 60% 6%;
+    --error: 0 72% 55%;
+    --error-foreground: 0 0% 100%;
+    --info: 217 100% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --chart-1: 217 100% 55%;
+    --chart-2: 160 84% 45%;
+    --chart-3: 38 92% 55%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 0 72% 55%;
   }
 }
 
@@ -58,28 +155,638 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+  /* ===========================================
+     TIPOGRAFIA - Escala Inter
+     =========================================== */
+  
+  .text-display {
+    @apply text-[32px] leading-[40px] font-bold tracking-tight;
+  }
+
+  h1, .h1 {
+    @apply text-[24px] leading-[32px] font-bold tracking-tight text-foreground;
+  }
+
+  h2, .h2 {
+    @apply text-[18px] leading-[28px] font-semibold tracking-tight text-foreground;
+  }
+
+  h3, .h3 {
+    @apply text-[16px] leading-[24px] font-semibold text-foreground;
+  }
+
+  p, .text-body {
+    @apply text-[14px] leading-[20px] text-muted-foreground;
+  }
+
+  .text-small {
+    @apply text-[12px] leading-[16px] font-medium;
+  }
+
+  .text-tiny {
+    @apply text-[11px] leading-[14px];
   }
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@layer components {
+  /* ===========================================
+     BOTÕES
+     =========================================== */
+  
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium;
+    @apply transition-all duration-150 ease-out;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+    @apply active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground px-6 py-3;
+    @apply hover:bg-primary/90;
+  }
+
+  .btn-secondary {
+    @apply btn bg-secondary text-foreground px-6 py-3 border border-border;
+    @apply hover:bg-muted;
+  }
+
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+
+  /* ===========================================
+     CARDS - Border-radius: 12px, Shadow sutil
+     =========================================== */
+  
+  .card-enterprise {
+    @apply bg-card rounded-xl border border-border p-6;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  .card-enterprise:hover {
+    @apply border-border/80;
+  }
+
+  /* ===========================================
+     INPUTS
+     =========================================== */
+  
+  .input-enterprise {
+    @apply w-full bg-background border border-border rounded-lg px-4 py-3;
+    @apply text-foreground placeholder:text-muted-foreground;
+    @apply focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none;
+    @apply transition-colors duration-150;
+  }
+
+  .input-label {
+    @apply block text-[12px] font-medium text-muted-foreground mb-2;
+  }
+
+  .input-error {
+    @apply border-destructive focus:border-destructive focus:ring-destructive;
+  }
+
+  .input-error-message {
+    @apply text-[12px] text-destructive mt-1 animate-fade-in;
+  }
+
+  /* ===========================================
+     TABELAS - Header #F8FAFC, sem bordas verticais
+     =========================================== */
+  
+  .table-enterprise {
+    @apply w-full;
+  }
+
+  .table-enterprise thead {
+    @apply bg-muted;
+  }
+
+  .table-enterprise th {
+    @apply text-left text-[12px] font-semibold text-muted-foreground uppercase tracking-wide;
+    @apply py-3 px-4;
+  }
+
+  .table-enterprise th:last-child {
+    @apply text-right;
+  }
+
+  .table-enterprise td {
+    @apply py-4 px-4 text-[14px] text-foreground border-b border-border;
+  }
+
+  .table-enterprise td:last-child {
+    @apply text-right;
+  }
+
+  .table-enterprise tr:hover td {
+    @apply bg-muted/50;
+  }
+
+  .table-enterprise .numeric {
+    @apply text-right tabular-nums;
+  }
+
+  /* ===========================================
+     KPI CARDS
+     =========================================== */
+  
+  .kpi-card {
+    @apply card-enterprise cursor-pointer transition-all duration-150;
+    @apply hover:shadow-md hover:border-primary/20;
+  }
+
+  .kpi-card-title {
+    @apply flex items-center gap-2 text-[12px] font-medium text-muted-foreground mb-2;
+  }
+
+  .kpi-card-value {
+    @apply text-display text-foreground;
+  }
+
+  .kpi-card-trend {
+    @apply flex items-center gap-1 text-[12px] font-medium mt-2;
+  }
+
+  .kpi-card-trend-up {
+    @apply text-success;
+  }
+
+  .kpi-card-trend-down {
+    @apply text-destructive;
+  }
+
+  /* ===========================================
+     STATUS CARDS (Filtros Visuais)
+     =========================================== */
+  
+  .status-card {
+    @apply flex flex-col p-4 rounded-xl border-2 border-transparent cursor-pointer;
+    @apply bg-card transition-all duration-150;
+    @apply hover:bg-muted/50;
+  }
+
+  .status-card-active {
+    @apply bg-muted/70 border-b-[3px];
+  }
+
+  .status-card-count {
+    @apply text-[24px] font-bold tabular-nums;
+  }
+
+  .status-card-value {
+    @apply text-[12px] font-medium text-muted-foreground tabular-nums;
+  }
+
+  .status-card-label {
+    @apply text-[12px] font-medium text-muted-foreground mt-1;
+  }
+
+  .status-card-overdue { @apply border-b-destructive; }
+  .status-card-today { @apply border-b-warning; }
+  .status-card-upcoming { @apply border-b-info; }
+  .status-card-paid { @apply border-b-success; }
+  .status-card-total { @apply border-b-muted-foreground; }
+
+  /* ===========================================
+     AI BANNER
+     =========================================== */
+  
+  .ai-banner {
+    @apply flex items-start gap-4 p-4 rounded-xl;
+    background-color: hsl(217 100% 97%);
+    @apply border border-primary/10;
+  }
+
+  .ai-banner-icon {
+    @apply h-5 w-5 text-primary flex-shrink-0 mt-0.5;
+  }
+
+  .ai-banner-content {
+    @apply flex-1 min-w-0;
+  }
+
+  .ai-banner-text {
+    @apply text-[14px] text-foreground;
+  }
+
+  .ai-banner-action {
+    @apply btn-primary btn-sm flex-shrink-0;
+  }
+
+  .ai-banner-dismiss {
+    @apply h-6 w-6 flex items-center justify-center rounded-md;
+    @apply text-muted-foreground hover:text-foreground hover:bg-background/50;
+    @apply transition-colors cursor-pointer;
+  }
+
+  /* ===========================================
+     SIDEBAR - Navy #0A1628
+     =========================================== */
+  
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg;
+    @apply text-[14px] font-medium text-sidebar-foreground/80;
+    @apply transition-all duration-150 cursor-pointer;
+    @apply hover:bg-sidebar-accent hover:text-sidebar-foreground;
+  }
+
+  .sidebar-item-active {
+    @apply bg-sidebar-accent text-sidebar-foreground;
+    @apply relative;
+  }
+
+  .sidebar-item-active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] bg-primary rounded-r;
+  }
+
+  .sidebar-submenu {
+    @apply ml-6 mt-1 space-y-1 overflow-hidden;
+    animation: submenu-expand 200ms ease-out;
+  }
+
+  @keyframes submenu-expand {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 500px; }
+  }
+
+  /* ===========================================
+     BARRA DE AÇÕES EM LOTE
+     =========================================== */
+  
+  .bulk-actions-bar {
+    @apply flex items-center gap-4 px-4 py-3 rounded-lg;
+    @apply bg-primary/5 border border-primary/20;
+    @apply animate-fade-in;
+  }
+
+  .bulk-actions-count {
+    @apply text-[14px] font-medium text-primary;
+  }
+
+  /* ===========================================
+     SKELETON LOADERS
+     =========================================== */
+  
+  .skeleton {
+    @apply bg-muted rounded animate-pulse;
+  }
+
+  .skeleton-text {
+    @apply h-4 w-full skeleton;
+  }
+
+  .skeleton-title {
+    @apply h-6 w-3/4 skeleton;
+  }
+
+  .skeleton-card {
+    @apply h-32 w-full skeleton rounded-xl;
+  }
+
+  .skeleton-table-row {
+    @apply flex gap-4 py-4 border-b border-border;
+  }
+
+  .skeleton-table-cell {
+    @apply h-4 skeleton flex-1;
+  }
+
+  /* ===========================================
+     TOAST NOTIFICATIONS
+     =========================================== */
+  
+  .toast-container {
+    @apply fixed top-4 right-4 z-50 flex flex-col gap-2;
+  }
+
+  .toast {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg;
+    @apply min-w-[300px] max-w-[400px];
+    animation: toast-slide-in 250ms ease-out;
+  }
+
+  .toast-success {
+    @apply bg-success text-success-foreground;
+  }
+
+  .toast-error {
+    @apply bg-destructive text-destructive-foreground;
+  }
+
+  @keyframes toast-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* ===========================================
+     MODAL/DIALOG
+     =========================================== */
+  
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/50 z-40;
+    animation: overlay-fade-in 200ms ease-out;
+  }
+
+  .modal-content {
+    @apply fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50;
+    @apply bg-card rounded-2xl shadow-xl p-6;
+    @apply max-w-lg w-full mx-4;
+    animation: modal-enter 200ms ease-out;
+  }
+
+  @keyframes overlay-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes modal-enter {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  /* ===========================================
+     DRAWER
+     =========================================== */
+  
+  .drawer {
+    @apply fixed right-0 top-0 h-full bg-card shadow-xl z-50;
+    @apply w-full max-w-md;
+    animation: drawer-slide-in 250ms ease-out;
+  }
+
+  @keyframes drawer-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  /* ===========================================
+     BADGES
+     =========================================== */
+  
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md;
+    @apply text-[11px] font-medium;
+  }
+
+  .badge-success {
+    @apply bg-success/10 text-success;
+  }
+
+  .badge-warning {
+    @apply bg-warning/10 text-warning;
+  }
+
+  .badge-error {
+    @apply bg-destructive/10 text-destructive;
+  }
+
+  .badge-info {
+    @apply bg-info/10 text-info;
+  }
+
+  .badge-muted {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  /* ===========================================
+     FILTER BAR
+     =========================================== */
+  
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-xl;
+  }
+
+  /* ===========================================
+     BREADCRUMB
+     =========================================== */
+  
+  .breadcrumb {
+    @apply flex items-center gap-2 text-[12px] text-muted-foreground;
+  }
+
+  .breadcrumb-separator {
+    @apply text-muted-foreground/50;
+  }
+
+  .breadcrumb-current {
+    @apply text-foreground font-medium;
+  }
+
+  /* ===========================================
+     LEGACY COMPONENTS
+     =========================================== */
+
+  .list-item {
+    @apply flex items-center justify-between py-4 px-4 border-b border-border last:border-b-0;
+    @apply hover:bg-muted/50 transition-colors cursor-pointer;
+  }
+
+  .list-item-icon {
+    @apply h-5 w-5 text-primary mr-4 flex-shrink-0;
+  }
+
+  .list-item-content {
+    @apply flex-1 min-w-0;
+  }
+
+  .list-item-title {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .list-item-subtitle {
+    @apply text-xs text-muted-foreground mt-0.5;
+  }
+
+  .list-item-value {
+    @apply text-sm font-medium text-foreground text-right tabular-nums;
+  }
+
+  .card-clean {
+    @apply bg-card rounded-xl border border-border;
+  }
+
+  .action-grid {
+    @apply grid grid-cols-3 gap-3;
+  }
+
+  .action-card {
+    @apply flex flex-col items-start p-4 bg-card border border-border rounded-xl;
+    @apply hover:border-primary/30 hover:bg-muted/30 transition-all cursor-pointer;
+    @apply min-h-[100px];
+  }
+
+  .action-card-icon {
+    @apply h-5 w-5 text-primary mb-3;
+  }
+
+  .action-card-title {
+    @apply text-sm font-medium text-foreground leading-tight;
+  }
+
+  .info-banner {
+    @apply flex items-start gap-3 p-4 bg-primary text-primary-foreground rounded-xl;
+  }
+
+  .progress-clean {
+    @apply h-1.5 bg-muted rounded-full overflow-hidden;
+  }
+
+  .progress-clean-fill {
+    @apply h-full bg-primary rounded-full transition-all;
+  }
+
+  .value-display {
+    @apply flex items-center justify-between py-2;
+  }
+
+  .value-label {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .value-amount {
+    @apply text-sm font-medium text-foreground tabular-nums;
+  }
+
+  .fab {
+    @apply fixed bottom-6 right-6 h-14 px-6 rounded-full bg-primary text-primary-foreground;
+    @apply flex items-center gap-2 font-medium shadow-lg;
+    @apply hover:shadow-xl transition-shadow;
+  }
+
+  .status-dot {
+    @apply h-2 w-2 rounded-full;
+  }
+
+  .status-dot-success {
+    @apply bg-success;
+  }
+
+  .status-dot-warning {
+    @apply bg-warning;
+  }
+
+  .status-dot-error {
+    @apply bg-error;
+  }
+
+  .table-clean {
+    @apply w-full;
+  }
+
+  .table-clean th {
+    @apply text-left text-xs font-medium text-muted-foreground uppercase tracking-wider py-3 px-4 border-b border-border;
+  }
+
+  .table-clean td {
+    @apply py-4 px-4 text-sm text-foreground border-b border-border;
+  }
+
+  .table-clean tr:hover td {
+    @apply bg-muted/30;
+  }
+
+  .month-nav {
+    @apply flex items-center gap-2;
+  }
+
+  .month-nav-btn {
+    @apply h-8 w-8 flex items-center justify-center rounded-lg border border-border;
+    @apply hover:bg-muted transition-colors;
+  }
+
+  .month-nav-label {
+    @apply text-sm font-medium text-foreground min-w-[120px] text-center;
+  }
 }
-::-webkit-scrollbar-track {
-  background: hsl(224 71% 4%);
+
+@layer utilities {
+  .scrollbar-clean {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-clean::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-clean::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-clean::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 2px;
+  }
+
+  .scrollbar-clean::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bg-content {
+    background-color: hsl(var(--background-muted));
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: hsl(224 30% 22%);
-  border-radius: 3px;
+
+/* ===========================================
+   ANIMAÇÕES GLOBAIS
+   =========================================== */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(213 94% 55% / 0.5);
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 150ms ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 200ms ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down 200ms ease-out;
+}
+
+.page-enter {
+  animation: fade-in 150ms ease-out;
 }
