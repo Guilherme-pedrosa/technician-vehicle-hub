@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, CalendarDays, CalendarRange, Calendar,
-  UserCheck,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck,
 } from "lucide-react";
 import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
@@ -100,27 +99,27 @@ export default function Dashboard() {
 
   const stats = [
     {
-      label: "KM Hoje",
-      value: summary.totalKmDia.toLocaleString("pt-BR"),
-      icon: CalendarDays,
+      label: "Veículos",
+      value: summary.totalVeiculos,
+      icon: Truck,
       color: "text-primary",
-      subtitle: `${summary.emMovimento} veículos em movimento`,
-      subtitleColor: "text-muted-foreground",
-    },
-    {
-      label: "KM Semana",
-      value: summary.totalKmSemana.toLocaleString("pt-BR"),
-      icon: CalendarRange,
-      color: "text-success",
       subtitle: `${vehiclesAvailable} disp. · ${vehiclesInUse} uso · ${vehiclesMaintenance} manut.`,
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Mês",
-      value: summary.totalKmMes.toLocaleString("pt-BR"),
-      icon: Calendar,
+      label: "KM Total Frota",
+      value: summary.totalKmAtual.toLocaleString("pt-BR"),
+      icon: Gauge,
+      color: "text-success",
+      subtitle: `Odômetro acumulado`,
+      subtitleColor: "text-muted-foreground",
+    },
+    {
+      label: "Telemetria Ativa",
+      value: `${summary.emMovimento + summary.paradoLigado + summary.paradoDesligado}`,
+      icon: Radio,
       color: "text-info",
-      subtitle: `${summary.totalKmAtual.toLocaleString("pt-BR")} km total`,
+      subtitle: `${summary.emMovimento} mov. · ${summary.paradoLigado} lig. · ${summary.paradoDesligado} desl.`,
       subtitleColor: "text-muted-foreground",
     },
     {
@@ -262,7 +261,7 @@ export default function Dashboard() {
                       <div className={`w-2.5 h-2.5 rounded-full ${v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" : v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
                       <div>
                         <p className="text-sm font-medium">{v.placa}<span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span></p>
-                        <p className="text-xs text-muted-foreground">Hoje: {v.kmDia.toLocaleString("pt-BR")} km · Semana: {v.kmSemana.toLocaleString("pt-BR")} km · Mês: {v.kmMes.toLocaleString("pt-BR")} km</p>
+                        <p className="text-xs text-muted-foreground">Odômetro: {v.kmAtual.toLocaleString("pt-BR")} km</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-right">
