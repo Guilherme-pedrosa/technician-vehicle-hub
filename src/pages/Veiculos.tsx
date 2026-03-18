@@ -30,8 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Truck } from "lucide-react";
+import { Plus, Search, Pencil, Truck, RefreshCw, Radio } from "lucide-react";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { useUltimaPosicaoTodos, useRotaExataAdesoes, type RotaExataPosicao } from "@/hooks/useRotaExata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
@@ -62,6 +63,15 @@ export default function Veiculos() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<VehicleInsert>>(emptyForm);
+
+  // Rota Exata - positions
+  const { data: posicoes } = useUltimaPosicaoTodos();
+  const posicaoMap = new Map<string, RotaExataPosicao>();
+  if (Array.isArray(posicoes)) {
+    posicoes.forEach((p) => {
+      if (p.adesao_id) posicaoMap.set(String(p.adesao_id), p);
+    });
+  }
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
@@ -239,34 +249,48 @@ export default function Veiculos() {
                   <TableHead>Placa</TableHead>
                   <TableHead>Marca / Modelo</TableHead>
                   <TableHead>Ano</TableHead>
-                  <TableHead>Tipo</TableHead>
                   <TableHead>KM Atual</TableHead>
+                  <TableHead>Rastreamento</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono font-semibold">{v.placa}</TableCell>
-                    <TableCell>{v.marca} {v.modelo}</TableCell>
-                    <TableCell>{v.ano ?? "—"}</TableCell>
-                    <TableCell>{v.tipo ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">{v.km_atual.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_MAP[v.status].variant}>
-                        {STATUS_MAP[v.status].label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {isAdmin && (
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map((v) => {
+                  const pos = v.adesao_id ? posicaoMap.get(v.adesao_id) : undefined;
+                  return (
+                    <TableRow key={v.id}>
+                      <TableCell className="font-mono font-semibold">{v.placa}</TableCell>
+                      <TableCell>{v.marca} {v.modelo}</TableCell>
+                      <TableCell>{v.ano ?? "—"}</TableCell>
+                      <TableCell className="tabular-nums">{v.km_atual.toLocaleString("pt-BR")} km</TableCell>
+                      <TableCell>
+                        {pos ? (
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${pos.velocidade > 0 ? "bg-success animate-pulse" : pos.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
+                            <span className="text-xs tabular-nums">{pos.velocidade} km/h</span>
+                          </div>
+                        ) : v.adesao_id ? (
+                          <span className="text-xs text-muted-foreground">Sem sinal</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={STATUS_MAP[v.status].variant}>
+                          {STATUS_MAP[v.status].label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

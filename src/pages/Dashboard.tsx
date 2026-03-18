@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2 } from "lucide-react";
 import { isPast } from "date-fns";
+import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
 
 export default function Dashboard() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("id, status");
+      const { data, error } = await supabase.from("vehicles").select("id, status, placa, modelo, marca, adesao_id");
       if (error) throw error;
       return data;
     },
@@ -32,6 +34,9 @@ export default function Dashboard() {
     },
   });
 
+  // Rota Exata - Última posição de todos os veículos
+  const { data: posicoes, isLoading: loadingPosicoes, isError: errorPosicoes } = useUltimaPosicaoTodos();
+
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
   const cnhVencidas = drivers.filter((d) => d.status === "ativo" && isPast(new Date(d.cnh_validade))).length;
   const vehiclesInUse = vehicles.filter((v) => v.status === "em_uso").length;
@@ -39,6 +44,24 @@ export default function Dashboard() {
   const vehiclesMaintenance = vehicles.filter((v) => v.status === "manutencao").length;
   const openTickets = tickets.filter((t) => t.status === "aberto" || t.status === "em_andamento").length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
+
+  // Build position map by adesao_id
+  const posicaoMap = new Map<string, RotaExataPosicao>();
+  if (Array.isArray(posicoes)) {
+    posicoes.forEach((p) => {
+      if (p.adesao_id) posicaoMap.set(String(p.adesao_id), p);
+    });
+  }
+
+  // Vehicles with telemetry
+  const vehiclesWithTelemetry = vehicles.filter((v) => v.adesao_id).map((v) => {
+    const pos = posicaoMap.get(v.adesao_id!);
+    return { ...v, posicao: pos };
+  });
+
+  const movingCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade > 0).length;
+  const stoppedIgnOnCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade === 0 && v.posicao.ignicao).length;
+  const stoppedIgnOffCount = vehiclesWithTelemetry.filter((v) => v.posicao && v.posicao.velocidade === 0 && !v.posicao.ignicao).length;
 
   const stats = [
     {
@@ -96,6 +119,89 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Rota Exata - Rastreamento em Tempo Real */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Radio className="w-4 h-4 text-primary" /> Rastreamento em Tempo Real
+            {loadingPosicoes && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {errorPosicoes ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-warning" />
+              <p className="text-sm font-medium">Erro ao conectar com o Rota Exata</p>
+              <p className="text-xs">Verifique as credenciais de acesso</p>
+            </div>
+          ) : !posicoes || posicoes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {loadingPosicoes ? (
+                <p className="text-sm">Carregando posições...</p>
+              ) : (
+                <>
+                  <MapPin className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-sm">Nenhum veículo com rastreamento vinculado</p>
+                  <p className="text-xs">Vincule o ID de adesão nos veículos cadastrados</p>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary badges */}
+              <div className="flex flex-wrap gap-3">
+                <Badge className="bg-success text-success-foreground gap-1 py-1 px-3">
+                  <Gauge className="w-3 h-3" /> {movingCount} em movimento
+                </Badge>
+                <Badge className="bg-warning text-warning-foreground gap-1 py-1 px-3">
+                  <Clock className="w-3 h-3" /> {stoppedIgnOnCount} parado (ignição ligada)
+                </Badge>
+                <Badge variant="secondary" className="gap-1 py-1 px-3">
+                  <MapPin className="w-3 h-3" /> {stoppedIgnOffCount} parado (ignição desligada)
+                </Badge>
+              </div>
+
+              {/* Vehicle list with positions */}
+              <div className="divide-y divide-border">
+                {vehiclesWithTelemetry.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${
+                        v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" :
+                        v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"
+                      }`} />
+                      <div>
+                        <p className="text-sm font-medium">{v.placa} <span className="text-muted-foreground font-normal">— {v.marca} {v.modelo}</span></p>
+                        {v.posicao?.endereco && (
+                          <p className="text-xs text-muted-foreground truncate max-w-[300px]">{v.posicao.endereco}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      {v.posicao ? (
+                        <>
+                          <div>
+                            <p className="text-sm font-semibold tabular-nums">{v.posicao.velocidade} km/h</p>
+                            <p className="text-xs text-muted-foreground">
+                              {v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}
+                            </p>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sem sinal</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
