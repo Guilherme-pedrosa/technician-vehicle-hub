@@ -3,24 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2, RefreshCw } from "lucide-react";
+import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2, RefreshCw, CalendarDays, CalendarRange, Calendar } from "lucide-react";
 import { isPast } from "date-fns";
-import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const syncMutation = useSyncAllFromRotaExata();
-
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("id, status, placa, modelo, marca, adesao_id, km_atual");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -40,71 +32,37 @@ export default function Dashboard() {
     },
   });
 
-  const { data: posicoes, isLoading: loadingPosicoes, isError: errorPosicoes } = useUltimaPosicaoTodos();
-
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
   const cnhVencidas = drivers.filter((d) => d.status === "ativo" && isPast(new Date(d.cnh_validade))).length;
-  const vehiclesInUse = vehicles.filter((v) => v.status === "em_uso").length;
-  const vehiclesAvailable = vehicles.filter((v) => v.status === "disponivel").length;
-  const vehiclesMaintenance = vehicles.filter((v) => v.status === "manutencao").length;
+  const vehiclesInUse = telemetryVehicles.filter((v) => v.status === "em_uso").length;
+  const vehiclesAvailable = telemetryVehicles.filter((v) => v.status === "disponivel").length;
+  const vehiclesMaintenance = telemetryVehicles.filter((v) => v.status === "manutencao").length;
   const openTickets = tickets.filter((t) => t.status === "aberto" || t.status === "em_andamento").length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
 
-  // Build position map by adesao_id
-  const posicaoMap = new Map<string, RotaExataPosicao>();
-  if (Array.isArray(posicoes)) {
-    posicoes.forEach((p) => {
-      if (p.adesao_id) posicaoMap.set(String(p.adesao_id), p);
-    });
-  }
-
-  // Build telemetry list - prefer local vehicles, fallback to raw telemetry
-  const vehiclesWithTelemetry = vehicles
-    .filter((v) => v.adesao_id)
-    .map((v) => ({ ...v, posicao: posicaoMap.get(v.adesao_id!) }));
-
-  const externalTelemetryVehicles = (Array.isArray(posicoes) ? posicoes : []).map((posicao) => ({
-    id: `rotaexata-${String(posicao.adesao_id)}`,
-    placa: posicao.placa ?? `Adesão ${String(posicao.adesao_id)}`,
-    marca: "",
-    modelo: "",
-    km_atual: posicao.odometro ? Math.round(posicao.odometro / 1000) : 0,
-    posicao,
-  }));
-
-  const telemetryVehicles = vehiclesWithTelemetry.length > 0 ? vehiclesWithTelemetry : externalTelemetryVehicles;
-
-  const movingCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade > 0).length;
-  const stoppedIgnOnCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && v.posicao.ignicao).length;
-  const stoppedIgnOffCount = telemetryVehicles.filter((v) => v.posicao && v.posicao.velocidade === 0 && !v.posicao.ignicao).length;
-  const totalTelemetry = telemetryVehicles.length;
-
-  // Total KM from odometers
-  const totalKm = telemetryVehicles.reduce((sum, v) => sum + (v.km_atual ?? 0), 0);
-
   const stats = [
     {
-      label: "Veículos Rastreados",
-      value: totalTelemetry,
-      icon: Radio,
+      label: "KM Hoje",
+      value: summary.totalKmDia.toLocaleString("pt-BR"),
+      icon: CalendarDays,
       color: "text-primary",
-      subtitle: `${movingCount} em movimento · ${stoppedIgnOnCount + stoppedIgnOffCount} parados`,
+      subtitle: `${summary.emMovimento} veículos em movimento`,
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "Veículos Cadastrados",
-      value: vehicles.length,
-      icon: Truck,
+      label: "KM Semana",
+      value: summary.totalKmSemana.toLocaleString("pt-BR"),
+      icon: CalendarRange,
       color: "text-success",
       subtitle: `${vehiclesAvailable} disp. · ${vehiclesInUse} uso · ${vehiclesMaintenance} manut.`,
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Total Frota",
-      value: totalKm > 0 ? `${(totalKm / 1000).toFixed(0)}k` : "—",
-      icon: Gauge,
+      label: "KM Mês",
+      value: summary.totalKmMes.toLocaleString("pt-BR"),
+      icon: Calendar,
       color: "text-info",
-      subtitle: totalKm > 0 ? `${totalKm.toLocaleString("pt-BR")} km` : "Sincronize veículos",
+      subtitle: `${summary.totalKmAtual.toLocaleString("pt-BR")} km total`,
       subtitleColor: "text-muted-foreground",
     },
     {
@@ -122,19 +80,11 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Visão geral da sua frota</p>
+          <p className="text-muted-foreground">KM rodado e telemetria da frota</p>
         </div>
         {isAdmin && (
-          <Button
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-          >
-            {syncMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
+          <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+            {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Sincronizar Rota Exata
           </Button>
         )}
@@ -155,64 +105,40 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Rota Exata - Rastreamento em Tempo Real */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Radio className="w-4 h-4 text-primary" /> Rastreamento em Tempo Real
-            {loadingPosicoes && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            <Radio className="w-4 h-4 text-primary" /> Telemetria por KM
+            {loadingMetrics && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {errorPosicoes ? (
+          {errorMetrics ? (
             <div className="text-center py-8 text-muted-foreground">
               <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-warning" />
-              <p className="text-sm font-medium">Erro ao conectar com o Rota Exata</p>
-              <p className="text-xs">Verifique as credenciais de acesso</p>
+              <p className="text-sm font-medium">Erro ao carregar KM e telemetria</p>
             </div>
           ) : telemetryVehicles.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {loadingPosicoes ? (
-                <p className="text-sm">Carregando posições...</p>
-              ) : (
-                <>
-                  <MapPin className="w-8 h-8 mx-auto mb-2" />
-                  <p className="text-sm">Nenhum dado de rastreamento encontrado</p>
-                </>
-              )}
+              <MapPin className="w-8 h-8 mx-auto mb-2" />
+              <p className="text-sm">Nenhum dado encontrado</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-3">
-                <Badge className="bg-success text-success-foreground gap-1 py-1 px-3">
-                  <Gauge className="w-3 h-3" /> {movingCount} em movimento
-                </Badge>
-                <Badge className="bg-warning text-warning-foreground gap-1 py-1 px-3">
-                  <Clock className="w-3 h-3" /> {stoppedIgnOnCount} parado (ignição ligada)
-                </Badge>
-                <Badge variant="secondary" className="gap-1 py-1 px-3">
-                  <MapPin className="w-3 h-3" /> {stoppedIgnOffCount} parado (ignição desligada)
-                </Badge>
+                <Badge className="bg-success text-success-foreground gap-1 py-1 px-3"><Gauge className="w-3 h-3" /> {summary.emMovimento} em movimento</Badge>
+                <Badge className="bg-warning text-warning-foreground gap-1 py-1 px-3"><Clock className="w-3 h-3" /> {summary.paradoLigado} parado (ignição ligada)</Badge>
+                <Badge variant="secondary" className="gap-1 py-1 px-3"><MapPin className="w-3 h-3" /> {summary.paradoDesligado} parado (ignição desligada)</Badge>
               </div>
 
               <div className="divide-y divide-border">
                 {telemetryVehicles.map((v) => (
                   <div key={v.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-3">
-                      <div className={`w-2.5 h-2.5 rounded-full ${
-                        v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" :
-                        v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"
-                      }`} />
+                      <div className={`w-2.5 h-2.5 rounded-full ${v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" : v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
                       <div>
-                        <p className="text-sm font-medium">
-                          {v.placa}
-                          {v.marca && v.modelo && (
-                            <span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span>
-                          )}
-                        </p>
-                        {v.posicao?.endereco && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[300px]">{v.posicao.endereco}</p>
-                        )}
+                        <p className="text-sm font-medium">{v.placa}<span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span></p>
+                        <p className="text-xs text-muted-foreground">Hoje: {v.kmDia.toLocaleString("pt-BR")} km · Semana: {v.kmSemana.toLocaleString("pt-BR")} km · Mês: {v.kmMes.toLocaleString("pt-BR")} km</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-right">
@@ -220,20 +146,10 @@ export default function Dashboard() {
                         <>
                           <div>
                             <p className="text-sm font-semibold tabular-nums">{v.posicao.velocidade} km/h</p>
-                            <p className="text-xs text-muted-foreground">
-                              {v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}</p>
                           </div>
-                          {v.km_atual > 0 && (
-                            <div className="text-xs text-muted-foreground">
-                              {v.km_atual.toLocaleString("pt-BR")} km
-                            </div>
-                          )}
-                          <div className="text-xs text-muted-foreground">
-                            {v.posicao.data_posicao
-                              ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                              : "—"}
-                          </div>
+                          <div className="text-xs text-muted-foreground">{v.kmAtual.toLocaleString("pt-BR")} km</div>
+                          <div className="text-xs text-muted-foreground">{v.posicao.data_posicao ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
                         </>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sem sinal</span>
@@ -247,77 +163,24 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Truck className="w-4 h-4" /> Frota
-            </CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Truck className="w-4 h-4" /> Frota</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total de veículos</span>
-              <span className="font-semibold tabular-nums">{vehicles.length}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-success" />
-                <span className="text-sm text-muted-foreground">Disponíveis</span>
-              </div>
-              <span className="font-semibold tabular-nums">{vehiclesAvailable}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-warning" />
-                <span className="text-sm text-muted-foreground">Em uso</span>
-              </div>
-              <span className="font-semibold tabular-nums">{vehiclesInUse}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wrench className="w-3.5 h-3.5 text-destructive" />
-                <span className="text-sm text-muted-foreground">Manutenção</span>
-              </div>
-              <span className="font-semibold tabular-nums">{vehiclesMaintenance}</span>
-            </div>
+            <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Total de veículos</span><span className="font-semibold tabular-nums">{telemetryVehicles.length}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 text-success" /><span className="text-sm text-muted-foreground">Disponíveis</span></div><span className="font-semibold tabular-nums">{vehiclesAvailable}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-warning" /><span className="text-sm text-muted-foreground">Em uso</span></div><span className="font-semibold tabular-nums">{vehiclesInUse}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Wrench className="w-3.5 h-3.5 text-destructive" /><span className="text-sm text-muted-foreground">Manutenção</span></div><span className="font-semibold tabular-nums">{vehiclesMaintenance}</span></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4" /> Condutores
-            </CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="w-4 h-4" /> Condutores</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total de condutores</span>
-              <span className="font-semibold tabular-nums">{drivers.length}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-success" />
-                <span className="text-sm text-muted-foreground">Ativos</span>
-              </div>
-              <span className="font-semibold tabular-nums">{activeDrivers}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Inativos</span>
-              </div>
-              <span className="font-semibold tabular-nums">{drivers.filter((d) => d.status === "inativo").length}</span>
-            </div>
-            {cnhVencidas > 0 && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
-                  <span className="text-sm text-destructive font-medium">CNH Vencida</span>
-                </div>
-                <span className="font-semibold tabular-nums text-destructive">{cnhVencidas}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Total de condutores</span><span className="font-semibold tabular-nums">{drivers.length}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5 text-success" /><span className="text-sm text-muted-foreground">Ativos</span></div><span className="font-semibold tabular-nums">{activeDrivers}</span></div>
+            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Users className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-sm text-muted-foreground">Inativos</span></div><span className="font-semibold tabular-nums">{drivers.filter((d) => d.status === "inativo").length}</span></div>
+            {cnhVencidas > 0 && <div className="flex items-center justify-between"><div className="flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 text-destructive" /><span className="text-sm text-destructive font-medium">CNH Vencida</span></div><span className="font-semibold tabular-nums text-destructive">{cnhVencidas}</span></div>}
           </CardContent>
         </Card>
       </div>
