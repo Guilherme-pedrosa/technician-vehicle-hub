@@ -1,90 +1,320 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { format, startOfDay, startOfWeek, startOfMonth, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Clock3, Gauge, Radio } from "lucide-react";
-import { useFleetMetrics } from "@/hooks/useFleetMetrics";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart3, CalendarIcon, Clock3, Gauge, Loader2, Radio } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getRelatorioKmRodado } from "@/services/rotaexata";
+import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
+
+type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
+
+function getPresetDates(preset: PeriodPreset) {
+  const now = new Date();
+  switch (preset) {
+    case "hoje": return { inicio: startOfDay(now), fim: now };
+    case "semana": return { inicio: startOfWeek(now, { weekStartsOn: 1, locale: ptBR }), fim: now };
+    case "mes": return { inicio: startOfMonth(now), fim: now };
+    default: return { inicio: subDays(now, 7), fim: now };
+  }
+}
+
+function extractKm(payload: unknown): number {
+  if (typeof payload === "number") return Number.isFinite(payload) ? payload : 0;
+  if (typeof payload === "string") {
+    const n = Number(payload.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (Array.isArray(payload)) return payload.reduce<number>((s, i) => s + extractKm(i), 0);
+  if (payload && typeof payload === "object") {
+    const r = payload as Record<string, unknown>;
+    for (const k of ["km", "km_rodado", "kmRodado", "distancia", "distancia_total", "total_km", "quilometragem"]) {
+      if (r[k] !== undefined) return extractKm(r[k]);
+    }
+    if ("data" in r) return extractKm(r.data);
+  }
+  return 0;
+}
 
 export default function Relatorios() {
-  const { rows, summary, isLoading } = useFleetMetrics();
+  const [preset, setPreset] = useState<PeriodPreset>("hoje");
+  const [customInicio, setCustomInicio] = useState<Date>();
+  const [customFim, setCustomFim] = useState<Date>();
+  const [driverFilter, setDriverFilter] = useState<string>("todos");
+
+  const dates = useMemo(() => {
+    if (preset === "personalizado" && customInicio && customFim) {
+      return { inicio: customInicio, fim: customFim };
+    }
+    return getPresetDates(preset);
+  }, [preset, customInicio, customFim]);
+
+  const dataInicio = format(dates.inicio, "yyyy-MM-dd");
+  const dataFim = format(dates.fim, "yyyy-MM-dd");
+
+  // Vehicles
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["vehicles-relatorios"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicles").select("id, placa, marca, modelo, adesao_id, km_atual").order("placa");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Drivers
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers-relatorios"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("drivers").select("id, full_name, status").order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Active assignments
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["assignments-relatorios"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("driver_vehicle_assignments").select("driver_id, vehicle_id, returned_at").is("returned_at", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Positions
+  const { data: posicoes } = useUltimaPosicaoTodos();
+  const posMap = useMemo(() => {
+    const m = new Map<string, RotaExataPosicao>();
+    (posicoes ?? []).forEach(p => { if (p.adesao_id) m.set(String(p.adesao_id), p); });
+    return m;
+  }, [posicoes]);
+
+  // Build driver -> vehicles map
+  const driverVehicleMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    assignments.forEach(a => {
+      const list = m.get(a.driver_id) ?? [];
+      list.push(a.vehicle_id);
+      m.set(a.driver_id, list);
+    });
+    return m;
+  }, [assignments]);
+
+  const vehicleDriverMap = useMemo(() => {
+    const m = new Map<string, string>();
+    assignments.forEach(a => m.set(a.vehicle_id, a.driver_id));
+    return m;
+  }, [assignments]);
+
+  // Filter vehicles by driver
+  const filteredVehicles = useMemo(() => {
+    if (driverFilter === "todos") return vehicles.filter(v => v.adesao_id);
+    const vehicleIds = driverVehicleMap.get(driverFilter) ?? [];
+    return vehicles.filter(v => v.adesao_id && vehicleIds.includes(v.id));
+  }, [vehicles, driverFilter, driverVehicleMap]);
+
+  // KM reports
+  const { data: kmData, isLoading: loadingKm } = useQuery({
+    queryKey: ["km-reports", filteredVehicles.map(v => v.adesao_id).join(","), dataInicio, dataFim],
+    enabled: filteredVehicles.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        filteredVehicles.map(async (v) => {
+          const raw = await getRelatorioKmRodado({ adesao_id: v.adesao_id!, data_inicio: dataInicio, data_fim: dataFim });
+          return { adesaoId: v.adesao_id!, km: extractKm(raw) };
+        })
+      );
+      const m = new Map<string, number>();
+      results.forEach(r => { if (r.status === "fulfilled") m.set(r.value.adesaoId, r.value.km); });
+      return m;
+    },
+  });
+
+  // Build table rows
+  const rows = useMemo(() => {
+    return filteredVehicles.map(v => {
+      const driverId = vehicleDriverMap.get(v.id);
+      const driver = driverId ? drivers.find(d => d.id === driverId) : undefined;
+      const pos = v.adesao_id ? posMap.get(v.adesao_id) : undefined;
+      const kmPeriodo = v.adesao_id ? (kmData?.get(v.adesao_id) ?? 0) : 0;
+      return { ...v, driver, pos, kmPeriodo };
+    });
+  }, [filteredVehicles, vehicleDriverMap, drivers, posMap, kmData]);
+
+  const totalKmPeriodo = rows.reduce((s, r) => s + r.kmPeriodo, 0);
+  const totalKmAtual = rows.reduce((s, r) => s + r.km_atual, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
-        <p className="text-muted-foreground">KM rodado e telemetria consolidada por veículo</p>
+        <p className="text-muted-foreground">KM rodado e telemetria por veículo/condutor</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-4 items-end">
+            {/* Period preset */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Período</label>
+              <div className="flex gap-1">
+                {(["hoje", "semana", "mes", "personalizado"] as const).map(p => (
+                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)}>
+                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Personalizado"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom date pickers */}
+            {preset === "personalizado" && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">De</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customInicio && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customInicio ? format(customInicio, "dd/MM/yyyy") : "Selecionar"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={customInicio} onSelect={setCustomInicio} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Até</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customFim && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customFim ? format(customFim, "dd/MM/yyyy") : "Selecionar"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={customFim} onSelect={setCustomFim} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+
+            {/* Driver filter */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Condutor</label>
+              <Select value={driverFilter} onValueChange={setDriverFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os condutores</SelectItem>
+                  {drivers.filter(d => d.status === "ativo").map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Hoje</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{summary.totalKmDia.toLocaleString("pt-BR")}</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM no Período</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold tabular-nums">
+              {loadingKm ? <Loader2 className="w-6 h-6 animate-spin" /> : totalKmPeriodo.toLocaleString("pt-BR")}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">{dataInicio} a {dataFim}</p>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Semana</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{summary.totalKmSemana.toLocaleString("pt-BR")}</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Total (Odômetro)</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold tabular-nums">{totalKmAtual.toLocaleString("pt-BR")}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Mês</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{summary.totalKmMes.toLocaleString("pt-BR")}</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Em movimento</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{summary.emMovimento}</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Veículos</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold tabular-nums">{rows.length}</p></CardContent>
         </Card>
       </div>
 
+      {/* Data table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Telemetria por KM</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" /> Telemetria e KM por Veículo
+            {loadingKm && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando relatórios...</p>
-          ) : (
-            <Table>
-              <TableHeader>
+        <CardContent className="p-0">
+          <Table className="table-enterprise">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Placa</TableHead>
+                <TableHead>Veículo</TableHead>
+                <TableHead>Condutor</TableHead>
+                <TableHead>KM Período</TableHead>
+                <TableHead>KM Atual</TableHead>
+                <TableHead>Telemetria</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
                 <TableRow>
-                  <TableHead>Placa</TableHead>
-                  <TableHead>Veículo</TableHead>
-                  <TableHead>KM Atual</TableHead>
-                  <TableHead>KM Hoje</TableHead>
-                  <TableHead>KM Semana</TableHead>
-                  <TableHead>KM Mês</TableHead>
-                  <TableHead>Telemetria</TableHead>
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    {vehicles.length === 0 ? "Sincronize os veículos primeiro" : "Nenhum veículo encontrado para este filtro"}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-mono font-semibold">{row.placa}</TableCell>
-                    <TableCell>{row.marca} {row.modelo}</TableCell>
-                    <TableCell>{row.kmAtual.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>{row.kmDia.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>{row.kmSemana.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>{row.kmMes.toLocaleString("pt-BR")} km</TableCell>
+              ) : (
+                rows.map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-mono font-semibold">{r.placa}</TableCell>
+                    <TableCell>{r.marca} {r.modelo}</TableCell>
                     <TableCell>
-                      {row.posicao ? (
+                      {r.driver ? (
+                        <span className="text-sm">{r.driver.full_name}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sem condutor</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="tabular-nums font-semibold">
+                      {loadingKm ? "..." : `${r.kmPeriodo.toLocaleString("pt-BR")} km`}
+                    </TableCell>
+                    <TableCell className="tabular-nums">{r.km_atual.toLocaleString("pt-BR")} km</TableCell>
+                    <TableCell>
+                      {r.pos ? (
                         <div className="flex items-center gap-2">
-                          <Badge variant={row.posicao.velocidade > 0 ? "default" : "secondary"}>
-                            <Gauge className="w-3 h-3 mr-1" /> {row.posicao.velocidade} km/h
+                          <div className={`w-2 h-2 rounded-full ${r.pos.velocidade > 0 ? "bg-success animate-pulse" : r.pos.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
+                          <span className="text-xs tabular-nums">{r.pos.velocidade} km/h</span>
+                          <Badge variant={r.pos.ignicao ? "default" : "secondary"} className="text-xs">
+                            <Radio className="w-3 h-3 mr-1" /> {r.pos.ignicao ? "ON" : "OFF"}
                           </Badge>
-                          <Badge variant={row.posicao.ignicao ? "default" : "secondary"}>
-                            <Radio className="w-3 h-3 mr-1" /> {row.posicao.ignicao ? "Ligado" : "Desligado"}
-                          </Badge>
-                          <Badge variant="outline">
-                            <Clock3 className="w-3 h-3 mr-1" />
-                            {row.posicao.data_posicao ? new Date(row.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {r.pos.data_posicao ? new Date(r.pos.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : ""}
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground text-sm">Sem sinal</span>
+                        <span className="text-xs text-muted-foreground">Sem sinal</span>
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
