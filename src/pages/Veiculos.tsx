@@ -67,7 +67,7 @@ export default function Veiculos() {
 
   // Rota Exata - positions
   const { data: posicoes } = useUltimaPosicaoTodos();
-  const syncMutation = useSyncVehiclesFromRotaExata();
+  const syncMutation = useSyncAllFromRotaExata();
 
   const posicaoMap = new Map<string, RotaExataPosicao>();
   if (Array.isArray(posicoes)) {

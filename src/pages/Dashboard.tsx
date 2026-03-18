@@ -124,7 +124,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Visão geral da sua frota</p>
         </div>
-        {isAdmin && vehicles.length === 0 && (
+        {isAdmin && (
           <Button
             variant="outline"
             onClick={() => syncMutation.mutate()}
@@ -135,7 +135,7 @@ export default function Dashboard() {
             ) : (
               <RefreshCw className="w-4 h-4 mr-2" />
             )}
-            Sincronizar Veículos
+            Sincronizar Rota Exata
           </Button>
         )}
       </div>
