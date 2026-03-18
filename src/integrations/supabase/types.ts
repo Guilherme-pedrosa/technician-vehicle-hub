@@ -14,16 +14,328 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      driver_performance_records: {
+        Row: {
+          checklists_completos: number
+          checklists_esperados: number
+          comprovantes_perdidos: number
+          created_at: string
+          created_by: string
+          danos_veiculo: number
+          defeitos_sem_lancamento: number
+          driver_id: string
+          ferramentas_danificadas: number
+          id: string
+          km_sem_telemetria: number
+          observacoes: string | null
+          period_end: string
+          period_start: string
+        }
+        Insert: {
+          checklists_completos?: number
+          checklists_esperados?: number
+          comprovantes_perdidos?: number
+          created_at?: string
+          created_by: string
+          danos_veiculo?: number
+          defeitos_sem_lancamento?: number
+          driver_id: string
+          ferramentas_danificadas?: number
+          id?: string
+          km_sem_telemetria?: number
+          observacoes?: string | null
+          period_end: string
+          period_start: string
+        }
+        Update: {
+          checklists_completos?: number
+          checklists_esperados?: number
+          comprovantes_perdidos?: number
+          created_at?: string
+          created_by?: string
+          danos_veiculo?: number
+          defeitos_sem_lancamento?: number
+          driver_id?: string
+          ferramentas_danificadas?: number
+          id?: string
+          km_sem_telemetria?: number
+          observacoes?: string | null
+          period_end?: string
+          period_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_performance_records_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_vehicle_assignments: {
+        Row: {
+          assigned_at: string
+          created_by: string
+          driver_id: string
+          id: string
+          km_fim: number | null
+          km_inicio: number
+          returned_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          created_by: string
+          driver_id: string
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number
+          returned_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          assigned_at?: string
+          created_by?: string
+          driver_id?: string
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number
+          returned_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_vehicle_assignments_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_vehicle_assignments_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drivers: {
+        Row: {
+          categoria_cnh: string
+          cnh: string
+          cnh_validade: string
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          status: Database["public"]["Enums"]["driver_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          categoria_cnh?: string
+          cnh: string
+          cnh_validade: string
+          created_at?: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["driver_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          categoria_cnh?: string
+          cnh?: string
+          cnh_validade?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["driver_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      maintenance_tickets: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string
+          descricao: string | null
+          driver_id: string | null
+          fotos: string[] | null
+          id: string
+          prioridade: Database["public"]["Enums"]["ticket_priority"]
+          status: Database["public"]["Enums"]["ticket_status"]
+          tipo: Database["public"]["Enums"]["ticket_type"]
+          titulo: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          driver_id?: string | null
+          fotos?: string[] | null
+          id?: string
+          prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          status?: Database["public"]["Enums"]["ticket_status"]
+          tipo?: Database["public"]["Enums"]["ticket_type"]
+          titulo: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          driver_id?: string | null
+          fotos?: string[] | null
+          id?: string
+          prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          status?: Database["public"]["Enums"]["ticket_status"]
+          tipo?: Database["public"]["Enums"]["ticket_type"]
+          titulo?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_tickets_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          cargo: string | null
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          adesao_id: string | null
+          ano: number | null
+          created_at: string
+          id: string
+          km_atual: number
+          marca: string
+          modelo: string
+          placa: string
+          status: Database["public"]["Enums"]["vehicle_status"]
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          adesao_id?: string | null
+          ano?: number | null
+          created_at?: string
+          id?: string
+          km_atual?: number
+          marca: string
+          modelo: string
+          placa: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adesao_id?: string | null
+          ano?: number | null
+          created_at?: string
+          id?: string
+          km_atual?: number
+          marca?: string
+          modelo?: string
+          placa?: string
+          status?: Database["public"]["Enums"]["vehicle_status"]
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "tecnico"
+      driver_status: "ativo" | "inativo"
+      ticket_priority: "baixa" | "media" | "alta" | "critica"
+      ticket_status: "aberto" | "em_andamento" | "aguardando_peca" | "concluido"
+      ticket_type: "preventiva" | "corretiva" | "nao_conformidade"
+      vehicle_status: "disponivel" | "em_uso" | "manutencao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +462,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "tecnico"],
+      driver_status: ["ativo", "inativo"],
+      ticket_priority: ["baixa", "media", "alta", "critica"],
+      ticket_status: ["aberto", "em_andamento", "aguardando_peca", "concluido"],
+      ticket_type: ["preventiva", "corretiva", "nao_conformidade"],
+      vehicle_status: ["disponivel", "em_uso", "manutencao"],
+    },
   },
 } as const
