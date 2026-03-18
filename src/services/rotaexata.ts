@@ -211,7 +211,13 @@ export async function getRelatorioKmRodado(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/kmrodado", "GET", params);
+  // Rota Exata expects report params as POST body
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(
+    "/relatorios/rastreamento/kmrodado",
+    "POST",
+    undefined,
+    { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim }
+  );
   return unwrapRotaExataResponse(response);
 }
 
@@ -220,7 +226,7 @@ export async function getRelatorioDirigibilidade(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/dirigibilidade", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/dirigibilidade", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -229,7 +235,7 @@ export async function getRelatorioDeslocamento(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/deslocamento", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/deslocamento", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -238,7 +244,7 @@ export async function getRelatorioJornadaAnalitico(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_analitico", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_analitico", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -247,7 +253,7 @@ export async function getRelatorioJornadaSumarizado(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_sumarizado", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_sumarizado", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -256,7 +262,7 @@ export async function getRelatorioUsoIndevido(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/uso_indevido", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/uso_indevido", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -265,7 +271,7 @@ export async function getRelatorioParadasPassagens(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/paradas_passagens", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/paradas_passagens", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -274,7 +280,7 @@ export async function getRelatorioLogMotorista(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/log_motorista", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/log_motorista", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 
@@ -283,18 +289,7 @@ export async function getRelatorioRuaPorRua(params: {
   data_inicio: string;
   data_fim: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/ruaPorRua", "GET", params);
-  return unwrapRotaExataResponse(response);
-}
-
-// ===========================
-// CERCAS
-// ===========================
-
-export async function getCercas(where?: string): Promise<unknown> {
-  const params: Record<string, string> = {};
-  if (where) params.where = where;
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/cercas", "GET", params);
+  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/ruaPorRua", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
   return unwrapRotaExataResponse(response);
 }
 

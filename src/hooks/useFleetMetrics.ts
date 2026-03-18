@@ -98,10 +98,10 @@ export function useFleetMetrics() {
     queryFn: async () => {
       const vehicles = vehiclesQuery.data?.filter((vehicle) => vehicle.adesao_id) ?? [];
 
-      const results = await Promise.all(
+      const results = await Promise.allSettled(
         vehicles.map(async (vehicle) => {
           const adesaoId = vehicle.adesao_id!;
-          const [dia, semana, mes] = await Promise.all([
+          const [dia, semana, mes] = await Promise.allSettled([
             getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.hoje, data_fim: ranges.fim }),
             getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.semana, data_fim: ranges.fim }),
             getRelatorioKmRodado({ adesao_id: adesaoId, data_inicio: ranges.mes, data_fim: ranges.fim }),
@@ -109,14 +109,16 @@ export function useFleetMetrics() {
 
           return {
             adesaoId,
-            kmDia: extractKmValue(dia),
-            kmSemana: extractKmValue(semana),
-            kmMes: extractKmValue(mes),
+            kmDia: dia.status === "fulfilled" ? extractKmValue(dia.value) : 0,
+            kmSemana: semana.status === "fulfilled" ? extractKmValue(semana.value) : 0,
+            kmMes: mes.status === "fulfilled" ? extractKmValue(mes.value) : 0,
           };
         })
       );
 
-      return new Map(results.map((item) => [item.adesaoId, item]));
+      const m = new Map<string, { kmDia: number; kmSemana: number; kmMes: number }>();
+      results.forEach(r => { if (r.status === "fulfilled") m.set(r.value.adesaoId, r.value); });
+      return m;
     },
   });
 
