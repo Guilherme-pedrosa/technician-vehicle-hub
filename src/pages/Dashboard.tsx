@@ -64,7 +64,7 @@ export default function Dashboard() {
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Hoje",
+      label: selectedDate === format(new Date(), "yyyy-MM-dd") ? "KM Hoje" : `KM ${new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
       value: loadingResumo ? "..." : totalKmHoje.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
       icon: CalendarDays,
       color: "text-success",
