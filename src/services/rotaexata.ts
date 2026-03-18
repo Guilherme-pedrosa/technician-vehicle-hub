@@ -84,6 +84,8 @@ function normalizePosicao(item: RawRotaExataPosicao): RotaExataPosicaoResponse {
     endereco: typeof posicao.endereco === "string" ? posicao.endereco : undefined,
     odometro: Number(posicao.odometro ?? posicao.odometro_original ?? posicao.odometro_gps ?? 0),
     direcao: typeof posicao.direcao === "number" ? posicao.direcao : undefined,
+    motorista_id: posicao.motorista_id ?? item.motorista_id ?? null,
+    motorista_key: posicao.motorista_key ?? item.motorista_key ?? null,
   };
 }
 
