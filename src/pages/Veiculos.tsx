@@ -33,7 +33,7 @@ import {
 import { Plus, Search, Pencil, Truck, RefreshCw, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
-import { useSyncVehiclesFromRotaExata } from "@/hooks/useSyncRotaExata";
+import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
@@ -67,7 +67,7 @@ export default function Veiculos() {
 
   // Rota Exata - positions
   const { data: posicoes } = useUltimaPosicaoTodos();
-  const syncMutation = useSyncVehiclesFromRotaExata();
+  const syncMutation = useSyncAllFromRotaExata();
 
   const posicaoMap = new Map<string, RotaExataPosicao>();
   if (Array.isArray(posicoes)) {

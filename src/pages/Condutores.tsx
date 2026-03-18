@@ -32,7 +32,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Users, AlertTriangle } from "lucide-react";
+import { Plus, Search, Pencil, Users, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
+import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Driver = Tables<"drivers">;
@@ -66,6 +67,7 @@ function CnhBadge({ validade }: { validade: string }) {
 export default function Condutores() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const syncMutation = useSyncAllFromRotaExata();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -166,11 +168,27 @@ export default function Condutores() {
           <h1 className="text-2xl font-bold tracking-tight">Condutores</h1>
           <p className="text-muted-foreground">Gerenciamento de condutores da frota</p>
         </div>
-        {isAdmin && (
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Condutor
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Sincronizar Rota Exata
+            </Button>
+          )}
+          {isAdmin && (
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Condutor
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* CNH Alert */}
