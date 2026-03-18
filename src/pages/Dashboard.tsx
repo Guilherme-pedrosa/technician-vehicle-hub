@@ -121,11 +121,20 @@ export default function Dashboard() {
 
       {/* === TABELA POR TÉCNICO === */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
             {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-40 h-8 text-xs"
+              max={format(new Date(), "yyyy-MM-dd")}
+            />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table className="table-enterprise">
