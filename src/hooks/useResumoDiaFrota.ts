@@ -103,14 +103,18 @@ export function useResumoDiaFrota(dateStr?: string) {
             ? raw?.posicao?.deslocamento?.motorista ?? raw?.posicao?.motorista ?? undefined
             : undefined;
 
+          const motoristaIdAoVivo = vehicle?.posicao?.motorista_id ?? undefined;
+          const motoristaNomeAoVivo =
+            (motoristaIdAoVivo ? usuariosById.get(Number(motoristaIdAoVivo)) : undefined) ??
+            vehicle?.posicao?.motorista_key ??
+            undefined;
+
           const motoristaId = isToday
-            ? vehicle?.posicao?.motorista_id ?? undefined
+            ? motoristaIdAoVivo ?? (tempoMovimento > 0 ? resumoMotorista?.id : undefined)
             : resumoMotorista?.id;
 
           const motoristaNome = isToday
-            ? (motoristaId ? usuariosById.get(Number(motoristaId)) : undefined) ??
-              vehicle?.posicao?.motorista_key ??
-              undefined
+            ? motoristaNomeAoVivo ?? (tempoMovimento > 0 ? resumoMotorista?.nome : undefined)
             : resumoMotorista?.nome;
 
           return {
