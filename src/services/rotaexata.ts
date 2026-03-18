@@ -32,6 +32,7 @@ async function rotaExataFetch(
   body?: Record<string, unknown>
 ) {
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const baseUrl = `https://${projectId}.supabase.co/functions/v1/${FUNCTION_NAME}`;
 
   const queryParams = new URLSearchParams({ path, ...params });
@@ -49,6 +50,7 @@ async function rotaExataFetch(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      apikey: anonKey,
     },
   };
 
