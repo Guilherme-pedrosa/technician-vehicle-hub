@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin, Gauge, Radio, Loader2, RefreshCw } from "lucide-react";
 import { isPast } from "date-fns";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
-import { useSyncVehiclesFromRotaExata } from "@/hooks/useSyncRotaExata";
+import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
