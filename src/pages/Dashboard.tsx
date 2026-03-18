@@ -19,13 +19,14 @@ import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const syncMutation = useSyncAllFromRotaExata();
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
   const {
     driverRows: driverTelemetryRows,
     totalKmHoje,
     totalTelemetrias,
     isLoading: loadingResumo,
-  } = useResumoDiaFrota();
+  } = useResumoDiaFrota(selectedDate);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
