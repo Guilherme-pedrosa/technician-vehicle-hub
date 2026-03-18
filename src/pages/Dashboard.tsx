@@ -19,6 +19,12 @@ export default function Dashboard() {
   const { isAdmin } = useAuth();
   const syncMutation = useSyncAllFromRotaExata();
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
+  const {
+    driverRows: driverTelemetryRows,
+    totalKmHoje,
+    totalTelemetrias,
+    isLoading: loadingResumo,
+  } = useResumoDiaFrota();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -37,73 +43,6 @@ export default function Dashboard() {
       return data;
     },
   });
-
-  const { data: rotaUsuarios = [] } = useRotaExataUsuarios();
-
-  // Build KM por Técnico using motorista_id from position data (Rota Exata QR Code link)
-  const driverTelemetryRows = useMemo(() => {
-    if (!telemetryVehicles.length) return [];
-
-    // Build usuario map from Rota Exata
-    const usuarioMap = new Map<number, string>();
-    rotaUsuarios.forEach((u) => {
-      if (u.id && u.nome) usuarioMap.set(u.id, u.nome);
-    });
-
-    // Group vehicles by motorista_id from position data
-    const driverGroups = new Map<string, { nome: string; vehicles: typeof telemetryVehicles }>();
-    const unlinked: typeof telemetryVehicles = [];
-
-    telemetryVehicles.forEach((v) => {
-      const motoristaId = v.posicao?.motorista_id;
-      if (motoristaId) {
-        const key = String(motoristaId);
-        const nome = usuarioMap.get(Number(motoristaId)) ?? `Motorista #${motoristaId}`;
-        if (!driverGroups.has(key)) {
-          driverGroups.set(key, { nome, vehicles: [] });
-        }
-        driverGroups.get(key)!.vehicles.push(v);
-      } else {
-        unlinked.push(v);
-      }
-    });
-
-    const rows: Array<{
-      id: string;
-      nome: string;
-      kmRodado: number;
-      telemetrias: number;
-      kmPorTelemetria: number;
-    }> = [];
-
-    // Rows for linked drivers
-    driverGroups.forEach((group, key) => {
-      const kmRodado = group.vehicles.reduce((sum, v) => sum + v.kmAtual, 0);
-      const telemetrias = group.vehicles.filter((v) => v.posicao).length;
-      rows.push({
-        id: key,
-        nome: group.nome,
-        kmRodado,
-        telemetrias,
-        kmPorTelemetria: telemetrias > 0 ? kmRodado / telemetrias : 0,
-      });
-    });
-
-    // If there are unlinked vehicles, show them as a group
-    if (unlinked.length > 0) {
-      const kmRodado = unlinked.reduce((sum, v) => sum + v.kmAtual, 0);
-      const telemetrias = unlinked.filter((v) => v.posicao).length;
-      rows.push({
-        id: "sem-condutor",
-        nome: "Sem condutor vinculado",
-        kmRodado,
-        telemetrias,
-        kmPorTelemetria: telemetrias > 0 ? kmRodado / telemetrias : 0,
-      });
-    }
-
-    return rows.sort((a, b) => b.kmRodado - a.kmRodado);
-  }, [telemetryVehicles, rotaUsuarios]);
 
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
   const cnhVencidas = drivers.filter((d) => d.status === "ativo" && isPast(new Date(d.cnh_validade))).length;
