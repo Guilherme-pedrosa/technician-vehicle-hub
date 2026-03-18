@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,18 +6,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, UserCheck,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays,
 } from "lucide-react";
 import { isPast } from "date-fns";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
-import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
+import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const syncMutation = useSyncAllFromRotaExata();
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
+  const {
+    driverRows: driverTelemetryRows,
+    totalKmHoje,
+    totalTelemetrias,
+    isLoading: loadingResumo,
+  } = useResumoDiaFrota();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -38,73 +43,6 @@ export default function Dashboard() {
     },
   });
 
-  const { data: rotaUsuarios = [] } = useRotaExataUsuarios();
-
-  // Build KM por Técnico using motorista_id from position data (Rota Exata QR Code link)
-  const driverTelemetryRows = useMemo(() => {
-    if (!telemetryVehicles.length) return [];
-
-    // Build usuario map from Rota Exata
-    const usuarioMap = new Map<number, string>();
-    rotaUsuarios.forEach((u) => {
-      if (u.id && u.nome) usuarioMap.set(u.id, u.nome);
-    });
-
-    // Group vehicles by motorista_id from position data
-    const driverGroups = new Map<string, { nome: string; vehicles: typeof telemetryVehicles }>();
-    const unlinked: typeof telemetryVehicles = [];
-
-    telemetryVehicles.forEach((v) => {
-      const motoristaId = v.posicao?.motorista_id;
-      if (motoristaId) {
-        const key = String(motoristaId);
-        const nome = usuarioMap.get(Number(motoristaId)) ?? `Motorista #${motoristaId}`;
-        if (!driverGroups.has(key)) {
-          driverGroups.set(key, { nome, vehicles: [] });
-        }
-        driverGroups.get(key)!.vehicles.push(v);
-      } else {
-        unlinked.push(v);
-      }
-    });
-
-    const rows: Array<{
-      id: string;
-      nome: string;
-      kmRodado: number;
-      telemetrias: number;
-      kmPorTelemetria: number;
-    }> = [];
-
-    // Rows for linked drivers
-    driverGroups.forEach((group, key) => {
-      const kmRodado = group.vehicles.reduce((sum, v) => sum + v.kmAtual, 0);
-      const telemetrias = group.vehicles.filter((v) => v.posicao).length;
-      rows.push({
-        id: key,
-        nome: group.nome,
-        kmRodado,
-        telemetrias,
-        kmPorTelemetria: telemetrias > 0 ? kmRodado / telemetrias : 0,
-      });
-    });
-
-    // If there are unlinked vehicles, show them as a group
-    if (unlinked.length > 0) {
-      const kmRodado = unlinked.reduce((sum, v) => sum + v.kmAtual, 0);
-      const telemetrias = unlinked.filter((v) => v.posicao).length;
-      rows.push({
-        id: "sem-condutor",
-        nome: "Sem condutor vinculado",
-        kmRodado,
-        telemetrias,
-        kmPorTelemetria: telemetrias > 0 ? kmRodado / telemetrias : 0,
-      });
-    }
-
-    return rows.sort((a, b) => b.kmRodado - a.kmRodado);
-  }, [telemetryVehicles, rotaUsuarios]);
-
   const activeDrivers = drivers.filter((d) => d.status === "ativo").length;
   const cnhVencidas = drivers.filter((d) => d.status === "ativo" && isPast(new Date(d.cnh_validade))).length;
   const vehiclesInUse = telemetryVehicles.filter((v) => v.status === "em_uso").length;
@@ -123,11 +61,11 @@ export default function Dashboard() {
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: "KM Total Frota",
-      value: summary.totalKmAtual.toLocaleString("pt-BR"),
-      icon: Gauge,
+      label: "KM Hoje",
+      value: loadingResumo ? "..." : totalKmHoje.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      icon: CalendarDays,
       color: "text-success",
-      subtitle: `Odômetro acumulado`,
+      subtitle: `${totalTelemetrias} telemetrias · ${summary.emMovimento} em movimento`,
       subtitleColor: "text-muted-foreground",
     },
     {
@@ -183,7 +121,7 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
-            {loadingMetrics && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
