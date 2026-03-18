@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
-  const syncMutation = useSyncVehiclesFromRotaExata();
+  const syncMutation = useSyncAllFromRotaExata();
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles"],
