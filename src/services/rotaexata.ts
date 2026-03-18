@@ -21,6 +21,8 @@ export type RotaExataPosicaoResponse = {
   endereco?: string;
   odometro?: number;
   direcao?: number;
+  motorista_id?: number | null;
+  motorista_key?: string | null;
   [key: string]: unknown;
 };
 
