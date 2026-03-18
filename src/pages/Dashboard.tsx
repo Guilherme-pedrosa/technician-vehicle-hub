@@ -122,7 +122,7 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
-            {loadingMetrics && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
