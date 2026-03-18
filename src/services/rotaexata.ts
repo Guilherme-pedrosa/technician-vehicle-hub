@@ -50,6 +50,7 @@ async function rotaExataFetch(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      apikey: anonKey,
     },
   };
 
