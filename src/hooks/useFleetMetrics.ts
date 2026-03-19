@@ -50,14 +50,33 @@ export function useFleetMetrics() {
     }));
   }, [vehiclesQuery.data, positionsQuery.data]);
 
+  // Consider positions older than 10 minutes as stale (vehicle status unknown)
+  const STALE_THRESHOLD_MS = 10 * 60 * 1000;
+
   const summary = useMemo(() => {
+    const now = Date.now();
     return rows.reduce(
       (acc, row) => {
         acc.totalVeiculos += 1;
         acc.totalKmAtual += row.kmAtual;
-        if (row.posicao?.velocidade && row.posicao.velocidade > 0) acc.emMovimento += 1;
-        if (row.posicao && row.posicao.velocidade === 0 && row.posicao.ignicao) acc.paradoLigado += 1;
-        if (row.posicao && row.posicao.velocidade === 0 && !row.posicao.ignicao) acc.paradoDesligado += 1;
+
+        if (!row.posicao) return acc;
+
+        // Check if position data is fresh (within last 10 minutes)
+        const posDate = row.posicao.data_posicao ? new Date(row.posicao.data_posicao).getTime() : 0;
+        const isStale = !posDate || (now - posDate) > STALE_THRESHOLD_MS;
+
+        if (isStale) {
+          // Stale position → treat as stopped/off regardless of reported velocity
+          acc.paradoDesligado += 1;
+        } else if (row.posicao.velocidade > 0) {
+          acc.emMovimento += 1;
+        } else if (row.posicao.ignicao) {
+          acc.paradoLigado += 1;
+        } else {
+          acc.paradoDesligado += 1;
+        }
+
         return acc;
       },
       {
