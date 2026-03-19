@@ -222,31 +222,38 @@ export default function Dashboard() {
               </div>
 
               <div className="divide-y divide-border">
-                {telemetryVehicles.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2.5 h-2.5 rounded-full ${v.posicao?.velocidade && v.posicao.velocidade > 0 ? "bg-success animate-pulse" : v.posicao?.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
-                      <div>
-                        <p className="text-sm font-medium">{v.placa}<span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span></p>
-                        <p className="text-xs text-muted-foreground">Odômetro: {v.kmAtual.toLocaleString("pt-BR")} km</p>
+                {telemetryVehicles.map((v) => {
+                  const posDate = v.posicao?.data_posicao ? new Date(v.posicao.data_posicao).getTime() : 0;
+                  const isStale = !posDate || (Date.now() - posDate) > 10 * 60 * 1000;
+                  const isMoving = !isStale && v.posicao?.velocidade && v.posicao.velocidade > 0;
+                  const isIgnitionOn = !isStale && v.posicao?.ignicao;
+
+                  return (
+                    <div key={v.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2.5 h-2.5 rounded-full ${isMoving ? "bg-success animate-pulse" : isIgnitionOn ? "bg-warning" : "bg-muted-foreground/30"}`} />
+                        <div>
+                          <p className="text-sm font-medium">{v.placa}<span className="text-muted-foreground font-normal"> — {v.marca} {v.modelo}</span></p>
+                          <p className="text-xs text-muted-foreground">Odômetro: {v.kmAtual.toLocaleString("pt-BR")} km</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 text-right">
+                        {v.posicao ? (
+                          <>
+                            <div>
+                              <p className="text-sm font-semibold tabular-nums">{isStale ? "0" : v.posicao.velocidade} km/h</p>
+                              <p className="text-xs text-muted-foreground">{isStale ? "Sem sinal recente" : v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}</p>
+                            </div>
+                            <div className="text-xs text-muted-foreground">{v.kmAtual.toLocaleString("pt-BR")} km</div>
+                            <div className="text-xs text-muted-foreground">{v.posicao.data_posicao ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Sem sinal</span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-right">
-                      {v.posicao ? (
-                        <>
-                          <div>
-                            <p className="text-sm font-semibold tabular-nums">{v.posicao.velocidade} km/h</p>
-                            <p className="text-xs text-muted-foreground">{v.posicao.ignicao ? "Ignição ON" : "Ignição OFF"}</p>
-                          </div>
-                          <div className="text-xs text-muted-foreground">{v.kmAtual.toLocaleString("pt-BR")} km</div>
-                          <div className="text-xs text-muted-foreground">{v.posicao.data_posicao ? new Date(v.posicao.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Sem sinal</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
