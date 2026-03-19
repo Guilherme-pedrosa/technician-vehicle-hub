@@ -11,12 +11,26 @@ const ROTAEXATA_API = "https://api.rotaexata.com.br";
 // Simple in-memory token cache
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
+let loginPromise: Promise<string> | null = null;
 
 async function getRotaExataToken(): Promise<string> {
-  // Reuse token if still valid (cache for 50 minutes, tokens usually last 1h)
+  // Reuse token if still valid
   if (cachedToken && Date.now() < tokenExpiry) {
     return cachedToken;
   }
+
+  // Deduplicate concurrent login attempts — only one login runs at a time
+  if (loginPromise) {
+    return loginPromise;
+  }
+
+  loginPromise = doLogin().finally(() => {
+    loginPromise = null;
+  });
+  return loginPromise;
+}
+
+async function doLogin(): Promise<string> {
 
   const email = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
