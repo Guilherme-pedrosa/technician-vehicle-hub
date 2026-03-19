@@ -274,6 +274,105 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_checklists: {
+        Row: {
+          acessorios: string
+          cambio: string
+          checklist_date: string
+          created_at: string
+          created_by: string
+          danos_veiculo: string
+          destino: string | null
+          driver_id: string | null
+          farois_lanternas: string
+          id: string
+          itens_seguranca: string
+          limpeza_organizacao: string
+          motor: string
+          nivel_agua: string
+          nivel_oleo: string
+          observacoes: string | null
+          pneu_estepe: string
+          pneus: string
+          ruido_anormal: string
+          som: string
+          tripulacao: string | null
+          troca_oleo: string
+          updated_at: string
+          vehicle_id: string
+          vidros: string
+        }
+        Insert: {
+          acessorios?: string
+          cambio?: string
+          checklist_date?: string
+          created_at?: string
+          created_by: string
+          danos_veiculo?: string
+          destino?: string | null
+          driver_id?: string | null
+          farois_lanternas?: string
+          id?: string
+          itens_seguranca?: string
+          limpeza_organizacao?: string
+          motor?: string
+          nivel_agua?: string
+          nivel_oleo?: string
+          observacoes?: string | null
+          pneu_estepe?: string
+          pneus?: string
+          ruido_anormal?: string
+          som?: string
+          tripulacao?: string | null
+          troca_oleo?: string
+          updated_at?: string
+          vehicle_id: string
+          vidros?: string
+        }
+        Update: {
+          acessorios?: string
+          cambio?: string
+          checklist_date?: string
+          created_at?: string
+          created_by?: string
+          danos_veiculo?: string
+          destino?: string | null
+          driver_id?: string | null
+          farois_lanternas?: string
+          id?: string
+          itens_seguranca?: string
+          limpeza_organizacao?: string
+          motor?: string
+          nivel_agua?: string
+          nivel_oleo?: string
+          observacoes?: string | null
+          pneu_estepe?: string
+          pneus?: string
+          ruido_anormal?: string
+          som?: string
+          tripulacao?: string | null
+          troca_oleo?: string
+          updated_at?: string
+          vehicle_id?: string
+          vidros?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_checklists_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_checklists_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           adesao_id: string | null
