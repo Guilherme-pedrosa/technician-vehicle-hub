@@ -31,10 +31,6 @@ async function getRotaExataToken(): Promise<string> {
 }
 
 async function doLogin(): Promise<string> {
-  // Reuse token if still valid (cache for 50 minutes, tokens usually last 1h)
-  if (cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
-  }
 
   const email = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
