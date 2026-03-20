@@ -13,9 +13,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   ClipboardCheck, Plus, CheckCircle, XCircle, AlertTriangle,
   Loader2, Car, Droplets, Wrench, Shield, Eye, CalendarDays,
   Camera, ChevronLeft, ChevronRight, X, Image as ImageIcon, Download,
+  Pencil, Trash2, Save,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -635,12 +640,14 @@ function exportChecklistPDF(
   doc.save(`checklist_${placa}_${checklist.checklist_date}.pdf`);
 }
 
-// ─── Detail Dialog ───
-function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
+// ─── Detail Dialog with Edit & Delete ───
+function ChecklistDetailDialog({ checklist, vehicles, localDrivers, onDeleted }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string }[];
   localDrivers: { id: string; full_name: string }[];
+  onDeleted?: () => void;
 }) {
+  const queryClient = useQueryClient();
   const vehicle = vehicles.find((v) => v.id === checklist.vehicle_id);
   const driver = localDrivers.find((d) => d.id === checklist.driver_id);
   const driverName = driver?.full_name ?? checklist.tripulacao ?? "—";
@@ -652,29 +659,135 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
 
   const fotosData = (checklist.fotos && typeof checklist.fotos === "object") ? checklist.fotos : {};
 
+  const [editing, setEditing] = useState(false);
+  const [editAnswers, setEditAnswers] = useState<Record<string, string>>(() => {
+    const d: Record<string, string> = {};
+    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = checklist[f.key] ?? ""; });
+    return d;
+  });
+  const [editObs, setEditObs] = useState(checklist.observacoes ?? "");
+  const [editDestino, setEditDestino] = useState(checklist.destino ?? "");
+  const [editTripulacao, setEditTripulacao] = useState(checklist.tripulacao ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("vehicle_checklists")
+      .update({
+        ...editAnswers,
+        observacoes: editObs || null,
+        destino: editDestino || null,
+        tripulacao: editTripulacao || null,
+      } as any)
+      .eq("id", checklist.id);
+    setSaving(false);
+    if (error) {
+      toast.error("Erro ao atualizar: " + error.message);
+    } else {
+      toast.success("Checklist atualizado!");
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+      setEditing(false);
+    }
+  };
+
+  const [deleting, setDeleting] = useState(false);
+  const handleDelete = async () => {
+    setDeleting(true);
+    if (fotosData && typeof fotosData === "object") {
+      for (const urls of Object.values(fotosData)) {
+        if (Array.isArray(urls)) {
+          for (const url of urls) {
+            const path = (url as string).split("/checklist-photos/")[1];
+            if (path) await supabase.storage.from("checklist-photos").remove([path]);
+          }
+        }
+      }
+    }
+    const { error } = await supabase.from("vehicle_checklists").delete().eq("id", checklist.id);
+    setDeleting(false);
+    if (error) {
+      toast.error("Erro ao apagar: " + error.message);
+    } else {
+      toast.success("Checklist apagado!");
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+      onDeleted?.();
+    }
+  };
+
   return (
     <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0 flex flex-col">
-      <DialogHeader className="p-4 pb-0 flex flex-row items-center justify-between gap-2">
-        <DialogTitle className="flex items-center gap-2 text-base">
-          <Eye className="w-4 h-4 text-primary" />
-          {vehicle?.placa ?? "—"} — {new Date(checklist.checklist_date + "T12:00:00").toLocaleDateString("pt-BR")}
-        </DialogTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 shrink-0"
-          onClick={() => exportChecklistPDF(checklist, vehicle, driverName)}
-        >
-          <Download className="w-4 h-4" /> PDF
-        </Button>
+      <DialogHeader className="p-4 pb-0">
+        <div className="flex items-center justify-between gap-2">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Eye className="w-4 h-4 text-primary" />
+            {vehicle?.placa ?? "—"} — {new Date(checklist.checklist_date + "T12:00:00").toLocaleDateString("pt-BR")}
+          </DialogTitle>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!editing ? (
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setEditing(true)}>
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(false)}>
+                  Cancelar
+                </Button>
+                <Button variant="default" size="sm" className="gap-1.5 h-8 text-xs" onClick={handleSaveEdit} disabled={saving}>
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Salvar
+                </Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => exportChecklistPDF(checklist, vehicle, driverName)}>
+              <Download className="w-3.5 h-3.5" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="icon" className="h-8 w-8">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Apagar checklist?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Essa ação não pode ser desfeita. O checklist e todas as fotos serão apagados permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    Apagar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
       </DialogHeader>
       <ScrollArea className="flex-1 px-4 pb-4">
         <div className="space-y-4 pt-3">
           <div className="grid grid-cols-1 gap-1.5 text-sm">
             <div><span className="text-muted-foreground">Veículo:</span> {vehicle?.placa} — {vehicle?.modelo}</div>
             <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? checklist.tripulacao ?? "—"}</div>
-            {checklist.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {checklist.tripulacao}</div>}
-            {checklist.destino && <div><span className="text-muted-foreground">Destino:</span> {checklist.destino}</div>}
+            {editing ? (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">Tripulação</Label>
+                  <Input value={editTripulacao} onChange={(e) => setEditTripulacao(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Destino</Label>
+                  <Input value={editDestino} onChange={(e) => setEditDestino(e.target.value)} className="h-8 text-sm" />
+                </div>
+              </>
+            ) : (
+              <>
+                {checklist.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {checklist.tripulacao}</div>}
+                {checklist.destino && <div><span className="text-muted-foreground">Destino:</span> {checklist.destino}</div>}
+              </>
+            )}
           </div>
           <Separator />
           {categories.map((cat) => {
@@ -687,12 +800,37 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
                 </h4>
                 {fields.map((f) => (
                   <div key={f.key}>
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-sm">{f.label}</span>
-                      {statusBadge(checklist[f.key], f)}
-                    </div>
-                    {/* Show photos if any */}
-                    {f.photoAfter && (() => {
+                    {editing ? (
+                      <div className="space-y-1.5 py-1">
+                        <p className="text-sm">{f.label}</p>
+                        <div className="flex gap-1.5">
+                          {f.options.map((opt) => {
+                            const isSelected = editAnswers[f.key] === opt.value;
+                            const colorMap: Record<string, string> = {
+                              success: isSelected ? "bg-success text-success-foreground border-success" : "border-success/40 text-success hover:bg-success/10",
+                              destructive: isSelected ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                              warning: isSelected ? "bg-warning text-warning-foreground border-warning" : "border-warning/40 text-warning hover:bg-warning/10",
+                            };
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setEditAnswers((prev) => ({ ...prev, [f.key]: opt.value }))}
+                                className={`flex-1 px-2 py-1.5 rounded-md text-xs font-semibold border-2 transition-colors active:scale-[0.97] ${colorMap[opt.color]}`}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm">{f.label}</span>
+                        {statusBadge(checklist[f.key], f)}
+                      </div>
+                    )}
+                    {!editing && f.photoAfter && (() => {
                       const cats = Array.isArray(f.photoAfter) ? f.photoAfter : [f.photoAfter];
                       const allUrls = cats.flatMap((cat) => fotosData[cat] ?? []);
                       if (allUrls.length === 0) return null;
@@ -711,8 +849,7 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
               </div>
             );
           })}
-          {/* Additional photo categories */}
-          {fotosData["pneus_todos"]?.length > 0 && (
+          {!editing && fotosData["pneus_todos"]?.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5" /> Fotos dos Pneus
@@ -726,14 +863,21 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
               </div>
             </div>
           )}
-          {checklist.observacoes && (
-            <>
-              <Separator />
-              <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Observações</h4>
-                <p className="text-sm whitespace-pre-wrap">{checklist.observacoes}</p>
-              </div>
-            </>
+          {editing ? (
+            <div className="space-y-1">
+              <Label className="text-xs">Observações</Label>
+              <Textarea value={editObs} onChange={(e) => setEditObs(e.target.value)} rows={3} className="text-sm" />
+            </div>
+          ) : (
+            checklist.observacoes && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Observações</h4>
+                  <p className="text-sm whitespace-pre-wrap">{checklist.observacoes}</p>
+                </div>
+              </>
+            )
           )}
         </div>
       </ScrollArea>
@@ -903,7 +1047,7 @@ export default function Checklist() {
                         </button>
                       </DialogTrigger>
                       {selectedChecklist?.id === cl.id && (
-                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} />
+                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} onDeleted={() => setSelectedChecklist(null)} />
                       )}
                     </Dialog>
                   );
@@ -961,7 +1105,7 @@ export default function Checklist() {
                                 </Button>
                               </DialogTrigger>
                               {selectedChecklist?.id === cl.id && (
-                                <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} />
+                                <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} onDeleted={() => setSelectedChecklist(null)} />
                               )}
                             </Dialog>
                           </td>
