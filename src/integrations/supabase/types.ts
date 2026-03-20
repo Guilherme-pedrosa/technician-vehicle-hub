@@ -277,17 +277,24 @@ export type Database = {
       vehicle_checklists: {
         Row: {
           acessorios: string
+          avaria_descricao: string | null
+          avaria_nova: string
+          calibragem_ok: string
           cambio: string
           checklist_date: string
+          conducao_ok: string
           created_at: string
           created_by: string
           danos_veiculo: string
           destino: string | null
+          detalhes: Json | null
           driver_id: string | null
           farois_lanternas: string
+          fluidos_ok: string
           fotos: Json | null
           id: string
           itens_seguranca: string
+          kit_ok: string
           limpeza_organizacao: string
           motor: string
           nivel_agua: string
@@ -295,8 +302,12 @@ export type Database = {
           observacoes: string | null
           pneu_estepe: string
           pneus: string
+          pneus_visual_ok: string
+          resultado: string
+          resultado_motivo: string | null
           ruido_anormal: string
           som: string
+          termo_aceito: boolean
           tripulacao: string | null
           troca_oleo: string
           updated_at: string
@@ -305,17 +316,24 @@ export type Database = {
         }
         Insert: {
           acessorios?: string
+          avaria_descricao?: string | null
+          avaria_nova?: string
+          calibragem_ok?: string
           cambio?: string
           checklist_date?: string
+          conducao_ok?: string
           created_at?: string
           created_by: string
           danos_veiculo?: string
           destino?: string | null
+          detalhes?: Json | null
           driver_id?: string | null
           farois_lanternas?: string
+          fluidos_ok?: string
           fotos?: Json | null
           id?: string
           itens_seguranca?: string
+          kit_ok?: string
           limpeza_organizacao?: string
           motor?: string
           nivel_agua?: string
@@ -323,8 +341,12 @@ export type Database = {
           observacoes?: string | null
           pneu_estepe?: string
           pneus?: string
+          pneus_visual_ok?: string
+          resultado?: string
+          resultado_motivo?: string | null
           ruido_anormal?: string
           som?: string
+          termo_aceito?: boolean
           tripulacao?: string | null
           troca_oleo?: string
           updated_at?: string
@@ -333,17 +355,24 @@ export type Database = {
         }
         Update: {
           acessorios?: string
+          avaria_descricao?: string | null
+          avaria_nova?: string
+          calibragem_ok?: string
           cambio?: string
           checklist_date?: string
+          conducao_ok?: string
           created_at?: string
           created_by?: string
           danos_veiculo?: string
           destino?: string | null
+          detalhes?: Json | null
           driver_id?: string | null
           farois_lanternas?: string
+          fluidos_ok?: string
           fotos?: Json | null
           id?: string
           itens_seguranca?: string
+          kit_ok?: string
           limpeza_organizacao?: string
           motor?: string
           nivel_agua?: string
@@ -351,8 +380,12 @@ export type Database = {
           observacoes?: string | null
           pneu_estepe?: string
           pneus?: string
+          pneus_visual_ok?: string
+          resultado?: string
+          resultado_motivo?: string | null
           ruido_anormal?: string
           som?: string
+          termo_aceito?: boolean
           tripulacao?: string | null
           troca_oleo?: string
           updated_at?: string
