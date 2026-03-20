@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const VALIDATION_PROMPTS: Record<string, string> = {
-  painel: "Esta foto mostra o painel/dashboard de um veículo com o hodômetro (KM) visível e legível? Verifique se o KM pode ser lido claramente.",
+  painel: "Esta foto mostra o painel/dashboard de um veículo com o hodômetro (KM) visível e legível? Verifique se o KM pode ser lido claramente. O painel deve ser de um veículo automotivo real.",
   exterior_frente: "Esta foto mostra a frente completa de um veículo (capô, para-choque dianteiro, faróis)?",
   exterior_traseira: "Esta foto mostra a traseira completa de um veículo (para-choque traseiro, lanternas, placa)?",
   exterior_esquerda: "Esta foto mostra a lateral esquerda completa de um veículo?",
@@ -30,7 +30,7 @@ const VALIDATION_PROMPTS: Record<string, string> = {
 
 // Categories where vehicle model verification matters (exterior photos)
 const VEHICLE_CHECK_CATEGORIES = [
-  "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita",
+  "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "painel",
 ];
 
 Deno.serve(async (req) => {
@@ -88,9 +88,9 @@ Deno.serve(async (req) => {
     const vehicleCheckPrompt = (vehicle_marca || vehicle_modelo) && VEHICLE_CHECK_CATEGORIES.includes(category)
       ? `\n\nIMPORTANTE - VERIFICAÇÃO DO VEÍCULO:
 O veículo sendo inspecionado é um ${vehicle_marca || ""} ${vehicle_modelo || ""}.
-Verifique se o veículo na foto é COMPATÍVEL com esse modelo. Compare formato da carroceria, lanternas, para-choques e design geral.
-Se a foto mostra CLARAMENTE um veículo de outro modelo/marca (ex: formato completamente diferente, design incompatível), retorne valid=false com reason explicando que o veículo na foto não corresponde ao ${vehicle_marca || ""} ${vehicle_modelo || ""}.
-Se não for possível determinar o modelo com certeza (foto parcial, ângulo difícil), aceite a foto normalmente.
+Para fotos exteriores: Compare formato da carroceria, lanternas, para-choques e design geral. Se a foto mostra CLARAMENTE um veículo de outro modelo/marca, retorne valid=false.
+Para foto do painel: Verifique se o painel/dashboard é compatível com um ${vehicle_marca || ""} ${vehicle_modelo || ""}. Compare design dos instrumentos, formato do painel e estilo. Se for CLARAMENTE de outro veículo (ex: painel digital moderno vs analógico simples, design incompatível), retorne valid=false.
+Se não for possível determinar o modelo com certeza (ângulo parcial, iluminação), aceite a foto normalmente.
 Só reprove se for CLARAMENTE um veículo diferente.`
       : "";
 
