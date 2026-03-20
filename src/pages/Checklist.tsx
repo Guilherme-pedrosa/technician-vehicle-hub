@@ -445,14 +445,22 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </div>
 
             {/* Photo capture after this field */}
-            {field.photoAfter && (
-              <CameraCapture
-                category={field.photoAfter}
-                photos={photos[field.photoAfter] ?? []}
-                onCapture={handleCapture}
-                onRemove={handleRemovePhoto}
-              />
-            )}
+            {field.photoAfter && (() => {
+              const shouldShow = field.photoConditional === "non_conforme"
+                ? isNonConforme(field.key, answers[field.key])
+                : true;
+              if (!shouldShow) return null;
+              const cats = Array.isArray(field.photoAfter) ? field.photoAfter : [field.photoAfter];
+              return cats.map((cat) => (
+                <CameraCapture
+                  key={cat}
+                  category={cat}
+                  photos={photos[cat] ?? []}
+                  onCapture={handleCapture}
+                  onRemove={handleRemovePhoto}
+                />
+              ));
+            })()}
           </div>
         ))}
 
