@@ -1386,6 +1386,7 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
+                      const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
                       return (
                         <tr key={cl.id} className="border-b last:border-0">
                           <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
