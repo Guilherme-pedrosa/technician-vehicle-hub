@@ -282,41 +282,39 @@ export default function Relatorios() {
                 </tr>
               ) : (
                 rows.map(r => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono font-semibold">{r.placa}</TableCell>
-                    <TableCell>{r.marca} {r.modelo}</TableCell>
-                    <TableCell>
+                  <tr key={r.id} className="border-b last:border-0">
+                    <td className="p-3 font-mono font-semibold">{r.placa}</td>
+                    <td className="p-3 hidden md:table-cell">{r.marca} {r.modelo}</td>
+                    <td className="p-3">
                       {r.driver ? (
                         <span className="text-sm">{r.driver.full_name}</span>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sem condutor</span>
                       )}
-                    </TableCell>
-                    <TableCell className="tabular-nums font-semibold">
+                    </td>
+                    <td className="p-3 text-right tabular-nums font-semibold">
                       {loadingKm ? "..." : `${r.kmPeriodo.toLocaleString("pt-BR")} km`}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{r.km_atual.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="p-3 text-right tabular-nums hidden md:table-cell">{r.km_atual.toLocaleString("pt-BR")} km</td>
+                    <td className="p-3 text-center hidden lg:table-cell">
                       {r.pos ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${r.pos.velocidade > 0 ? "bg-success animate-pulse" : r.pos.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
                           <span className="text-xs tabular-nums">{r.pos.velocidade} km/h</span>
                           <Badge variant={r.pos.ignicao ? "default" : "secondary"} className="text-xs">
                             <Radio className="w-3 h-3 mr-1" /> {r.pos.ignicao ? "ON" : "OFF"}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {r.pos.data_posicao ? new Date(r.pos.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : ""}
-                          </span>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sem sinal</span>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
+          </div>
         </CardContent>
       </Card>
     </div>
