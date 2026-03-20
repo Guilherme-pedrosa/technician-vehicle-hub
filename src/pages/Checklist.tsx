@@ -108,15 +108,16 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 
-function ChecklistFormDialog({ vehicles, drivers, userId }: {
+function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
   vehicles: { id: string; placa: string; modelo: string }[];
-  drivers: { id: string; full_name: string }[];
+  drivers: { id: number; nome: string }[];
+  localDrivers: { id: string; full_name: string }[];
   userId: string;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
-  const [driverId, setDriverId] = useState("");
+  const [selectedDriverName, setSelectedDriverName] = useState("");
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
