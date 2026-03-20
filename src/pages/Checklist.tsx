@@ -821,7 +821,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
             {stepPhotos.map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} />
             ))}
             <Separator />
           </div>
