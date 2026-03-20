@@ -6,12 +6,13 @@ const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const baseUrl = `https://${projectId}.supabase.co/functions/v1/rotaexata-proxy`;
 
-async function fetchRotaExata(path: string) {
+async function fetchRotaExata(path: string, extraParams?: Record<string, string>) {
   const session = await supabase.auth.getSession();
   const token = session.data.session?.access_token;
   if (!token) throw new Error("Não autenticado");
 
-  const res = await fetch(`${baseUrl}?path=${encodeURIComponent(path)}`, {
+  const params = new URLSearchParams({ path, ...extraParams });
+  const res = await fetch(`${baseUrl}?${params.toString()}`, {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -68,7 +69,7 @@ async function syncVehicles() {
 
 // ========== SYNC DRIVERS ==========
 async function syncDrivers() {
-  const rawUsers = await fetchRotaExata("/usuarios?quantidade=1000");
+  const rawUsers = await fetchRotaExata("/usuarios", { quantidade: "1000" });
   if (!Array.isArray(rawUsers)) return { created: 0, updated: 0 };
 
   const driversToSync = rawUsers
