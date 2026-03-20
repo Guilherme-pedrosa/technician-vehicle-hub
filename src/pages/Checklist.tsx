@@ -326,7 +326,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // AUTO-TICKET: criar chamado de não conformidade se houver problemas
       if (hasAnyProblem && savedChecklist) {
         const problemItems = nonConformeFields.map((f) => `• ${f.label}: ${answers[f.key]}`).join("\n");
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+        const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${oilLine}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
 
         await supabase.from("maintenance_tickets").insert({
           vehicle_id: vehicleId,
