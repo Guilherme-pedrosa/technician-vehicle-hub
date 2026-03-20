@@ -173,9 +173,8 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function validatePhoto(file: File, category: string): Promise<ValidationResult> {
+async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string): Promise<ValidationResult> {
   try {
-    // Resize image to reduce base64 size for faster API calls
     const base64 = await fileToBase64(file);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("Not authenticated");
@@ -188,7 +187,12 @@ async function validatePhoto(file: File, category: string): Promise<ValidationRe
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ image_base64: base64, category }),
+        body: JSON.stringify({
+          image_base64: base64,
+          category,
+          vehicle_marca: vehicleMarca || null,
+          vehicle_modelo: vehicleModelo || null,
+        }),
       }
     );
 
