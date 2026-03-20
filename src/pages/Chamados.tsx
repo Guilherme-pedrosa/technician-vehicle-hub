@@ -437,11 +437,33 @@ export default function Chamados() {
   // Create ticket
   const createTicket = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from("maintenance_tickets").insert({
+      const { data: inserted, error } = await supabase.from("maintenance_tickets").insert({
         ...data,
         created_by: user?.id,
-      } as any);
+      } as any).select("*, vehicles(placa, modelo), drivers(full_name)").single();
       if (error) throw error;
+
+      // Send email notification
+      try {
+        const vehicle = inserted.vehicles as any;
+        const driver = inserted.drivers as any;
+        await supabase.functions.invoke("notify-checklist-nc", {
+          body: {
+            checklist_id: inserted.id,
+            placa: vehicle?.placa ?? "—",
+            modelo: vehicle?.modelo ?? "—",
+            tecnico: driver?.full_name ?? "Não informado",
+            data: new Date().toLocaleDateString("pt-BR") + " " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+            resultado: data.tipo === "nao_conformidade" ? "Não Conformidade" : data.tipo === "corretiva" ? "Corretiva" : "Preventiva",
+            itens_problema: data.descricao ? [{ label: "Descrição", valor: data.descricao }] : [],
+            fotos_problema: [],
+            troca_oleo_vencida: false,
+            observacoes: data.descricao || null,
+          },
+        });
+      } catch (emailErr) {
+        console.error("Erro ao enviar notificação:", emailErr);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
