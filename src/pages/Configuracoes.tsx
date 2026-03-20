@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -20,13 +19,9 @@ import {
 import {
   Settings, ClipboardCheck, Camera, Plus, Trash2,
   Save, Loader2, Pencil, AlertTriangle, CheckCircle,
-  ChevronRight, ArrowLeft,
+  ChevronRight, ArrowLeft, FolderCog,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// ═══════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════
 
 interface PhotoConfig {
   key: string;
@@ -62,107 +57,127 @@ const STEP_LABELS: Record<number, string> = {
 
 const CATEGORIES = ["Exterior", "Pneus", "Capô", "Interior", "Danos"];
 
-// ═══════════════════════════════════════════
-// MENU ITEMS for settings landing
-// ═══════════════════════════════════════════
+type SettingsView = "root" | "checklists" | "checklist-pre-op";
 
 interface SettingsMenuItem {
-  id: string;
+  id: SettingsView;
   title: string;
   description: string;
   icon: typeof ClipboardCheck;
   badge?: string;
 }
 
-const SETTINGS_SECTIONS: { label: string; items: SettingsMenuItem[] }[] = [
+const ROOT_ITEMS: SettingsMenuItem[] = [
   {
-    label: "Formulários",
-    items: [
-      {
-        id: "checklist-pre-op",
-        title: "Checklist Pré-Operação",
-        description: "Fotos obrigatórias, itens de inspeção e regras de bloqueio",
-        icon: ClipboardCheck,
-        badge: "Ativo",
-      },
-    ],
+    id: "checklists",
+    title: "Check-lists",
+    description: "Gerencie os modelos de checklist do sistema",
+    icon: FolderCog,
   },
 ];
 
-// ═══════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════
+const CHECKLIST_ITEMS: SettingsMenuItem[] = [
+  {
+    id: "checklist-pre-op",
+    title: "Checklist Pré Operação",
+    description: "Fotos obrigatórias, itens de inspeção e regras de bloqueio",
+    icon: ClipboardCheck,
+    badge: "Ativo",
+  },
+];
 
 export default function Configuracoes() {
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [view, setView] = useState<SettingsView>("root");
+
+  if (view === "checklist-pre-op") {
+    return <ChecklistConfigEditor onBack={() => setView("checklists")} />;
+  }
+
+  if (view === "checklists") {
+    return (
+      <SettingsListView
+        title="Check-lists"
+        description="Escolha o checklist que deseja editar"
+        breadcrumb="Configurações → Check-lists"
+        items={CHECKLIST_ITEMS}
+        onBack={() => setView("root")}
+        onOpen={(id) => setView(id)}
+      />
+    );
+  }
 
   return (
+    <SettingsListView
+      title="Configurações"
+      description="Gerencie formulários, regras e preferências do sistema"
+      breadcrumb="Configurações"
+      items={ROOT_ITEMS}
+      onOpen={(id) => setView(id)}
+    />
+  );
+}
+
+function SettingsListView({
+  title,
+  description,
+  breadcrumb,
+  items,
+  onOpen,
+  onBack,
+}: {
+  title: string;
+  description: string;
+  breadcrumb: string;
+  items: SettingsMenuItem[];
+  onOpen: (id: SettingsView) => void;
+  onBack?: () => void;
+}) {
+  return (
     <div className="space-y-6">
-      {activeSection === null ? (
-        <SettingsLanding onOpen={setActiveSection} />
-      ) : activeSection === "checklist-pre-op" ? (
-        <ChecklistConfigEditor onBack={() => setActiveSection(null)} />
-      ) : null}
+      <div className="flex items-start gap-3">
+        {onBack && (
+          <Button variant="ghost" size="icon" onClick={onBack} className="mt-0.5 h-8 w-8 shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{breadcrumb}</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Settings className="h-6 w-6" />
+            {title}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item) => (
+          <Card
+            key={item.id}
+            className="cursor-pointer hover:shadow-md transition-shadow group"
+            onClick={() => onOpen(item.id)}
+          >
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <item.icon className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold truncate">{item.title}</p>
+                  {item.badge && (
+                    <Badge variant="secondary" className="text-[10px]">{item.badge}</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
-
-// ═══════════════════════════════════════════
-// SETTINGS LANDING — lista de cards clicáveis
-// ═══════════════════════════════════════════
-
-function SettingsLanding({ onOpen }: { onOpen: (id: string) => void }) {
-  return (
-    <>
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          Configurações
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gerencie formulários, regras e preferências do sistema
-        </p>
-      </div>
-
-      {SETTINGS_SECTIONS.map((section) => (
-        <div key={section.label} className="space-y-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {section.label}
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {section.items.map((item) => (
-              <Card
-                key={item.id}
-                className="cursor-pointer hover:shadow-md transition-shadow group"
-                onClick={() => onOpen(item.id)}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <item.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold truncate">{item.title}</p>
-                      {item.badge && (
-                        <Badge variant="secondary" className="text-[10px]">{item.badge}</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
-
-// ═══════════════════════════════════════════
-// CHECKLIST CONFIG EDITOR
-// ═══════════════════════════════════════════
 
 function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
@@ -222,7 +237,11 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
   const handleSavePhoto = (photo: PhotoConfig) => {
     setPhotos((prev) => {
       const idx = prev.findIndex((p) => p.key === photo.key);
-      if (idx >= 0) { const u = [...prev]; u[idx] = photo; return u; }
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = photo;
+        return updated;
+      }
       return [...prev, photo];
     });
     setHasChanges(true);
@@ -238,7 +257,11 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
   const handleSaveField = (field: FieldConfig) => {
     setFields((prev) => {
       const idx = prev.findIndex((f) => f.key === field.key);
-      if (idx >= 0) { const u = [...prev]; u[idx] = field; return u; }
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = field;
+        return updated;
+      }
       return [...prev, field];
     });
     setHasChanges(true);
@@ -271,36 +294,30 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
   }));
 
   return (
-    <>
-      {/* Header with back button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="mt-0.5 h-8 w-8 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              Checklist Pré-Operação
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Configurações → Checklist Pré-Operação
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Configurações → Check-lists → Checklist Pré Operação
             </p>
+            <h1 className="mt-1 text-xl font-bold tracking-tight flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" />
+              Checklist Pré Operação
+            </h1>
           </div>
         </div>
         {hasChanges && (
-          <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="gap-2"
-          >
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
             {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar
           </Button>
         )}
       </div>
 
-      {/* FOTOS OBRIGATÓRIAS */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -308,12 +325,7 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
               <Camera className="h-4 w-4" />
               Fotos Obrigatórias
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => { setEditingPhoto(null); setPhotoDialogOpen(true); }}
-            >
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setEditingPhoto(null); setPhotoDialogOpen(true); }}>
               <Plus className="h-3.5 w-3.5" />
               Adicionar
             </Button>
@@ -329,10 +341,7 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                 </p>
                 <div className="grid gap-2">
                   {items.map((photo) => (
-                    <div
-                      key={photo.key}
-                      className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow"
-                    >
+                    <div key={photo.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{photo.label}</p>
                         <p className="text-xs text-muted-foreground truncate">{photo.hint}</p>
@@ -344,7 +353,9 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -362,12 +373,11 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                   ))}
                 </div>
               </div>
-            ) : null
+            ) : null,
           )}
         </CardContent>
       </Card>
 
-      {/* ITENS DE INSPEÇÃO */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -375,17 +385,12 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
               <CheckCircle className="h-4 w-4" />
               Itens de Inspeção
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}
-            >
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}>
               <Plus className="h-3.5 w-3.5" />
               Adicionar
             </Button>
           </div>
-          <CardDescription>Total: {fields.length} itens ({fields.filter(f => f.critical).length} críticos)</CardDescription>
+          <CardDescription>Total: {fields.length} itens ({fields.filter((f) => f.critical).length} críticos)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {groupedFields.map(({ category, items }) =>
@@ -401,7 +406,8 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                           <span className="text-[10px] text-muted-foreground">{OPTION_TYPE_LABELS[field.optionType]}</span>
                           {field.critical && (
                             <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                              <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />Crítico
+                              <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                              Crítico
                             </Badge>
                           )}
                         </div>
@@ -412,7 +418,9 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -430,47 +438,55 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                   ))}
                 </div>
               </div>
-            ) : null
+            ) : null,
           )}
         </CardContent>
       </Card>
 
-      {/* Floating save bar */}
       {hasChanges && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground rounded-full px-6 py-3 shadow-lg flex items-center gap-3 animate-fade-in">
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-primary px-6 py-3 text-primary-foreground shadow-lg animate-fade-in">
           <span className="text-sm font-medium">Alterações não salvas</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="gap-1.5"
-          >
+          <Button variant="secondary" size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-1.5">
             {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             Salvar
           </Button>
         </div>
       )}
 
-      {/* Dialogs */}
-      <PhotoDialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen} photo={editingPhoto} onSave={handleSavePhoto} existingKeys={photos.map(p => p.key)} />
-      <FieldDialog open={fieldDialogOpen} onOpenChange={setFieldDialogOpen} field={editingField} onSave={handleSaveField} existingKeys={fields.map(f => f.key)} />
-    </>
+      <PhotoDialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen} photo={editingPhoto} onSave={handleSavePhoto} existingKeys={photos.map((p) => p.key)} />
+      <FieldDialog open={fieldDialogOpen} onOpenChange={setFieldDialogOpen} field={editingField} onSave={handleSaveField} existingKeys={fields.map((f) => f.key)} />
+    </div>
   );
 }
 
-// ═══════════════════════════════════════════
-// PHOTO DIALOG
-// ═══════════════════════════════════════════
-
-function PhotoDialog({ open, onOpenChange, photo, onSave, existingKeys }: {
-  open: boolean; onOpenChange: (v: boolean) => void; photo: PhotoConfig | null; onSave: (p: PhotoConfig) => void; existingKeys: string[];
+function PhotoDialog({
+  open,
+  onOpenChange,
+  photo,
+  onSave,
+  existingKeys,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  photo: PhotoConfig | null;
+  onSave: (p: PhotoConfig) => void;
+  existingKeys: string[];
 }) {
   const isEdit = !!photo;
-  const [form, setForm] = useState<PhotoConfig>({ key: "", label: "", hint: "", min: 1, step: 1 });
+  const [form, setForm] = useState<PhotoConfig>({
+    key: "",
+    label: "",
+    hint: "",
+    min: 1,
+    step: 1,
+  });
 
   useEffect(() => {
-    setForm(photo || { key: "", label: "", hint: "", min: 1, step: 1 });
+    if (photo) {
+      setForm(photo);
+    } else {
+      setForm({ key: "", label: "", hint: "", min: 1, step: 1 });
+    }
   }, [photo, open]);
 
   const canSave = form.key.trim() && form.label.trim() && form.hint.trim() && (isEdit || !existingKeys.includes(form.key.trim()));
@@ -478,7 +494,9 @@ function PhotoDialog({ open, onOpenChange, photo, onSave, existingKeys }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{isEdit ? "Editar Foto" : "Nova Foto Obrigatória"}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Editar Foto" : "Nova Foto Obrigatória"}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Identificador (chave)</Label>
@@ -500,7 +518,9 @@ function PhotoDialog({ open, onOpenChange, photo, onSave, existingKeys }: {
             <div className="space-y-2">
               <Label>Etapa do formulário</Label>
               <Select value={String(form.step)} onValueChange={(v) => setForm({ ...form, step: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {Object.entries(STEP_LABELS).map(([val, label]) => (
                     <SelectItem key={val} value={val}>{val} — {label}</SelectItem>
@@ -519,18 +539,34 @@ function PhotoDialog({ open, onOpenChange, photo, onSave, existingKeys }: {
   );
 }
 
-// ═══════════════════════════════════════════
-// FIELD DIALOG
-// ═══════════════════════════════════════════
-
-function FieldDialog({ open, onOpenChange, field, onSave, existingKeys }: {
-  open: boolean; onOpenChange: (v: boolean) => void; field: FieldConfig | null; onSave: (f: FieldConfig) => void; existingKeys: string[];
+function FieldDialog({
+  open,
+  onOpenChange,
+  field,
+  onSave,
+  existingKeys,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  field: FieldConfig | null;
+  onSave: (f: FieldConfig) => void;
+  existingKeys: string[];
 }) {
   const isEdit = !!field;
-  const [form, setForm] = useState<FieldConfig>({ key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
+  const [form, setForm] = useState<FieldConfig>({
+    key: "",
+    label: "",
+    category: "Exterior",
+    optionType: "conforme_nao",
+    critical: false,
+  });
 
   useEffect(() => {
-    setForm(field || { key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
+    if (field) {
+      setForm(field);
+    } else {
+      setForm({ key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
+    }
   }, [field, open]);
 
   const canSave = form.key.trim() && form.label.trim() && (isEdit || !existingKeys.includes(form.key.trim()));
@@ -538,7 +574,9 @@ function FieldDialog({ open, onOpenChange, field, onSave, existingKeys }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>{isEdit ? "Editar Item" : "Novo Item de Inspeção"}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Editar Item" : "Novo Item de Inspeção"}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Identificador (chave)</Label>
@@ -552,19 +590,31 @@ function FieldDialog({ open, onOpenChange, field, onSave, existingKeys }: {
             <div className="space-y-2">
               <Label>Categoria</Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map((cat) => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Tipo de resposta</Label>
               <Select value={form.optionType} onValueChange={(v: any) => setForm({ ...form, optionType: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(OPTION_TYPE_LABELS).map(([val, label]) => (<SelectItem key={val} value={val}>{label}</SelectItem>))}</SelectContent>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(OPTION_TYPE_LABELS).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
             <Switch checked={form.critical} onCheckedChange={(v) => setForm({ ...form, critical: v })} />
             <div>
               <p className="text-sm font-medium">Item crítico</p>
