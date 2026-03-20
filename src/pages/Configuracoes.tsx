@@ -9,18 +9,18 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Settings, ClipboardCheck, Camera, Plus, Trash2, GripVertical,
-  Save, Loader2, Pencil, AlertTriangle, CheckCircle, Eye,
+  Settings, ClipboardCheck, Camera, Plus, Trash2,
+  Save, Loader2, Pencil, AlertTriangle, CheckCircle,
+  ChevronRight, ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,10 +63,108 @@ const STEP_LABELS: Record<number, string> = {
 const CATEGORIES = ["Exterior", "Pneus", "Capô", "Interior", "Danos"];
 
 // ═══════════════════════════════════════════
+// MENU ITEMS for settings landing
+// ═══════════════════════════════════════════
+
+interface SettingsMenuItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: typeof ClipboardCheck;
+  badge?: string;
+}
+
+const SETTINGS_SECTIONS: { label: string; items: SettingsMenuItem[] }[] = [
+  {
+    label: "Formulários",
+    items: [
+      {
+        id: "checklist-pre-op",
+        title: "Checklist Pré-Operação",
+        description: "Fotos obrigatórias, itens de inspeção e regras de bloqueio",
+        icon: ClipboardCheck,
+        badge: "Ativo",
+      },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════
 
 export default function Configuracoes() {
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-6">
+      {activeSection === null ? (
+        <SettingsLanding onOpen={setActiveSection} />
+      ) : activeSection === "checklist-pre-op" ? (
+        <ChecklistConfigEditor onBack={() => setActiveSection(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS LANDING — lista de cards clicáveis
+// ═══════════════════════════════════════════
+
+function SettingsLanding({ onOpen }: { onOpen: (id: string) => void }) {
+  return (
+    <>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Settings className="h-6 w-6" />
+          Configurações
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gerencie formulários, regras e preferências do sistema
+        </p>
+      </div>
+
+      {SETTINGS_SECTIONS.map((section) => (
+        <div key={section.label} className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {section.label}
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {section.items.map((item) => (
+              <Card
+                key={item.id}
+                className="cursor-pointer hover:shadow-md transition-shadow group"
+                onClick={() => onOpen(item.id)}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <item.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate">{item.title}</p>
+                      {item.badge && (
+                        <Badge variant="secondary" className="text-[10px]">{item.badge}</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════
+// CHECKLIST CONFIG EDITOR
+// ═══════════════════════════════════════════
+
+function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -74,11 +172,8 @@ export default function Configuracoes() {
   const [fields, setFields] = useState<FieldConfig[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Photo edit dialog
   const [editingPhoto, setEditingPhoto] = useState<PhotoConfig | null>(null);
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
-
-  // Field edit dialog
   const [editingField, setEditingField] = useState<FieldConfig | null>(null);
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
 
@@ -124,15 +219,10 @@ export default function Configuracoes() {
     onError: () => toast.error("Erro ao salvar configurações"),
   });
 
-  // ═══ PHOTO HANDLERS ═══
   const handleSavePhoto = (photo: PhotoConfig) => {
     setPhotos((prev) => {
       const idx = prev.findIndex((p) => p.key === photo.key);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = photo;
-        return updated;
-      }
+      if (idx >= 0) { const u = [...prev]; u[idx] = photo; return u; }
       return [...prev, photo];
     });
     setHasChanges(true);
@@ -145,15 +235,10 @@ export default function Configuracoes() {
     setHasChanges(true);
   };
 
-  // ═══ FIELD HANDLERS ═══
   const handleSaveField = (field: FieldConfig) => {
     setFields((prev) => {
       const idx = prev.findIndex((f) => f.key === field.key);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = field;
-        return updated;
-      }
+      if (idx >= 0) { const u = [...prev]; u[idx] = field; return u; }
       return [...prev, field];
     });
     setHasChanges(true);
@@ -186,17 +271,22 @@ export default function Configuracoes() {
   }));
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
+    <>
+      {/* Header with back button */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Settings className="h-6 w-6" />
-            Configurações
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gerencie os formulários e regras do sistema
-          </p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" />
+              Checklist Pré-Operação
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Configurações → Checklist Pré-Operação
+            </p>
+          </div>
         </div>
         {hasChanges && (
           <Button
@@ -205,204 +295,143 @@ export default function Configuracoes() {
             className="gap-2"
           >
             {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Alterações
+            Salvar
           </Button>
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════ */}
-      {/* CHECKLIST CONFIG SECTION */}
-      {/* ═══════════════════════════════════════════ */}
+      {/* FOTOS OBRIGATÓRIAS */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ClipboardCheck className="h-5 w-5" />
-            Checklist de Pré-Operação
-          </CardTitle>
-          <CardDescription>
-            Configure as fotos obrigatórias e os itens de inspeção do checklist
-          </CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Camera className="h-4 w-4" />
+              Fotos Obrigatórias
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => { setEditingPhoto(null); setPhotoDialogOpen(true); }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar
+            </Button>
+          </div>
+          <CardDescription>Total: {photos.length} fotos</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-8">
+        <CardContent className="space-y-4">
+          {groupedPhotos.map(({ step, label, items }) =>
+            items.length > 0 ? (
+              <div key={step} className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Etapa {step} — {label}
+                </p>
+                <div className="grid gap-2">
+                  {items.map((photo) => (
+                    <div
+                      key={photo.key}
+                      className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{photo.label}</p>
+                        <p className="text-xs text-muted-foreground truncate">{photo.hint}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Badge variant="secondary" className="text-[10px]">mín. {photo.min}</Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPhoto(photo); setPhotoDialogOpen(true); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remover foto?</AlertDialogTitle>
+                              <AlertDialogDescription>A foto "{photo.label}" será removida do checklist.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeletePhoto(photo.key)}>Remover</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          )}
+        </CardContent>
+      </Card>
 
-          {/* ═══ FOTOS OBRIGATÓRIAS ═══ */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2 text-base">
-                <Camera className="h-4 w-4" />
-                Fotos Obrigatórias
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setEditingPhoto(null);
-                  setPhotoDialogOpen(true);
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Adicionar Foto
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {groupedPhotos.map(({ step, label, items }) =>
-                items.length > 0 ? (
-                  <div key={step} className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Etapa {step} — {label}
-                    </p>
-                    <div className="grid gap-2">
-                      {items.map((photo) => (
-                        <div
-                          key={photo.key}
-                          className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{photo.label}</p>
-                            <p className="text-xs text-muted-foreground truncate">{photo.hint}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Badge variant="secondary" className="text-[10px]">
-                              mín. {photo.min}
+      {/* ITENS DE INSPEÇÃO */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckCircle className="h-4 w-4" />
+              Itens de Inspeção
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => { setEditingField(null); setFieldDialogOpen(true); }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar
+            </Button>
+          </div>
+          <CardDescription>Total: {fields.length} itens ({fields.filter(f => f.critical).length} críticos)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {groupedFields.map(({ category, items }) =>
+            items.length > 0 ? (
+              <div key={category} className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</p>
+                <div className="grid gap-2">
+                  {items.map((field) => (
+                    <div key={field.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{field.label}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">{OPTION_TYPE_LABELS[field.optionType]}</span>
+                          {field.critical && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                              <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />Crítico
                             </Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => {
-                                setEditingPhoto(photo);
-                                setPhotoDialogOpen(true);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remover foto?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    A foto "{photo.label}" será removida do checklist.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeletePhoto(photo.key)}>
-                                    Remover
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
+                          )}
                         </div>
-                      ))}
+                      </div>
+                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingField(field); setFieldDialogOpen(true); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remover item?</AlertDialogTitle>
+                              <AlertDialogDescription>O item "{field.label}" será removido do checklist.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteField(field.key)}>Remover</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
-                  </div>
-                ) : null
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* ═══ ITENS DE INSPEÇÃO ═══ */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2 text-base">
-                <CheckCircle className="h-4 w-4" />
-                Itens de Inspeção
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setEditingField(null);
-                  setFieldDialogOpen(true);
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Adicionar Item
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {groupedFields.map(({ category, items }) =>
-                items.length > 0 ? (
-                  <div key={category} className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {category}
-                    </p>
-                    <div className="grid gap-2">
-                      {items.map((field) => (
-                        <div
-                          key={field.key}
-                          className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow"
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{field.label}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-muted-foreground">
-                                  {OPTION_TYPE_LABELS[field.optionType]}
-                                </span>
-                                {field.critical && (
-                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                    <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
-                                    Crítico
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => {
-                                setEditingField(field);
-                                setFieldDialogOpen(true);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remover item?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    O item "{field.label}" será removido do checklist.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteField(field.key)}>
-                                    Remover
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null
-              )}
-            </div>
-          </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          )}
         </CardContent>
       </Card>
 
@@ -423,24 +452,10 @@ export default function Configuracoes() {
         </div>
       )}
 
-      {/* ═══ PHOTO EDIT DIALOG ═══ */}
-      <PhotoDialog
-        open={photoDialogOpen}
-        onOpenChange={setPhotoDialogOpen}
-        photo={editingPhoto}
-        onSave={handleSavePhoto}
-        existingKeys={photos.map((p) => p.key)}
-      />
-
-      {/* ═══ FIELD EDIT DIALOG ═══ */}
-      <FieldDialog
-        open={fieldDialogOpen}
-        onOpenChange={setFieldDialogOpen}
-        field={editingField}
-        onSave={handleSaveField}
-        existingKeys={fields.map((f) => f.key)}
-      />
-    </div>
+      {/* Dialogs */}
+      <PhotoDialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen} photo={editingPhoto} onSave={handleSavePhoto} existingKeys={photos.map(p => p.key)} />
+      <FieldDialog open={fieldDialogOpen} onOpenChange={setFieldDialogOpen} field={editingField} onSave={handleSaveField} existingKeys={fields.map(f => f.key)} />
+    </>
   );
 }
 
@@ -448,96 +463,47 @@ export default function Configuracoes() {
 // PHOTO DIALOG
 // ═══════════════════════════════════════════
 
-function PhotoDialog({
-  open,
-  onOpenChange,
-  photo,
-  onSave,
-  existingKeys,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  photo: PhotoConfig | null;
-  onSave: (p: PhotoConfig) => void;
-  existingKeys: string[];
+function PhotoDialog({ open, onOpenChange, photo, onSave, existingKeys }: {
+  open: boolean; onOpenChange: (v: boolean) => void; photo: PhotoConfig | null; onSave: (p: PhotoConfig) => void; existingKeys: string[];
 }) {
   const isEdit = !!photo;
-  const [form, setForm] = useState<PhotoConfig>({
-    key: "",
-    label: "",
-    hint: "",
-    min: 1,
-    step: 1,
-  });
+  const [form, setForm] = useState<PhotoConfig>({ key: "", label: "", hint: "", min: 1, step: 1 });
 
   useEffect(() => {
-    if (photo) {
-      setForm(photo);
-    } else {
-      setForm({ key: "", label: "", hint: "", min: 1, step: 1 });
-    }
+    setForm(photo || { key: "", label: "", hint: "", min: 1, step: 1 });
   }, [photo, open]);
 
-  const canSave = form.key.trim() && form.label.trim() && form.hint.trim() &&
-    (isEdit || !existingKeys.includes(form.key.trim()));
+  const canSave = form.key.trim() && form.label.trim() && form.hint.trim() && (isEdit || !existingKeys.includes(form.key.trim()));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Editar Foto" : "Nova Foto Obrigatória"}</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Editar Foto" : "Nova Foto Obrigatória"}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Identificador (chave)</Label>
-            <Input
-              value={form.key}
-              onChange={(e) => setForm({ ...form, key: e.target.value.replace(/[^a-z0-9_]/g, "") })}
-              placeholder="ex: foto_motor"
-              disabled={isEdit}
-            />
+            <Input value={form.key} onChange={(e) => setForm({ ...form, key: e.target.value.replace(/[^a-z0-9_]/g, "") })} placeholder="ex: foto_motor" disabled={isEdit} />
           </div>
           <div className="space-y-2">
             <Label>Nome da foto</Label>
-            <Input
-              value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })}
-              placeholder="ex: Compartimento do Motor"
-            />
+            <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="ex: Compartimento do Motor" />
           </div>
           <div className="space-y-2">
             <Label>Instrução para o técnico</Label>
-            <Input
-              value={form.hint}
-              onChange={(e) => setForm({ ...form, hint: e.target.value })}
-              placeholder="ex: Foto do motor aberto"
-            />
+            <Input value={form.hint} onChange={(e) => setForm({ ...form, hint: e.target.value })} placeholder="ex: Foto do motor aberto" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Mínimo de fotos</Label>
-              <Input
-                type="number"
-                min={1}
-                max={5}
-                value={form.min}
-                onChange={(e) => setForm({ ...form, min: Number(e.target.value) || 1 })}
-              />
+              <Input type="number" min={1} max={5} value={form.min} onChange={(e) => setForm({ ...form, min: Number(e.target.value) || 1 })} />
             </div>
             <div className="space-y-2">
               <Label>Etapa do formulário</Label>
-              <Select
-                value={String(form.step)}
-                onValueChange={(v) => setForm({ ...form, step: Number(v) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={String(form.step)} onValueChange={(v) => setForm({ ...form, step: Number(v) })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(STEP_LABELS).map(([val, label]) => (
-                    <SelectItem key={val} value={val}>
-                      {val} — {label}
-                    </SelectItem>
+                    <SelectItem key={val} value={val}>{val} — {label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -545,12 +511,8 @@ function PhotoDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={() => canSave && onSave(form)} disabled={!canSave}>
-            {isEdit ? "Salvar" : "Adicionar"}
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={() => canSave && onSave(form)} disabled={!canSave}>{isEdit ? "Salvar" : "Adicionar"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -561,121 +523,58 @@ function PhotoDialog({
 // FIELD DIALOG
 // ═══════════════════════════════════════════
 
-function FieldDialog({
-  open,
-  onOpenChange,
-  field,
-  onSave,
-  existingKeys,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  field: FieldConfig | null;
-  onSave: (f: FieldConfig) => void;
-  existingKeys: string[];
+function FieldDialog({ open, onOpenChange, field, onSave, existingKeys }: {
+  open: boolean; onOpenChange: (v: boolean) => void; field: FieldConfig | null; onSave: (f: FieldConfig) => void; existingKeys: string[];
 }) {
   const isEdit = !!field;
-  const [form, setForm] = useState<FieldConfig>({
-    key: "",
-    label: "",
-    category: "Exterior",
-    optionType: "conforme_nao",
-    critical: false,
-  });
+  const [form, setForm] = useState<FieldConfig>({ key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
 
   useEffect(() => {
-    if (field) {
-      setForm(field);
-    } else {
-      setForm({ key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
-    }
+    setForm(field || { key: "", label: "", category: "Exterior", optionType: "conforme_nao", critical: false });
   }, [field, open]);
 
-  const canSave = form.key.trim() && form.label.trim() &&
-    (isEdit || !existingKeys.includes(form.key.trim()));
+  const canSave = form.key.trim() && form.label.trim() && (isEdit || !existingKeys.includes(form.key.trim()));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Editar Item" : "Novo Item de Inspeção"}</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Editar Item" : "Novo Item de Inspeção"}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Identificador (chave)</Label>
-            <Input
-              value={form.key}
-              onChange={(e) => setForm({ ...form, key: e.target.value.replace(/[^a-z0-9_]/g, "") })}
-              placeholder="ex: freios"
-              disabled={isEdit}
-            />
+            <Input value={form.key} onChange={(e) => setForm({ ...form, key: e.target.value.replace(/[^a-z0-9_]/g, "") })} placeholder="ex: freios" disabled={isEdit} />
           </div>
           <div className="space-y-2">
             <Label>Pergunta exibida</Label>
-            <Input
-              value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })}
-              placeholder="ex: Freios funcionando corretamente?"
-            />
+            <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="ex: Freios funcionando corretamente?" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select
-                value={form.category}
-                onValueChange={(v) => setForm({ ...form, category: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CATEGORIES.map((cat) => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Tipo de resposta</Label>
-              <Select
-                value={form.optionType}
-                onValueChange={(v: any) => setForm({ ...form, optionType: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(OPTION_TYPE_LABELS).map(([val, label]) => (
-                    <SelectItem key={val} value={val}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={form.optionType} onValueChange={(v: any) => setForm({ ...form, optionType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(OPTION_TYPE_LABELS).map(([val, label]) => (<SelectItem key={val} value={val}>{label}</SelectItem>))}</SelectContent>
               </Select>
             </div>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
-            <Switch
-              checked={form.critical}
-              onCheckedChange={(v) => setForm({ ...form, critical: v })}
-            />
+            <Switch checked={form.critical} onCheckedChange={(v) => setForm({ ...form, critical: v })} />
             <div>
               <p className="text-sm font-medium">Item crítico</p>
-              <p className="text-xs text-muted-foreground">
-                Se não conforme, sugere bloqueio automático do veículo
-              </p>
+              <p className="text-xs text-muted-foreground">Se não conforme, sugere bloqueio automático</p>
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={() => canSave && onSave(form)} disabled={!canSave}>
-            {isEdit ? "Salvar" : "Adicionar"}
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={() => canSave && onSave(form)} disabled={!canSave}>{isEdit ? "Salvar" : "Adicionar"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
