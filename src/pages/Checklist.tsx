@@ -1349,6 +1349,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 
 export default function Checklist() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const { data: vehicles = [] } = useQuery({
