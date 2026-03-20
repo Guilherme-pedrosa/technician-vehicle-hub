@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Wrench,
   BarChart3,
+  Settings,
   User,
   LogOut,
   ChevronLeft,
