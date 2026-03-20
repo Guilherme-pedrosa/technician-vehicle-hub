@@ -133,19 +133,94 @@ function isCriticalNonConforme(key: string, val: string) {
 }
 
 // ═══════════════════════════════════════════
+// AI PHOTO VALIDATION
+// ═══════════════════════════════════════════
+
+type ValidationResult = {
+  valid: boolean;
+  quality: "boa" | "aceitavel" | "ruim";
+  reason: string;
+  ai_error?: boolean;
+};
+
+type PhotoValidation = {
+  status: "idle" | "validating" | "valid" | "invalid" | "forced";
+  result?: ValidationResult;
+};
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]); // Remove data:image/...;base64, prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function validatePhoto(file: File, category: string): Promise<ValidationResult> {
+  try {
+    // Resize image to reduce base64 size for faster API calls
+    const base64 = await fileToBase64(file);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("Not authenticated");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-checklist-photo`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ image_base64: base64, category }),
+      }
+    );
+
+    if (!response.ok) throw new Error("Validation failed");
+    return await response.json();
+  } catch (err) {
+    console.error("Photo validation error:", err);
+    return { valid: true, quality: "aceitavel", reason: "Validação indisponível", ai_error: true };
+  }
+}
+
+// ═══════════════════════════════════════════
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: FileList) => void;
   onRemove: (cat: PhotoCategory, idx: number) => void;
   required?: boolean;
+  validations?: PhotoValidation[];
+  onValidationUpdate?: (cat: PhotoCategory, idx: number, validation: PhotoValidation) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
   const hasEnough = photos.length >= meta.min;
+
+  const handleCapture = async (files: FileList) => {
+    onCapture(category, files);
+    // Trigger validation for new photo
+    if (onValidationUpdate) {
+      const newIdx = photos.length;
+      const file = files[0];
+      onValidationUpdate(category, newIdx, { status: "validating" });
+      const result = await validatePhoto(file, category);
+      onValidationUpdate(category, newIdx, {
+        status: result.valid ? "valid" : "invalid",
+        result,
+      });
+      if (!result.valid) {
+        toast.warning(`⚠️ Foto pode estar inadequada: ${result.reason}`, { duration: 6000 });
+      }
+    }
+  };
 
   return (
     <div className={`space-y-2 rounded-xl border-2 p-3 transition-colors ${
@@ -163,20 +238,60 @@ function CameraCapture({ category, photos, onCapture, onRemove, required }: {
 
       {photos.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {photos.map((file, i) => (
-            <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-border">
-              <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => onRemove(category, i)}
-                className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl-lg p-0.5">
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+          {photos.map((file, i) => {
+            const v = validations?.[i];
+            const borderColor = !v || v.status === "idle" ? "border-border"
+              : v.status === "validating" ? "border-primary animate-pulse"
+              : v.status === "valid" ? "border-success"
+              : v.status === "forced" ? "border-warning"
+              : "border-destructive";
+            return (
+              <div key={i} className="space-y-1">
+                <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
+                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                  {v?.status === "validating" && (
+                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  )}
+                  {v?.status === "valid" && (
+                    <div className="absolute bottom-0 right-0 bg-success rounded-tl-lg p-0.5">
+                      <CheckCircle className="w-3 h-3 text-success-foreground" />
+                    </div>
+                  )}
+                  {v?.status === "invalid" && (
+                    <div className="absolute bottom-0 right-0 bg-destructive rounded-tl-lg p-0.5">
+                      <XCircle className="w-3 h-3 text-destructive-foreground" />
+                    </div>
+                  )}
+                  {v?.status === "forced" && (
+                    <div className="absolute bottom-0 right-0 bg-warning rounded-tl-lg p-0.5">
+                      <AlertCircle className="w-3 h-3 text-warning-foreground" />
+                    </div>
+                  )}
+                  <button type="button" onClick={() => onRemove(category, i)}
+                    className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl-lg p-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                {v?.status === "invalid" && v.result && (
+                  <div className="w-16">
+                    <p className="text-[9px] text-destructive leading-tight">{v.result.reason}</p>
+                    <button type="button"
+                      className="text-[9px] text-warning font-bold underline mt-0.5"
+                      onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
+                      Forçar
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => { if (e.target.files?.length) { onCapture(category, e.target.files); e.target.value = ""; } }} />
+        onChange={(e) => { if (e.target.files?.length) { handleCapture(e.target.files); e.target.value = ""; } }} />
       <Button type="button" variant={hasEnough ? "outline" : "default"} className="w-full gap-2 h-12 text-base active:scale-[0.97]"
         onClick={() => inputRef.current?.click()}>
         <Camera className="w-5 h-5" /> {hasEnough ? "Tirar Outra" : "Tirar Foto"}
@@ -241,6 +356,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     return d;
   });
   const [photos, setPhotos] = useState<PhotosMap>({});
+  const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
   const [uploading, setUploading] = useState(false);
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
@@ -256,12 +372,20 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   }, []);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+  }, []);
+  const handleValidationUpdate = useCallback((cat: PhotoCategory, idx: number, validation: PhotoValidation) => {
+    setPhotoValidations((prev) => {
+      const arr = [...(prev[cat] ?? [])];
+      arr[idx] = validation;
+      return { ...prev, [cat]: arr };
+    });
   }, []);
 
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId("");
     setTripulacao(""); setDestino(""); setObservacoes("");
-    setPhotos({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
+    setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
@@ -434,7 +558,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} />
         </div>
       );
     }
@@ -448,7 +572,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Caminhe ao redor do veículo tirando as fotos:</p>
           {extPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} />
           ))}
           {extFields.length > 0 && (
             <>
@@ -504,7 +628,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
           {capoPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} />
           ))}
           {capoFields.length > 0 && (
             <>
@@ -697,7 +821,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
             {stepPhotos.map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} />
             ))}
             <Separator />
           </div>
@@ -753,7 +877,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
               value={answers["obs_danos_veiculo"] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
-            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} />
           </div>
         )}
       </div>
