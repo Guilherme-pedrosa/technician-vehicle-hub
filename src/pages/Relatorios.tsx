@@ -273,12 +273,13 @@ export default function Relatorios() {
                 <th className="text-center p-3 font-medium hidden lg:table-cell">Telemetria</th>
               </tr>
             </thead>
+            <tbody>
               {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    {vehicles.length === 0 ? "Sincronize os veículos primeiro" : "Nenhum veículo encontrado para este filtro"}
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                    {vehicles.length === 0 ? "Sincronize os veículos primeiro" : "Nenhum veículo encontrado"}
+                  </td>
+                </tr>
               ) : (
                 rows.map(r => (
                   <TableRow key={r.id}>
