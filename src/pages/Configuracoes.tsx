@@ -97,6 +97,10 @@ const CHECKLIST_ITEMS: SettingsMenuItem[] = [
 export default function Configuracoes() {
   const [view, setView] = useState<SettingsView>("root");
 
+  if (view === "usuarios") {
+    return <UserManagement onBack={() => setView("root")} />;
+  }
+
   if (view === "checklist-pre-op") {
     return <ChecklistConfigEditor onBack={() => setView("checklists")} />;
   }
