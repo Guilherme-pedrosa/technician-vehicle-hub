@@ -786,7 +786,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.modelo?.split(" ")?.[0] ?? ""} vehicleModelo={selectedVehicle?.modelo} />
         </div>
       );
     }
@@ -800,7 +800,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Caminhe ao redor do veículo tirando as fotos:</p>
           {extPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.modelo?.split(" ")?.[0] ?? ""} vehicleModelo={selectedVehicle?.modelo} />
           ))}
           {extFields.length > 0 && (
             <>
@@ -856,7 +856,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
           {capoPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.modelo?.split(" ")?.[0] ?? ""} vehicleModelo={selectedVehicle?.modelo} />
           ))}
           {capoFields.length > 0 && (
             <>
@@ -1085,7 +1085,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
             {stepPhotos.map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.modelo?.split(" ")?.[0] ?? ""} vehicleModelo={selectedVehicle?.modelo} />
             ))}
             <Separator />
           </div>
@@ -1141,7 +1141,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
               value={answers["obs_danos_veiculo"] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
-            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.modelo?.split(" ")?.[0] ?? ""} vehicleModelo={selectedVehicle?.modelo} />
           </div>
         )}
       </div>
