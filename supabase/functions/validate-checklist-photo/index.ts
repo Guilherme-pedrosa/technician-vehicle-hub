@@ -6,7 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Prompts de validação por categoria de foto
 const VALIDATION_PROMPTS: Record<string, string> = {
   painel: "Esta foto mostra o painel/dashboard de um veículo com o hodômetro (KM) visível e legível? Verifique se o KM pode ser lido claramente.",
   exterior_frente: "Esta foto mostra a frente completa de um veículo (capô, para-choque dianteiro, faróis)?",
@@ -35,7 +34,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -43,15 +41,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: authData, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !authData?.claims) {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error("Auth error:", authError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -59,8 +58,14 @@ Deno.serve(async (req) => {
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "OPENAI_API_KEY não configurada" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      console.error("OPENAI_API_KEY not configured");
+      return new Response(JSON.stringify({
+        valid: false,
+        quality: "ruim",
+        reason: "Validação IA não configurada. Contate o administrador.",
+        ai_error: true,
+      }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -92,7 +97,10 @@ ${contentPrompt}
 
 Se a foto estiver com qualidade ruim OU não mostrar o conteúdo esperado, retorne valid=false.
 Se a foto tiver qualidade aceitável ou boa E mostrar o conteúdo correto, retorne valid=true.
+Seja rigoroso: se a foto claramente não mostra o que foi pedido (ex: foto de pessoa quando deveria ser pneu), retorne valid=false.
 Seja rápido e objetivo.`;
+
+    console.log(`Validating photo for category: ${category}, user: ${user.id}`);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -119,12 +127,11 @@ Seja rápido e objetivo.`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI error:", response.status, errorText);
-      // On API error, allow the photo (don't block the user)
+      console.error("OpenAI API error:", response.status, errorText);
       return new Response(JSON.stringify({
-        valid: true,
-        quality: "aceitavel",
-        reason: "Validação indisponível no momento. Foto aceita automaticamente.",
+        valid: false,
+        quality: "ruim",
+        reason: "Erro na validação IA. Tente novamente.",
         ai_error: true,
       }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -133,15 +140,14 @@ Seja rápido e objetivo.`;
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
+    console.log(`OpenAI response for ${category}:`, content);
 
-    // Parse the JSON from the response
     let result;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      result = jsonMatch ? JSON.parse(jsonMatch[0]) : { valid: true, quality: "aceitavel", reason: "Não foi possível interpretar a resposta" };
+      result = jsonMatch ? JSON.parse(jsonMatch[0]) : { valid: false, quality: "ruim", reason: "Resposta inválida da IA" };
     } catch {
-      result = { valid: true, quality: "aceitavel", reason: "Não foi possível interpretar a resposta" };
+      result = { valid: false, quality: "ruim", reason: "Resposta inválida da IA" };
     }
 
     return new Response(JSON.stringify(result), {
@@ -149,11 +155,10 @@ Seja rápido e objetivo.`;
     });
   } catch (error: unknown) {
     console.error("Validation error:", error);
-    // On any error, allow the photo
     return new Response(JSON.stringify({
-      valid: true,
-      quality: "aceitavel",
-      reason: "Erro na validação. Foto aceita automaticamente.",
+      valid: false,
+      quality: "ruim",
+      reason: "Erro na validação. Tente novamente.",
       ai_error: true,
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
