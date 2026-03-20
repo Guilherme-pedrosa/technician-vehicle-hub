@@ -302,6 +302,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const finalResultado = resultado || suggestedResult;
 
       // Save checklist
+      // Calcula troca_oleo automaticamente
+      const trocaOleoStatus = trocaOleoVencida ? "vencido" : "ok";
+
       const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
@@ -314,6 +317,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado: finalResultado,
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
+        troca_oleo: trocaOleoStatus,
+        detalhes: { km_proxima_troca: kmTrocaNum },
         ...answers,
       } as any).select("id").single();
       if (error) throw error;
