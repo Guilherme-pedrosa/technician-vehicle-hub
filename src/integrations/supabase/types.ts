@@ -187,6 +187,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_send_log: {
+        Row: {
+          checklist_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          recipient_email: string
+          resend_id: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          checklist_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email: string
+          resend_id?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          checklist_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email?: string
+          resend_id?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: []
+      }
       maintenance_tickets: {
         Row: {
           assigned_to: string | null
