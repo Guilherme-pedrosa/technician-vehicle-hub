@@ -227,11 +227,11 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
               </div>
               <div className="space-y-2">
                 <Label>Motorista Responsável</Label>
-                <Select value={driverId} onValueChange={setDriverId}>
+                <Select value={selectedDriverName} onValueChange={setSelectedDriverName}>
                   <SelectTrigger><SelectValue placeholder="Selecione o motorista" /></SelectTrigger>
                   <SelectContent>
                     {drivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                      <SelectItem key={String(d.id)} value={d.nome}>{d.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
