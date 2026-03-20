@@ -577,12 +577,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           {/* Summary */}
           <div className="rounded-xl border border-border p-4 space-y-2">
             <h4 className="text-sm font-bold">Resumo da Inspeção</h4>
-            {nonConformeFields.length > 0 ? (
+            {(nonConformeFields.length > 0 || trocaOleoVencida) ? (
               <div className="space-y-1">
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  {nonConformeFields.length} não conformidade{nonConformeFields.length > 1 ? "s" : ""}
-                  {hasCritical && ` (${criticalCount} crítica${criticalCount > 1 ? "s" : ""})`}
+                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0)) > 1 ? "s" : ""}
                 </Badge>
                 <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
                   {nonConformeFields.map((f) => (
@@ -591,6 +590,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       {f.label}
                     </li>
                   ))}
+                  {trocaOleoVencida && (
+                    <li className="flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-destructive shrink-0" />
+                      Troca de óleo vencida (próxima: {kmTrocaNum?.toLocaleString("pt-BR")} km)
+                    </li>
+                  )}
                 </ul>
               </div>
             ) : (
