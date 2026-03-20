@@ -605,28 +605,71 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (error) throw error;
 
       // AUTO-TICKET: criar chamado de não conformidade se houver problemas
-      if (hasAnyProblem && savedChecklist) {
+      const hasPhotoIssues = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
+      const shouldCreateTicket = hasAnyProblem || hasPhotoIssues;
+
+      if (shouldCreateTicket && savedChecklist) {
         const problemItems = nonConformeFields.map((f) => `• ${f.label}: ${answers[f.key]}`).join("\n");
         const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${oilLine}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+        
+        // Include photo validation issues
+        const photoIssueLines: string[] = [];
+        for (const inv of photoValidationSummary.invalid) {
+          const meta = PHOTO_META[inv.categoria as PhotoCategory];
+          photoIssueLines.push(`• 📷 ${meta?.label ?? inv.categoria}: Foto reprovada pela IA — ${inv.motivos?.[0] ?? "Fora do padrão"}`);
+        }
+        for (const forced of photoValidationSummary.forced) {
+          const meta = PHOTO_META[forced.categoria as PhotoCategory];
+          photoIssueLines.push(`• ⚠️ ${meta?.label ?? forced.categoria}: Foto forçada pelo técnico (reprovada pela IA)`);
+        }
+        const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
+
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+
+        const ticketPrioridade = hasCritical ? "alta" : (hasPhotoIssues && !hasAnyProblem) ? "media" : hasAnyProblem ? "media" : "baixa";
 
         await supabase.from("maintenance_tickets").insert({
           vehicle_id: vehicleId,
           driver_id: selectedDriverId || null,
           created_by: userId,
           tipo: "nao_conformidade" as any,
-          prioridade: hasCritical ? "alta" : "media",
+          prioridade: ticketPrioridade as any,
           status: "aberto",
           titulo: `Checklist NC — ${selectedVehicle?.placa} — ${format(now, "dd/MM")}`,
           descricao: ticketDesc,
           fotos: Object.values(fotosUrls).flat().slice(0, 5),
         } as any);
+
+        // Send email notification to all users
+        try {
+          await supabase.functions.invoke("notify-checklist-nc", {
+            body: {
+              checklist_id: savedChecklist.id,
+              placa: selectedVehicle?.placa,
+              modelo: selectedVehicle?.modelo,
+              tecnico: selectedDriver?.full_name ?? "—",
+              data: format(now, "dd/MM/yyyy HH:mm"),
+              resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
+              itens_problema: nonConformeFields.map((f) => ({ label: f.label, valor: answers[f.key] })),
+              fotos_problema: [
+                ...photoValidationSummary.invalid.map((i) => ({ categoria: PHOTO_META[i.categoria as PhotoCategory]?.label ?? i.categoria, motivo: i.motivos?.[0] ?? "Fora do padrão", tipo: "reprovada" })),
+                ...photoValidationSummary.forced.map((f) => ({ categoria: PHOTO_META[f.categoria as PhotoCategory]?.label ?? f.categoria, motivo: "Forçada pelo técnico", tipo: "forcada" })),
+              ],
+              troca_oleo_vencida: trocaOleoVencida,
+              observacoes: observacoes || null,
+            },
+          });
+        } catch (emailErr) {
+          console.error("Erro ao enviar notificação por e-mail:", emailErr);
+        }
       }
     },
     onSuccess: () => {
       setUploading(false);
-      if (hasAnyProblem) {
-        toast.success("Checklist salvo! Chamado de não conformidade criado automaticamente.", { duration: 5000 });
+      const hasPhotoIssuesOnSuccess = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
+      const hadProblems = hasAnyProblem || hasPhotoIssuesOnSuccess;
+      if (hadProblems) {
+        toast.success("Checklist salvo! Chamado criado e notificação enviada por e-mail.", { duration: 5000 });
       } else {
         toast.success("Checklist salvo com sucesso!");
       }
