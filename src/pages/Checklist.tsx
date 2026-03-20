@@ -607,15 +607,20 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
                       {statusBadge(checklist[f.key], f)}
                     </div>
                     {/* Show photos if any */}
-                    {f.photoAfter && fotosData[f.photoAfter]?.length > 0 && (
-                      <div className="flex gap-2 flex-wrap py-1">
-                        {fotosData[f.photoAfter].map((url: string, i: number) => (
-                          <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-14 h-14 rounded-md overflow-hidden border border-border block">
-                            <img src={url} alt="" className="w-full h-full object-cover" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    {f.photoAfter && (() => {
+                      const cats = Array.isArray(f.photoAfter) ? f.photoAfter : [f.photoAfter];
+                      const allUrls = cats.flatMap((cat) => fotosData[cat] ?? []);
+                      if (allUrls.length === 0) return null;
+                      return (
+                        <div className="flex gap-2 flex-wrap py-1">
+                          {allUrls.map((url: string, i: number) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-14 h-14 rounded-md overflow-hidden border border-border block">
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
