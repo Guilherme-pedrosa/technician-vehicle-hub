@@ -107,6 +107,8 @@ serve(async (req) => {
         <tbody>${itensHtml}${fotosHtml}${oleoHtml}</tbody>
       </table>` : ""}
 
+      ${avaria_descricao ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px;"><strong>🔍 Descrição da Avaria:</strong><br>${avaria_descricao}</div>` : ""}
+
       ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${observacoes}</div>` : ""}
       
       <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;text-align:center;">
