@@ -132,12 +132,16 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Try to match selected Rota Exata driver to local drivers table by name
+      const matchedLocal = selectedDriverName
+        ? localDrivers.find((d) => d.full_name.toLowerCase().trim() === selectedDriverName.toLowerCase().trim())
+        : null;
       const { error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
-        driver_id: driverId || null,
+        driver_id: matchedLocal?.id || null,
         created_by: userId,
         checklist_date: format(new Date(), "yyyy-MM-dd"),
-        tripulacao: tripulacao || null,
+        tripulacao: selectedDriverName || tripulacao || null,
         destino: destino || null,
         observacoes: observacoes || null,
         ...answers,
