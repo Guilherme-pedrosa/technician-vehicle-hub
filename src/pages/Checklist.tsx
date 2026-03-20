@@ -1521,7 +1521,7 @@ export default function Checklist() {
                             <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
                           </p>
                           <p className="mt-1 text-[11px] text-destructive/90 line-clamp-2">
-                            {forcedPhotos.map((item) => item.label).join(", ")}
+                            {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
                           </p>
                         </div>
                       )}
@@ -1576,7 +1576,7 @@ export default function Checklist() {
                               </span>
                               {hasBadPhotos && (
                                 <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
-                                  {forcedPhotos.map((item) => item.label).join(", ")}
+                                  {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
                                 </span>
                               )}
                             </div>
