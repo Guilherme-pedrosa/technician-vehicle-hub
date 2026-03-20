@@ -1542,17 +1542,9 @@ export default function Checklist() {
                             {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </td>
                           <td className="p-3 text-center">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => setSelectedChecklist(cl)}>
-                                  <Eye className="w-3.5 h-3.5" /> Ver
-                                </Button>
-                              </DialogTrigger>
-                              {selectedChecklist?.id === cl.id && (
-                                <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers}
-                                  onDeleted={() => setSelectedChecklist(null)} />
-                              )}
-                            </Dialog>
+                            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                              <Eye className="w-3.5 h-3.5" /> Ver
+                            </Button>
                           </td>
                         </tr>
                       );
