@@ -1161,14 +1161,35 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     );
   };
 
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const hasProgress = step > 0 || Object.keys(photos).length > 0 || vehicleId !== "";
+
+  const handleDialogClose = (newOpen: boolean) => {
+    if (!newOpen && hasProgress) {
+      setShowExitConfirm(true);
+      return;
+    }
+    setOpen(newOpen);
+    if (!newOpen) resetForm();
+  };
+
+  const confirmExit = () => {
+    setShowExitConfirm(false);
+    setOpen(false);
+    resetForm();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+    <Dialog open={open} onOpenChange={handleDialogClose}>
       <DialogTrigger asChild>
         <Button className="gap-2 h-12 text-base px-6">
           <Plus className="w-5 h-5" /> Novo Checklist
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 flex flex-col">
+      <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 flex flex-col"
+        onPointerDownOutside={(e) => { if (hasProgress) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (hasProgress) { e.preventDefault(); setShowExitConfirm(true); } }}>
         <DialogHeader className="p-4 pb-2">
           <DialogTitle className="text-base flex items-center gap-2">
             {(() => { const Icon = STEPS[step].icon; return <Icon className="w-5 h-5 text-primary" />; })()}
@@ -1208,6 +1229,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </Button>
           )}
         </div>
+
+        {/* Exit confirmation dialog */}
+        <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Descartar checklist?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Você tem um preenchimento em andamento. Todo o progresso (fotos e respostas) será perdido.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Continuar preenchendo</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmExit} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Descartar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
