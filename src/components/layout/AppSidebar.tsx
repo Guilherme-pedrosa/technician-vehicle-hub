@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Wrench,
   BarChart3,
+  Settings,
   User,
   LogOut,
   ChevronLeft,
@@ -62,6 +63,12 @@ const menuGroups: MenuGroup[] = [
     label: "Análises",
     items: [
       { title: "Relatórios", icon: BarChart3, href: "/relatorios" },
+    ],
+  },
+  {
+    label: "Sistema",
+    items: [
+      { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
   },
 ];

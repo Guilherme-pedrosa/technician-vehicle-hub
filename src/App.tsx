@@ -15,6 +15,7 @@ import ChecklistDetail from "./pages/ChecklistDetail";
 import Chamados from "./pages/Chamados";
 import Relatorios from "./pages/Relatorios";
 import Perfil from "./pages/Perfil";
+import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/checklist/:id" element={<ChecklistDetail />} />
               <Route path="/chamados" element={<Chamados />} />
               <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />
