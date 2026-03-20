@@ -621,6 +621,32 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
+  // Update ticket fields
+  const updateTicket = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const { error } = await supabase.from("maintenance_tickets").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado atualizado!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
+  // Delete ticket
+  const deleteTicket = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("maintenance_tickets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado excluído!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
   // Filter tickets
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
