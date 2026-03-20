@@ -22,19 +22,24 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Verify the caller is an admin
+    // Verify the caller is authenticated
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Not authenticated");
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !caller) throw new Error("Invalid token");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) throw new Error("Invalid token");
+    const callerId = claimsData.claims.sub as string;
 
     // Check caller is admin
     const { data: callerRoles } = await supabaseAdmin
       .from("user_roles")
       .select("role")
-      .eq("user_id", caller.id);
+      .eq("user_id", callerId);
     const isAdmin = callerRoles?.some((r: any) => r.role === "admin");
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Apenas administradores podem gerenciar usuários" }), {
@@ -140,7 +145,7 @@ serve(async (req) => {
     if (action === "delete") {
       const { user_id } = payload;
       if (!user_id) throw new Error("user_id é obrigatório");
-      if (user_id === caller.id) throw new Error("Você não pode excluir seu próprio usuário");
+      if (user_id === callerId) throw new Error("Você não pode excluir seu próprio usuário");
 
       await supabaseAdmin.auth.admin.deleteUser(user_id);
 
