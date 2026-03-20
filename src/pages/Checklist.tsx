@@ -132,6 +132,8 @@ type PersistedPhotoValidationMetadata = {
   fotos_erro_validacao: ValidationSummaryItem[];
 };
 
+const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
@@ -609,6 +611,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // Calcula troca_oleo automaticamente
       const trocaOleoStatus = trocaOleoVencida ? "vencido" : "ok";
 
+      const persistedAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
+      );
+      const answerObservations = Object.fromEntries(
+        Object.entries(answers)
+          .filter(([key, value]) => key.startsWith("obs_") && value.trim().length > 0)
+          .map(([key, value]) => [key.replace(/^obs_/, ""), value.trim()])
+      );
+
       const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
@@ -617,6 +628,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         tripulacao: tripulacao || selectedDriver?.full_name || null,
         destino: destino || null,
         observacoes: observacoes || null,
+        avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
         fotos: fotosUrls,
         resultado: finalResultado,
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
@@ -624,11 +636,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         troca_oleo: trocaOleoStatus,
         detalhes: {
           km_proxima_troca: kmTrocaNum,
+          observacoes_itens: answerObservations,
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
         },
-        ...answers,
+        ...persistedAnswers,
       } as any).select("id").single();
       if (error) throw error;
 
