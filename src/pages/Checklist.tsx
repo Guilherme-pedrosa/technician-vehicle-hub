@@ -1392,8 +1392,9 @@ export default function Checklist() {
                           <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
-                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
                               <ImageIcon className="w-3 h-3" /> {fotoCount}
+                              {hasForcedPhotos && <AlertCircle className="w-3 h-3 text-warning" />}
                             </span>
                           </td>
                           <td className="p-3 text-center">
