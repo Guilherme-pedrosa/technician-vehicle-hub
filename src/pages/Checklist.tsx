@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -107,15 +108,16 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 
-function ChecklistFormDialog({ vehicles, drivers, userId }: {
+function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
   vehicles: { id: string; placa: string; modelo: string }[];
-  drivers: { id: string; full_name: string }[];
+  drivers: { id: number; nome: string }[];
+  localDrivers: { id: string; full_name: string }[];
   userId: string;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
-  const [driverId, setDriverId] = useState("");
+  const [selectedDriverName, setSelectedDriverName] = useState("");
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
@@ -130,12 +132,16 @@ function ChecklistFormDialog({ vehicles, drivers, userId }: {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Try to match selected Rota Exata driver to local drivers table by name
+      const matchedLocal = selectedDriverName
+        ? localDrivers.find((d) => d.full_name.toLowerCase().trim() === selectedDriverName.toLowerCase().trim())
+        : null;
       const { error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
-        driver_id: driverId || null,
+        driver_id: matchedLocal?.id || null,
         created_by: userId,
         checklist_date: format(new Date(), "yyyy-MM-dd"),
-        tripulacao: tripulacao || null,
+        tripulacao: selectedDriverName || tripulacao || null,
         destino: destino || null,
         observacoes: observacoes || null,
         ...answers,
@@ -159,7 +165,7 @@ function ChecklistFormDialog({ vehicles, drivers, userId }: {
 
   const resetForm = () => {
     setVehicleId("");
-    setDriverId("");
+    setSelectedDriverName("");
     setTripulacao("");
     setDestino("");
     setObservacoes("");
@@ -221,11 +227,11 @@ function ChecklistFormDialog({ vehicles, drivers, userId }: {
               </div>
               <div className="space-y-2">
                 <Label>Motorista Responsável</Label>
-                <Select value={driverId} onValueChange={setDriverId}>
+                <Select value={selectedDriverName} onValueChange={setSelectedDriverName}>
                   <SelectTrigger><SelectValue placeholder="Selecione o motorista" /></SelectTrigger>
                   <SelectContent>
                     {drivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                      <SelectItem key={String(d.id)} value={d.nome}>{d.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -344,13 +350,13 @@ function statusBadge(value: string, field: ChecklistField) {
   );
 }
 
-function ChecklistDetailDialog({ checklist, vehicles, drivers }: {
+function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string }[];
-  drivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string }[];
 }) {
   const vehicle = vehicles.find((v) => v.id === checklist.vehicle_id);
-  const driver = drivers.find((d) => d.id === checklist.driver_id);
+  const driver = localDrivers.find((d) => d.id === checklist.driver_id);
 
   const categories = useMemo(() => {
     const cats: string[] = [];
@@ -372,7 +378,7 @@ function ChecklistDetailDialog({ checklist, vehicles, drivers }: {
         <div className="space-y-4 pt-3">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div><span className="text-muted-foreground">Veículo:</span> {vehicle?.placa} — {vehicle?.modelo}</div>
-            <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? "—"}</div>
+            <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? checklist.tripulacao ?? "—"}</div>
             {checklist.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {checklist.tripulacao}</div>}
             {checklist.destino && <div><span className="text-muted-foreground">Destino:</span> {checklist.destino}</div>}
           </div>
@@ -422,7 +428,7 @@ export default function Checklist() {
     },
   });
 
-  const { data: drivers = [] } = useQuery({
+  const { data: localDrivers = [] } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("drivers").select("id, full_name").eq("status", "ativo").order("full_name");
@@ -430,6 +436,8 @@ export default function Checklist() {
       return data;
     },
   });
+
+  const { data: rotaExataDrivers = [] } = useRotaExataUsuarios();
 
   const { data: checklists = [], isLoading } = useQuery({
     queryKey: ["vehicle-checklists", filterDate],
@@ -474,7 +482,8 @@ export default function Checklist() {
         {user && (
           <ChecklistFormDialog
             vehicles={vehicles}
-            drivers={drivers}
+            drivers={rotaExataDrivers}
+            localDrivers={localDrivers}
             userId={user.id}
           />
         )}
@@ -555,7 +564,7 @@ export default function Checklist() {
               ) : (
                 checklists.map((cl: any) => {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
-                  const driver = drivers.find((d) => d.id === cl.driver_id);
+                  const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const hasIssue = CHECKLIST_FIELDS.some((f) => {
                     const val = cl[f.key];
                     return val === "nao_conforme" || val === "vencido" ||
@@ -596,7 +605,7 @@ export default function Checklist() {
                             <ChecklistDetailDialog
                               checklist={selectedChecklist}
                               vehicles={vehicles}
-                              drivers={drivers}
+                              localDrivers={localDrivers}
                             />
                           )}
                         </Dialog>
