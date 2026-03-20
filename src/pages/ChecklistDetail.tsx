@@ -112,29 +112,33 @@ const DETAIL_SECTIONS = [
 ];
 
 // ═══════════════════════════════════════════
-// Photo gallery inline
+// Photo row — same visual weight as a field row
 // ═══════════════════════════════════════════
 
-function PhotoGallery({ category, urls, isFlagged, flagReasons }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[] }) {
+function PhotoRow({ category, urls, isFlagged, flagReasons }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[] }) {
   if (!urls || urls.length === 0) return null;
   const meta = PHOTO_META[category];
   return (
-    <div className={`space-y-1.5 rounded-lg p-2 ${isFlagged ? "bg-destructive/5 border border-destructive/30" : ""}`}>
-      <div className="flex items-center gap-2">
-        <p className="text-xs font-semibold text-muted-foreground">{meta?.label ?? category}</p>
-        {isFlagged && (
+    <div className={`py-2 ${isFlagged ? "bg-destructive/5 rounded-lg px-2" : ""}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm flex-1">{meta?.label ?? category}</span>
+        {isFlagged ? (
           <Badge variant="destructive" className="text-[10px] gap-1 px-1.5 py-0">
-            <AlertTriangle className="w-2.5 h-2.5" /> Foto inadequada
+            <AlertTriangle className="w-2.5 h-2.5" /> Inadequada
           </Badge>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+            <CheckCircle className="w-3.5 h-3.5" /> OK
+          </span>
         )}
       </div>
       {isFlagged && flagReasons && flagReasons.length > 0 && (
-        <p className="text-[11px] text-destructive font-medium">⚠️ {flagReasons.join("; ")}</p>
+        <p className="text-[11px] text-destructive font-medium mb-1.5">⚠️ {flagReasons.join("; ")}</p>
       )}
       <div className="flex gap-2 flex-wrap">
         {urls.map((url, i) => (
           <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border-2 block hover:ring-2 hover:ring-primary transition-all ${
+            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 block hover:ring-2 hover:ring-primary transition-all ${
               isFlagged ? "border-destructive shadow-[0_0_8px_rgba(220,38,38,0.3)]" : "border-border"
             }`}>
             <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -442,50 +446,42 @@ export default function ChecklistDetail() {
                 )}
               </h3>
 
-              {/* Photos for this section */}
-              {sectionPhotos.length > 0 && (
-                <div className="space-y-3">
-                  {sectionPhotos.map((cat) => (
-                    <PhotoGallery
-                      key={cat}
-                      category={cat}
-                      urls={fotosData[cat]}
-                      isFlagged={!!flaggedMap[cat]}
-                      flagReasons={flaggedMap[cat]}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Interleaved: photos and fields as uniform rows */}
+              <div className="space-y-1 divide-y divide-border">
+                {/* Photo rows */}
+                {sectionPhotos.map((cat) => (
+                  <PhotoRow
+                    key={cat}
+                    category={cat}
+                    urls={fotosData[cat]}
+                    isFlagged={!!flaggedMap[cat]}
+                    flagReasons={flaggedMap[cat]}
+                  />
+                ))}
 
-              {/* Fields for this section */}
-              {sectionFields.length > 0 && (
-                <>
-                  {sectionPhotos.length > 0 && <Separator />}
-                  <div className="space-y-1">
-                    {sectionFields.map((f) => {
-                      const nc = isNonConforme(f.key, (cl as any)[f.key]);
-                      const opt = f.options.find((o) => o.value === (cl as any)[f.key]);
-                      const obsValue = (cl as any)[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`];
-                      return (
-                        <div key={f.key}>
-                          <div className="flex items-center justify-between py-1.5">
-                            <span className="text-sm flex-1">{f.label}</span>
-                            <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                              {nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                              {opt?.label ?? (cl as any)[f.key] ?? "—"}
-                            </span>
-                          </div>
-                          {nc && obsValue && (
-                            <div className="ml-4 pl-3 border-l-2 border-destructive/30 mb-2">
-                              <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
-                            </div>
-                          )}
+                {/* Field rows */}
+                {sectionFields.map((f) => {
+                  const nc = isNonConforme(f.key, (cl as any)[f.key]);
+                  const opt = f.options.find((o) => o.value === (cl as any)[f.key]);
+                  const obsValue = (cl as any)[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`];
+                  return (
+                    <div key={f.key} className="py-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm flex-1">{f.label}</span>
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                          {nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                          {opt?.label ?? (cl as any)[f.key] ?? "—"}
+                        </span>
+                      </div>
+                      {nc && obsValue && (
+                        <div className="ml-4 pl-3 border-l-2 border-destructive/30 mt-1 mb-1">
+                          <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         );
