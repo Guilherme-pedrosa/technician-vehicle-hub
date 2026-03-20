@@ -442,7 +442,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
         troca_oleo: trocaOleoStatus,
-        detalhes: { km_proxima_troca: kmTrocaNum },
+        detalhes: {
+          km_proxima_troca: kmTrocaNum,
+          fotos_forcadas: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "forced"))
+            .map(([cat, vals]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+              motivos: (vals as PhotoValidation[]).filter(v => v.status === "forced").map(v => v.result?.reason ?? "Foto forçada pelo técnico"),
+            })),
+        },
         ...answers,
       } as any).select("id").single();
       if (error) throw error;
