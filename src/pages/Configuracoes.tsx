@@ -19,9 +19,11 @@ import {
 import {
   Settings, ClipboardCheck, Camera, Plus, Trash2,
   Save, Loader2, Pencil, AlertTriangle, CheckCircle,
-  ChevronRight, ArrowLeft, FolderCog,
+  ChevronRight, ArrowLeft, FolderCog, Users, Shield,
+  Mail, Phone, Eye, EyeOff, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface PhotoConfig {
   key: string;
@@ -57,7 +59,7 @@ const STEP_LABELS: Record<number, string> = {
 
 const CATEGORIES = ["Exterior", "Pneus", "Capô", "Interior", "Danos"];
 
-type SettingsView = "root" | "checklists" | "checklist-pre-op";
+type SettingsView = "root" | "checklists" | "checklist-pre-op" | "usuarios";
 
 interface SettingsMenuItem {
   id: SettingsView;
@@ -68,6 +70,12 @@ interface SettingsMenuItem {
 }
 
 const ROOT_ITEMS: SettingsMenuItem[] = [
+  {
+    id: "usuarios",
+    title: "Usuários",
+    description: "Cadastro de usuários e permissões de acesso",
+    icon: Users,
+  },
   {
     id: "checklists",
     title: "Check-lists",
@@ -88,6 +96,10 @@ const CHECKLIST_ITEMS: SettingsMenuItem[] = [
 
 export default function Configuracoes() {
   const [view, setView] = useState<SettingsView>("root");
+
+  if (view === "usuarios") {
+    return <UserManagement onBack={() => setView("root")} />;
+  }
 
   if (view === "checklist-pre-op") {
     return <ChecklistConfigEditor onBack={() => setView("checklists")} />;
@@ -625,6 +637,370 @@ function FieldDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={() => canSave && onSave(form)} disabled={!canSave}>{isEdit ? "Salvar" : "Adicionar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ═══════════════════════════════════════════
+// USER MANAGEMENT
+// ═══════════════════════════════════════════
+
+interface ManagedUser {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string;
+  cargo: string;
+  roles: string[];
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+}
+
+const ROLE_LABELS: Record<string, { label: string; color: string }> = {
+  admin: { label: "Administrador", color: "bg-primary text-primary-foreground" },
+  tecnico: { label: "Técnico", color: "bg-amber-100 text-amber-800 border-amber-200" },
+};
+
+function UserManagement({ onBack }: { onBack: () => void }) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+
+  const { data: users = [], isLoading, refetch } = useQuery({
+    queryKey: ["managed-users"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: { action: "list" },
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      return data.users as ManagedUser[];
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: { action: "create", ...payload },
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+    },
+    onSuccess: () => { refetch(); toast.success("Usuário criado com sucesso!"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: { action: "update", ...payload },
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+    },
+    onSuccess: () => { refetch(); toast.success("Usuário atualizado!"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("manage-users", {
+        body: { action: "delete", user_id: userId },
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+    },
+    onSuccess: () => { refetch(); toast.success("Usuário removido!"); setDeleteUserId(null); },
+    onError: (e: any) => { toast.error(e.message); setDeleteUserId(null); },
+  });
+
+  const admins = users.filter((u) => u.roles.includes("admin"));
+  const tecnicos = users.filter((u) => u.roles.includes("tecnico"));
+  const semPerfil = users.filter((u) => u.roles.length === 0);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="mt-0.5 h-8 w-8 shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Configurações → Usuários
+            </p>
+            <h1 className="mt-1 text-xl font-bold tracking-tight flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Cadastro de Usuários
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Gerencie os acessos e permissões do sistema</p>
+          </div>
+        </div>
+        <Button onClick={() => { setEditingUser(null); setDialogOpen(true); }} className="gap-2">
+          <UserPlus className="h-4 w-4" />
+          Novo Usuário
+        </Button>
+      </div>
+
+      {/* Role info */}
+      <Card className="border-amber-200 bg-amber-50/50">
+        <CardContent className="p-4 flex gap-3 items-start">
+          <Shield className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-900">Permissões por perfil</p>
+            <div className="mt-2 space-y-1 text-amber-800">
+              <p><strong>Administrador:</strong> Acesso total — dashboard, condutores, veículos, checklists, chamados, relatórios, configurações</p>
+              <p><strong>Técnico:</strong> Acesso limitado — dashboard, veículos, checklists (preenchimento) e chamados</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{users.length}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{admins.length}</p>
+            <p className="text-xs text-muted-foreground">Admins</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-400">
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{tecnicos.length}</p>
+            <p className="text-xs text-muted-foreground">Técnicos</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left p-3 font-semibold">Nome</th>
+                    <th className="text-left p-3 font-semibold">E-mail</th>
+                    <th className="text-left p-3 font-semibold">Perfil</th>
+                    <th className="text-left p-3 font-semibold">Cargo</th>
+                    <th className="text-left p-3 font-semibold">Último acesso</th>
+                    <th className="text-right p-3 font-semibold">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {users.map((u) => {
+                    const role = u.roles[0];
+                    const roleInfo = ROLE_LABELS[role] ?? { label: "Sem perfil", color: "bg-muted text-muted-foreground" };
+                    const isSelf = u.id === user?.id;
+
+                    return (
+                      <tr key={u.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="p-3">
+                          <p className="font-medium">{u.full_name || "—"}</p>
+                          {u.phone && <p className="text-xs text-muted-foreground">{u.phone}</p>}
+                        </td>
+                        <td className="p-3 text-muted-foreground">{u.email}</td>
+                        <td className="p-3">
+                          <Badge variant="outline" className={roleInfo.color}>{roleInfo.label}</Badge>
+                          {isSelf && <Badge variant="secondary" className="ml-1 text-[10px]">Você</Badge>}
+                        </td>
+                        <td className="p-3 text-muted-foreground">{u.cargo || "—"}</td>
+                        <td className="p-3 text-muted-foreground text-xs">
+                          {u.last_sign_in_at ? format(new Date(u.last_sign_in_at), "dd/MM/yy HH:mm") : "Nunca"}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingUser(u); setDialogOpen(true); }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            {!isSelf && (
+                              <AlertDialog open={deleteUserId === u.id} onOpenChange={(o) => !o && setDeleteUserId(null)}>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteUserId(u.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      O usuário <strong>{u.full_name || u.email}</strong> será removido permanentemente do sistema.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-destructive text-destructive-foreground"
+                                      onClick={() => deleteMutation.mutate(u.id)}
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <UserFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        user={editingUser}
+        onSave={(data) => {
+          if (editingUser) {
+            updateMutation.mutate({ user_id: editingUser.id, ...data });
+          } else {
+            createMutation.mutate(data);
+          }
+          setDialogOpen(false);
+          setEditingUser(null);
+        }}
+        saving={createMutation.isPending || updateMutation.isPending}
+      />
+    </div>
+  );
+}
+
+function UserFormDialog({
+  open,
+  onOpenChange,
+  user,
+  onSave,
+  saving,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  user: ManagedUser | null;
+  onSave: (data: any) => void;
+  saving: boolean;
+}) {
+  const isEdit = !!user;
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [role, setRole] = useState("tecnico");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.full_name);
+      setEmail(user.email);
+      setPhone(user.phone);
+      setCargo(user.cargo);
+      setRole(user.roles[0] || "tecnico");
+      setPassword("");
+    } else {
+      setFullName(""); setEmail(""); setPhone(""); setCargo(""); setRole("tecnico"); setPassword("");
+    }
+  }, [user, open]);
+
+  const canSave = fullName.trim() && (isEdit || (email.trim() && password.length >= 6));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Nome completo *</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nome do usuário" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>E-mail *</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@empresa.com" disabled={isEdit} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Telefone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+            </div>
+            <div className="space-y-2">
+              <Label>Cargo</Label>
+              <Input value={cargo} onChange={(e) => setCargo(e.target.value)} placeholder="Ex: Mecânico" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Perfil de acesso *</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-3.5 w-3.5" />
+                    Administrador — Acesso total
+                  </div>
+                </SelectItem>
+                <SelectItem value="tecnico">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-3.5 w-3.5" />
+                    Técnico — Dashboard, veículos, checklists, chamados
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{isEdit ? "Nova senha (opcional)" : "Senha *"}</Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEdit ? "Deixe vazio para manter" : "Mínimo 6 caracteres"}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button
+            onClick={() => canSave && onSave({ email, password: password || undefined, full_name: fullName, role, phone, cargo })}
+            disabled={!canSave || saving}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            {isEdit ? "Salvar" : "Criar Usuário"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

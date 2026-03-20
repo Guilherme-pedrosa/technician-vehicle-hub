@@ -1,8 +1,12 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Routes that técnicos can access
+const TECNICO_ROUTES = ["/dashboard", "/veiculos", "/checklist", "/chamados", "/perfil"];
+
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, isAdmin, roles } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -14,6 +18,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Role-based route restriction for técnicos
+  const isTecnico = roles.includes("tecnico") && !isAdmin;
+  if (isTecnico) {
+    const allowed = TECNICO_ROUTES.some((r) => location.pathname.startsWith(r));
+    if (!allowed) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

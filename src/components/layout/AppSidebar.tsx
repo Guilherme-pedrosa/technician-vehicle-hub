@@ -33,15 +33,17 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   href: string;
   badge?: number;
+  adminOnly?: boolean;
 }
 
 interface MenuGroup {
   label: string;
   items: MenuItem[];
   defaultOpen?: boolean;
+  adminOnly?: boolean;
 }
 
-const menuGroups: MenuGroup[] = [
+const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { adminOnly?: boolean })[] })[] = [
   {
     label: "",
     items: [
@@ -52,7 +54,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Operações",
     items: [
-      { title: "Condutores", icon: Users, href: "/condutores" },
+      { title: "Condutores", icon: Users, href: "/condutores", adminOnly: true },
       { title: "Veículos", icon: Truck, href: "/veiculos" },
       { title: "Checklist", icon: ClipboardCheck, href: "/checklist" },
       { title: "Chamados", icon: Wrench, href: "/chamados" },
@@ -64,19 +66,30 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Relatórios", icon: BarChart3, href: "/relatorios" },
     ],
+    adminOnly: true,
   },
   {
     label: "Sistema",
     items: [
       { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
+    adminOnly: true,
   },
 ];
 
 export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  // Filter menu groups based on role
+  const menuGroups = allMenuGroups
+    .filter((g) => !g.adminOnly || isAdmin)
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.adminOnly || isAdmin),
+    }))
+    .filter((g) => g.items.length > 0);
 
   useEffect(() => {
     const newOpenGroups: Record<string, boolean> = {};
@@ -89,7 +102,7 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
       }
     });
     setOpenGroups(newOpenGroups);
-  }, [location.pathname]);
+  }, [location.pathname, isAdmin]);
 
   useEffect(() => {
     onMobileClose?.();
