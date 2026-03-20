@@ -564,7 +564,7 @@ export default function Checklist() {
               ) : (
                 checklists.map((cl: any) => {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
-                  const driver = drivers.find((d) => d.id === cl.driver_id);
+                  const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const hasIssue = CHECKLIST_FIELDS.some((f) => {
                     const val = cl[f.key];
                     return val === "nao_conforme" || val === "vencido" ||
