@@ -582,6 +582,59 @@ function statusBadge(value: string, field: ChecklistField) {
   );
 }
 
+// ─── PDF Export ───
+function exportChecklistPDF(
+  checklist: any,
+  vehicle: { placa: string; modelo: string } | undefined,
+  driverName: string,
+) {
+  const doc = new jsPDF();
+  const dateStr = new Date(checklist.checklist_date + "T12:00:00").toLocaleDateString("pt-BR");
+  const placa = vehicle?.placa ?? "—";
+
+  // Header
+  doc.setFontSize(16);
+  doc.text("Checklist Veicular", 14, 20);
+  doc.setFontSize(10);
+  doc.text(`Data: ${dateStr}`, 14, 28);
+  doc.text(`Veículo: ${placa} — ${vehicle?.modelo ?? ""}`, 14, 34);
+  doc.text(`Motorista: ${driverName}`, 14, 40);
+  if (checklist.tripulacao) doc.text(`Tripulação: ${checklist.tripulacao}`, 14, 46);
+  if (checklist.destino) doc.text(`Destino: ${checklist.destino}`, 14, checklist.tripulacao ? 52 : 46);
+
+  // Table with all fields
+  const categories = [...new Set(CHECKLIST_FIELDS.map((f) => f.category))];
+  const tableRows: string[][] = [];
+
+  categories.forEach((cat) => {
+    tableRows.push([{ content: cat, colSpan: 2, styles: { fontStyle: "bold", fillColor: [230, 230, 230] } } as any]);
+    CHECKLIST_FIELDS.filter((f) => f.category === cat).forEach((f) => {
+      const val = checklist[f.key];
+      const opt = f.options.find((o) => o.value === val);
+      tableRows.push([f.label, opt?.label ?? val ?? "—"]);
+    });
+  });
+
+  autoTable(doc, {
+    startY: checklist.destino ? 58 : checklist.tripulacao ? 54 : 48,
+    head: [["Item", "Resultado"]],
+    body: tableRows,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [41, 98, 255] },
+    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 50 } },
+  });
+
+  if (checklist.observacoes) {
+    const finalY = (doc as any).lastAutoTable?.finalY ?? 200;
+    doc.setFontSize(10);
+    doc.text("Observações:", 14, finalY + 10);
+    doc.setFontSize(9);
+    doc.text(checklist.observacoes, 14, finalY + 16, { maxWidth: 180 });
+  }
+
+  doc.save(`checklist_${placa}_${checklist.checklist_date}.pdf`);
+}
+
 // ─── Detail Dialog ───
 function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
   checklist: any;
@@ -590,6 +643,7 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
 }) {
   const vehicle = vehicles.find((v) => v.id === checklist.vehicle_id);
   const driver = localDrivers.find((d) => d.id === checklist.driver_id);
+  const driverName = driver?.full_name ?? checklist.tripulacao ?? "—";
   const categories = useMemo(() => {
     const cats: string[] = [];
     CHECKLIST_FIELDS.forEach((f) => { if (!cats.includes(f.category)) cats.push(f.category); });
@@ -599,12 +653,20 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
   const fotosData = (checklist.fotos && typeof checklist.fotos === "object") ? checklist.fotos : {};
 
   return (
-    <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0">
-      <DialogHeader className="p-4 pb-0">
+    <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0 flex flex-col">
+      <DialogHeader className="p-4 pb-0 flex flex-row items-center justify-between gap-2">
         <DialogTitle className="flex items-center gap-2 text-base">
           <Eye className="w-4 h-4 text-primary" />
           {vehicle?.placa ?? "—"} — {new Date(checklist.checklist_date + "T12:00:00").toLocaleDateString("pt-BR")}
         </DialogTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 shrink-0"
+          onClick={() => exportChecklistPDF(checklist, vehicle, driverName)}
+        >
+          <Download className="w-4 h-4" /> PDF
+        </Button>
       </DialogHeader>
       <ScrollArea className="flex-1 px-4 pb-4">
         <div className="space-y-4 pt-3">
