@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { BarChart3, CalendarIcon, Clock3, Gauge, Loader2, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getRelatorioKmRodado } from "@/services/rotaexata";
