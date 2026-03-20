@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Condutores from "./pages/Condutores";
 import Veiculos from "./pages/Veiculos";
 import Checklist from "./pages/Checklist";
+import ChecklistDetail from "./pages/ChecklistDetail";
 import Chamados from "./pages/Chamados";
 import Relatorios from "./pages/Relatorios";
 import Perfil from "./pages/Perfil";
