@@ -857,7 +857,7 @@ export default function Checklist() {
             max={format(new Date(), "yyyy-MM-dd")}
           />
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
           {checklists.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-muted-foreground">
               <ClipboardCheck className="w-10 h-10 mb-3 opacity-30" />
