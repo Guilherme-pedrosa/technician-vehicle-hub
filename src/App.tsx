@@ -15,6 +15,7 @@ import ChecklistDetail from "./pages/ChecklistDetail";
 import Chamados from "./pages/Chamados";
 import Relatorios from "./pages/Relatorios";
 import Perfil from "./pages/Perfil";
+import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
