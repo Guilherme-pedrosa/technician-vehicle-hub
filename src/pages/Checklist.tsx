@@ -96,10 +96,9 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
     { value: "vencido", label: "VENCIDO", color: "destructive" },
   ]},
   { key: "nivel_agua", label: "Nível de Água OK?", category: "Fluidos", options: CONFORME_NAO, photoAfter: "reservatorio", photoConditional: "always" },
-  // Exterior — 4 fotos separadas por ângulo
+  // Exterior — danos + faróis (360° photos are in their own step)
   { key: "danos_veiculo", label: "Tem algum dano diferente no veículo?", category: "Fotos 360° Exterior", options: NAO_SIM,
-    photoAfter: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
-    photoConditional: "always" },
+    photoAfter: "danos_veiculo", photoConditional: "non_conforme" },
   { key: "farois_lanternas", label: "Faróis e Lanternas funcionando?", category: "Fotos 360° Exterior", options: CONFORME_NAO, photoAfter: "farois_lanternas", photoConditional: "always" },
   // Funcionamento
   { key: "som", label: "Som funcionando?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "som", photoConditional: "always" },
