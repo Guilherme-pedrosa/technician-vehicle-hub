@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     setProfile(null);
     setRoles([]);
+    navigate("/login");
   };
 
   const isAdmin = roles.includes("admin");
