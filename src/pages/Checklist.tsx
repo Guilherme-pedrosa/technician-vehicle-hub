@@ -428,7 +428,7 @@ export default function Checklist() {
     },
   });
 
-  const { data: drivers = [] } = useQuery({
+  const { data: localDrivers = [] } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("drivers").select("id, full_name").eq("status", "ativo").order("full_name");
@@ -436,6 +436,8 @@ export default function Checklist() {
       return data;
     },
   });
+
+  const { data: rotaExataDrivers = [] } = useRotaExataUsuarios();
 
   const { data: checklists = [], isLoading } = useQuery({
     queryKey: ["vehicle-checklists", filterDate],
