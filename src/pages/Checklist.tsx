@@ -789,7 +789,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           {/* Termo */}
           <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-3">
             <p className="text-sm leading-relaxed italic">
-              "Declaro que conferi o veículo antes da saída e registrei neste checklist qualquer anormalidade identificada."
+              "Declaro que conferi o veículo antes da saída e registrei neste checklist qualquer anormalidade identificada. Estou ciente de que qualquer problema decorrente de verificação inadequada será de minha inteira responsabilidade."
             </p>
             <div className="flex items-center gap-3">
               <Checkbox id="termo" checked={termoAceito} onCheckedChange={(v) => setTermoAceito(v === true)} className="w-5 h-5" />
