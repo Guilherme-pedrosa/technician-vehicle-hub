@@ -509,6 +509,27 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           {capoFields.length > 0 && (
             <>
               <Separator />
+
+              {/* KM Próxima Troca de Óleo */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">KM da próxima troca de óleo</Label>
+                <Input type="number" inputMode="numeric" placeholder="Ex: 85000"
+                  value={kmProximaTroca} onChange={(e) => setKmProximaTroca(e.target.value)}
+                  className="h-12 text-base" />
+                {selectedVehicle && kmProximaTroca && (
+                  <div className={`rounded-lg p-2 text-xs font-medium ${
+                    trocaOleoVencida
+                      ? "bg-destructive/10 text-destructive border border-destructive/30"
+                      : "bg-success/10 text-success border border-success/30"
+                  }`}>
+                    {trocaOleoVencida
+                      ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
+                      : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
+                    }
+                  </div>
+                )}
+              </div>
+
               <p className="text-sm font-semibold text-muted-foreground">Conferências:</p>
               {capoFields.map((field) => (
                 <div key={field.key} className="space-y-2">
