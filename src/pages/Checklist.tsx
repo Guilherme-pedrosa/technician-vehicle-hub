@@ -378,7 +378,13 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         result,
       });
       if (!result.valid) {
-        toast.warning(`⚠️ Foto pode estar inadequada: ${result.reason}`, { duration: 6000 });
+        const details: string[] = [];
+        if (result.vehicle_match === false) details.push("veículo errado");
+        if (result.target_match === false) details.push("item incorreto");
+        if (result.focus_ok === false) details.push("sem foco");
+        if (result.critical_visible === false) details.push("dado ilegível");
+        const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
+        toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
       }
     }
   };
