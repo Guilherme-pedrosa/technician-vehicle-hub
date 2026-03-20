@@ -34,6 +34,7 @@ serve(async (req) => {
       fotos_problema,
       troca_oleo_vencida,
       observacoes,
+      avaria_descricao,
     } = body;
 
     // Get all user emails from auth.users via admin API
