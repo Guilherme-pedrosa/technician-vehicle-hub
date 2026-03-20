@@ -452,6 +452,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
               motivos: (vals as PhotoValidation[]).filter(v => v.status === "forced").map(v => v.result?.reason ?? "Foto forçada pelo técnico"),
             })),
+          fotos_invalidas: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "invalid"))
+            .map(([cat, vals]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+              motivos: (vals as PhotoValidation[]).filter(v => v.status === "invalid").map(v => v.result?.reason ?? "Foto reprovada pela IA"),
+            })),
+          fotos_erro_validacao: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.result?.ai_error))
+            .map(([cat]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+            })),
         },
         ...answers,
       } as any).select("id").single();
@@ -1469,12 +1482,16 @@ export default function Checklist() {
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                  const forcedPhotos = ((cl.detalhes as any)?.fotos_forcadas ?? []) as any[];
-                  const hasForcedPhotos = forcedPhotos.length > 0;
+                  const det = cl.detalhes as any;
+                  const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
+                  const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
+                  const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                  const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
+                  const hasBadPhotos = allBadPhotos.length > 0;
                   return (
                     <button
                       key={cl.id}
-                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}
+                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos ? "bg-destructive/5" : ""}`}
                       onClick={() => navigate(`/checklist/${cl.id}`)}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -1484,9 +1501,9 @@ export default function Checklist() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {fotoCount > 0 && (
-                            <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                            <span className={`text-xs flex items-center gap-0.5 ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
                               <ImageIcon className="w-3 h-3" /> {fotoCount}
-                              {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                              {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
                             </span>
                           )}
                           {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
@@ -1498,13 +1515,13 @@ export default function Checklist() {
                         </div>
                       </div>
 
-                      {hasForcedPhotos && (
+                      {hasBadPhotos && (
                         <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
                           <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
                             <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
                           </p>
                           <p className="mt-1 text-[11px] text-destructive/90 line-clamp-2">
-                            {forcedPhotos.map((item) => item.label).join(", ")}
+                            {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
                           </p>
                         </div>
                       )}
@@ -1532,14 +1549,18 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                      const forcedPhotos = ((cl.detalhes as any)?.fotos_forcadas ?? []) as any[];
-                      const hasForcedPhotos = forcedPhotos.length > 0;
+                      const det = cl.detalhes as any;
+                      const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
+                      const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
+                      const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                      const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
+                      const hasBadPhotos = allBadPhotos.length > 0;
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${hasBadPhotos ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"}</p>
-                              {hasForcedPhotos && (
+                              {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
                                 </div>
@@ -1549,13 +1570,13 @@ export default function Checklist() {
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
                             <div className="inline-flex flex-col items-center gap-1">
-                              <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                              <span className={`inline-flex items-center gap-1 text-xs ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
-                                {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                                {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
                               </span>
-                              {hasForcedPhotos && (
+                              {hasBadPhotos && (
                                 <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
-                                  {forcedPhotos.map((item) => item.label).join(", ")}
+                                  {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
                                 </span>
                               )}
                             </div>
