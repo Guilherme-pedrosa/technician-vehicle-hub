@@ -85,11 +85,6 @@ const NAO_SIM = [
   { value: "nao", label: "NÃO", color: "success" },
   { value: "sim", label: "SIM", color: "destructive" },
 ];
-const OIL_OPTS = [
-  { value: "ok", label: "OK", color: "success" },
-  { value: "se_aproximando", label: "PRÓXIMO", color: "warning" },
-  { value: "vencido", label: "VENCIDO", color: "destructive" },
-];
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
   // Exterior (durante caminhada 360°)
@@ -102,7 +97,6 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
   // Capô — tudo junto: motor + fluidos (abre capô 1x só)
   { key: "motor", label: "Motor funcionando normalmente?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "nivel_oleo", label: "Nível de óleo OK?", category: "Capô", options: CONFORME_NAO, critical: true },
-  { key: "troca_oleo", label: "Troca de óleo em dia?", category: "Capô", options: OIL_OPTS },
   { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Capô", options: NAO_SIM, critical: true },
   // Interior + Kit (cabine + porta-malas)
@@ -251,6 +245,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
+  const [kmProximaTroca, setKmProximaTroca] = useState("");
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
@@ -270,14 +265,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
+    setKmProximaTroca("");
   };
+
+  // Troca de óleo: auto-detecta NC comparando KM próxima troca vs KM atual
+  const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
+  const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
 
   const nonConformeFields = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
-  const hasCritical = criticalCount > 0;
-  const hasAnyProblem = nonConformeFields.length > 0;
+  const hasCritical = criticalCount > 0 || trocaOleoVencida;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoVencida;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
@@ -302,6 +302,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const finalResultado = resultado || suggestedResult;
 
       // Save checklist
+      // Calcula troca_oleo automaticamente
+      const trocaOleoStatus = trocaOleoVencida ? "vencido" : "ok";
+
       const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
@@ -314,6 +317,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado: finalResultado,
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
+        troca_oleo: trocaOleoStatus,
+        detalhes: { km_proxima_troca: kmTrocaNum },
         ...answers,
       } as any).select("id").single();
       if (error) throw error;
@@ -321,7 +326,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // AUTO-TICKET: criar chamado de não conformidade se houver problemas
       if (hasAnyProblem && savedChecklist) {
         const problemItems = nonConformeFields.map((f) => `• ${f.label}: ${answers[f.key]}`).join("\n");
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+        const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${oilLine}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
 
         await supabase.from("maintenance_tickets").insert({
           vehicle_id: vehicleId,
@@ -503,6 +509,27 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           {capoFields.length > 0 && (
             <>
               <Separator />
+
+              {/* KM Próxima Troca de Óleo */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">KM da próxima troca de óleo</Label>
+                <Input type="number" inputMode="numeric" placeholder="Ex: 85000"
+                  value={kmProximaTroca} onChange={(e) => setKmProximaTroca(e.target.value)}
+                  className="h-12 text-base" />
+                {selectedVehicle && kmProximaTroca && (
+                  <div className={`rounded-lg p-2 text-xs font-medium ${
+                    trocaOleoVencida
+                      ? "bg-destructive/10 text-destructive border border-destructive/30"
+                      : "bg-success/10 text-success border border-success/30"
+                  }`}>
+                    {trocaOleoVencida
+                      ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
+                      : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
+                    }
+                  </div>
+                )}
+              </div>
+
               <p className="text-sm font-semibold text-muted-foreground">Conferências:</p>
               {capoFields.map((field) => (
                 <div key={field.key} className="space-y-2">
@@ -550,12 +577,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           {/* Summary */}
           <div className="rounded-xl border border-border p-4 space-y-2">
             <h4 className="text-sm font-bold">Resumo da Inspeção</h4>
-            {nonConformeFields.length > 0 ? (
+            {(nonConformeFields.length > 0 || trocaOleoVencida) ? (
               <div className="space-y-1">
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  {nonConformeFields.length} não conformidade{nonConformeFields.length > 1 ? "s" : ""}
-                  {hasCritical && ` (${criticalCount} crítica${criticalCount > 1 ? "s" : ""})`}
+                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0)) > 1 ? "s" : ""}
                 </Badge>
                 <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
                   {nonConformeFields.map((f) => (
@@ -564,6 +590,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       {f.label}
                     </li>
                   ))}
+                  {trocaOleoVencida && (
+                    <li className="flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-destructive shrink-0" />
+                      Troca de óleo vencida (próxima: {kmTrocaNum?.toLocaleString("pt-BR")} km)
+                    </li>
+                  )}
                 </ul>
               </div>
             ) : (
