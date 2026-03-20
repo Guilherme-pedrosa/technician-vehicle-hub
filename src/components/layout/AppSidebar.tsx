@@ -77,8 +77,17 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
 
 export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  // Filter menu groups based on role
+  const menuGroups = allMenuGroups
+    .filter((g) => !g.adminOnly || isAdmin)
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.adminOnly || isAdmin),
+    }))
+    .filter((g) => g.items.length > 0);
 
   useEffect(() => {
     const newOpenGroups: Record<string, boolean> = {};
@@ -91,7 +100,7 @@ export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: A
       }
     });
     setOpenGroups(newOpenGroups);
-  }, [location.pathname]);
+  }, [location.pathname, isAdmin]);
 
   useEffect(() => {
     onMobileClose?.();
