@@ -420,15 +420,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">Tire uma foto de cada ângulo do veículo:</p>
-          {angleCats.map((cat) => (
-            <CameraCapture
-              key={cat}
-              category={cat}
-              photos={photos[cat] ?? []}
-              onCapture={handleCapture}
-              onRemove={handleRemovePhoto}
-            />
-          ))}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {angleCats.map((cat) => (
+              <CameraCapture
+                key={cat}
+                category={cat}
+                photos={photos[cat] ?? []}
+                onCapture={handleCapture}
+                onRemove={handleRemovePhoto}
+              />
+            ))}
+          </div>
         </div>
       );
     }
@@ -526,13 +528,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
         {/* Scrollable content */}
         <ScrollArea className="flex-1 px-4">
-          <div className="pb-4">
+          <div className="pb-28 sm:pb-6">
             {renderStepContent()}
           </div>
         </ScrollArea>
 
         {/* Navigation — sticky bottom */}
-        <div className="border-t p-4 flex gap-2">
+        <div className="border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex gap-2">
           {step > 0 && (
             <Button variant="outline" onClick={() => setStep((s) => s - 1)} className="gap-1">
               <ChevronLeft className="w-4 h-4" /> Voltar
