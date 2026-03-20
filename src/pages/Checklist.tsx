@@ -229,9 +229,15 @@ function summarizePhotoValidations(photos: PhotosMap, photoValidations: Record<s
     files.forEach((_, index) => {
       const validation = validations[index];
 
-      if (!validation || validation.status === "idle" || validation.status === "validating") {
+      // Only count as pending if actively validating (not if validation was never triggered)
+      if (validation?.status === "validating") {
         const item = ensureItem(pendingMap, category);
         if (!item.motivos.includes("Validação em andamento")) item.motivos.push("Validação em andamento");
+        return;
+      }
+
+      // Skip if no validation data (validation wasn't triggered or not applicable)
+      if (!validation || validation.status === "idle") {
         return;
       }
 
@@ -1632,7 +1638,7 @@ export default function Checklist() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("id, placa, modelo, km_atual").order("placa");
+      const { data, error } = await supabase.from("vehicles").select("id, placa, marca, modelo, km_atual").order("placa");
       if (error) throw error;
       return data;
     },
