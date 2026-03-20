@@ -243,8 +243,8 @@ export default function Relatorios() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Total (Odômetro)</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{totalKmAtual.toLocaleString("pt-BR")}</p></CardContent>
+          <CardHeader className="pb-1 p-3 sm:p-6 sm:pb-2"><CardTitle className="text-xs sm:text-sm text-muted-foreground">Odômetro</CardTitle></CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0"><p className="text-lg sm:text-3xl font-bold tabular-nums">{totalKmAtual.toLocaleString("pt-BR")}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Veículos</CardTitle></CardHeader>
