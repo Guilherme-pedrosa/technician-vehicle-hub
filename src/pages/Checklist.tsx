@@ -153,8 +153,13 @@ function isCriticalNonConforme(key: string, val: string) {
 
 type ValidationResult = {
   valid: boolean;
+  vehicle_match?: boolean;
+  target_match?: boolean;
+  focus_ok?: boolean;
+  critical_visible?: boolean;
   quality: "boa" | "aceitavel" | "ruim";
   reason: string;
+  confidence?: number;
   ai_error?: boolean;
 };
 
@@ -373,7 +378,13 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         result,
       });
       if (!result.valid) {
-        toast.warning(`⚠️ Foto pode estar inadequada: ${result.reason}`, { duration: 6000 });
+        const details: string[] = [];
+        if (result.vehicle_match === false) details.push("veículo errado");
+        if (result.target_match === false) details.push("item incorreto");
+        if (result.focus_ok === false) details.push("sem foco");
+        if (result.critical_visible === false) details.push("dado ilegível");
+        const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
+        toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
       }
     }
   };
