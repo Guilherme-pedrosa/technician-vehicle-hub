@@ -1469,28 +1469,45 @@ export default function Checklist() {
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                  const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
+                  const forcedPhotos = ((cl.detalhes as any)?.fotos_forcadas ?? []) as any[];
+                  const hasForcedPhotos = forcedPhotos.length > 0;
                   return (
-                    <button key={cl.id} className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 active:bg-muted/50"
-                      onClick={() => navigate(`/checklist/${cl.id}`)}>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
-                        <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {fotoCount > 0 && (
-                          <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
-                            <ImageIcon className="w-3 h-3" /> {fotoCount}
-                            {hasForcedPhotos && <AlertCircle className="w-3 h-3" />}
+                    <button
+                      key={cl.id}
+                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}
+                      onClick={() => navigate(`/checklist/${cl.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {fotoCount > 0 && (
+                            <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                              <ImageIcon className="w-3 h-3" /> {fotoCount}
+                              {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                            </span>
+                          )}
+                          {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
+                           res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
+                           <ShieldAlert className="w-4 h-4 text-destructive" />}
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </span>
-                        )}
-                        {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
-                         res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
-                         <ShieldAlert className="w-4 h-4 text-destructive" />}
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
+                        </div>
                       </div>
+
+                      {hasForcedPhotos && (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
+                          </p>
+                          <p className="mt-1 text-[11px] text-destructive/90 line-clamp-2">
+                            {forcedPhotos.map((item) => item.label).join(", ")}
+                          </p>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -1515,16 +1532,33 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                      const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
+                      const forcedPhotos = ((cl.detalhes as any)?.fotos_forcadas ?? []) as any[];
+                      const hasForcedPhotos = forcedPhotos.length > 0;
                       return (
-                        <tr key={cl.id} className="border-b last:border-0">
-                          <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
+                        <tr key={cl.id} className={`border-b last:border-0 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}>
+                          <td className="p-3 font-medium">
+                            <div className="space-y-1">
+                              <p>{vehicle?.placa ?? "—"}</p>
+                              {hasForcedPhotos && (
+                                <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                                  <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
-                            <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
-                              <ImageIcon className="w-3 h-3" /> {fotoCount}
-                              {hasForcedPhotos && <AlertCircle className="w-3 h-3 text-warning" />}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                                <ImageIcon className="w-3 h-3" /> {fotoCount}
+                                {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                              </span>
+                              {hasForcedPhotos && (
+                                <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
+                                  {forcedPhotos.map((item) => item.label).join(", ")}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-center">
                             <Badge className={`gap-1 text-xs ${
