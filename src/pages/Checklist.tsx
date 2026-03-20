@@ -245,6 +245,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
+  const [kmProximaTroca, setKmProximaTroca] = useState("");
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
