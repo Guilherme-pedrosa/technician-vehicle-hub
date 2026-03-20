@@ -33,12 +33,14 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   href: string;
   badge?: number;
+  adminOnly?: boolean;
 }
 
 interface MenuGroup {
   label: string;
   items: MenuItem[];
   defaultOpen?: boolean;
+  adminOnly?: boolean;
 }
 
 const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { adminOnly?: boolean })[] })[] = [
