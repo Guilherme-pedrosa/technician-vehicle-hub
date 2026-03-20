@@ -55,8 +55,21 @@ serve(async (req) => {
     }
 
     // Build email HTML
+    // Format readable values
+    const formatValor = (v: string) => {
+      const map: Record<string, string> = {
+        "nao_conforme": "NÃO CONFORME", "nao": "NÃO", "sim": "SIM",
+        "ruim": "RUIM", "desgastado": "DESGASTADO", "vazio": "VAZIO",
+        "baixo": "BAIXO", "sujo": "SUJO", "quebrado": "QUEBRADO",
+      };
+      return map[v] || v.toUpperCase();
+    };
+
     const itensHtml = (itens_problema || [])
-      .map((i: any) => `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${i.label}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${i.valor === "nao_conforme" ? "NÃO CONFORME" : i.valor === "nao" ? "NÃO" : i.valor === "sim" ? "SIM (problema)" : i.valor}</td></tr>`)
+      .map((i: any) => {
+        const obs = i.observacao ? `<br><span style="font-weight:400;color:#666;font-size:13px;">↳ ${i.observacao}</span>` : "";
+        return `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${i.label}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${formatValor(i.valor)}${obs}</td></tr>`;
+      })
       .join("");
 
     const fotosHtml = (fotos_problema || [])
