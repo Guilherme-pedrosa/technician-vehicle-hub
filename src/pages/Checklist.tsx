@@ -1047,7 +1047,7 @@ export default function Checklist() {
                         </button>
                       </DialogTrigger>
                       {selectedChecklist?.id === cl.id && (
-                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} />
+                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} onDeleted={() => setSelectedChecklist(null)} />
                       )}
                     </Dialog>
                   );
