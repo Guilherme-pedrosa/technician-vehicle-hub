@@ -337,7 +337,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: FileList) => void;
@@ -345,6 +345,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   required?: boolean;
   validations?: PhotoValidation[];
   onValidationUpdate?: (cat: PhotoCategory, idx: number, validation: PhotoValidation) => void;
+  vehicleMarca?: string;
+  vehicleModelo?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
@@ -357,7 +359,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       const newIdx = photos.length;
       const file = files[0];
       onValidationUpdate(category, newIdx, { status: "validating" });
-      const result = await validatePhoto(file, category);
+      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo);
       onValidationUpdate(category, newIdx, {
         status: result.valid ? "valid" : "invalid",
         result,
