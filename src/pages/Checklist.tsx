@@ -615,12 +615,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         // Include photo validation issues
         const photoIssueLines: string[] = [];
         for (const inv of photoValidationSummary.invalid) {
-          const meta = PHOTO_META[inv.category as PhotoCategory];
-          photoIssueLines.push(`• 📷 ${meta?.label ?? inv.category}: Foto reprovada pela IA — ${inv.reason ?? "Fora do padrão"}`);
+          const meta = PHOTO_META[inv.categoria as PhotoCategory];
+          photoIssueLines.push(`• 📷 ${meta?.label ?? inv.categoria}: Foto reprovada pela IA — ${inv.motivos?.[0] ?? "Fora do padrão"}`);
         }
         for (const forced of photoValidationSummary.forced) {
-          const meta = PHOTO_META[forced.category as PhotoCategory];
-          photoIssueLines.push(`• ⚠️ ${meta?.label ?? forced.category}: Foto forçada pelo técnico (reprovada pela IA)`);
+          const meta = PHOTO_META[forced.categoria as PhotoCategory];
+          photoIssueLines.push(`• ⚠️ ${meta?.label ?? forced.categoria}: Foto forçada pelo técnico (reprovada pela IA)`);
         }
         const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
 
