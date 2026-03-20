@@ -350,13 +350,13 @@ function statusBadge(value: string, field: ChecklistField) {
   );
 }
 
-function ChecklistDetailDialog({ checklist, vehicles, drivers }: {
+function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string }[];
-  drivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string }[];
 }) {
   const vehicle = vehicles.find((v) => v.id === checklist.vehicle_id);
-  const driver = drivers.find((d) => d.id === checklist.driver_id);
+  const driver = localDrivers.find((d) => d.id === checklist.driver_id);
 
   const categories = useMemo(() => {
     const cats: string[] = [];
