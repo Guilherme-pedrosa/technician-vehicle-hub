@@ -121,22 +121,41 @@ export default function Dashboard() {
 
       {/* === TABELA POR TÉCNICO === */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-primary" /> KM Rodado por Técnico
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
+          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-primary" /> KM por Técnico
             {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-40 h-8 text-xs"
-              max={format(new Date(), "yyyy-MM-dd")}
-            />
-          </div>
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full sm:w-40 h-8 text-xs"
+            max={format(new Date(), "yyyy-MM-dd")}
+          />
         </CardHeader>
         <CardContent className="p-0">
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y divide-border">
+            {driverTelemetryRows.length === 0 ? (
+              <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
+            ) : (
+              driverTelemetryRows.map((row) => (
+                <div key={row.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm">{row.nome}</p>
+                    <p className="font-semibold text-sm tabular-nums">{row.kmRodado.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km</p>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-muted-foreground truncate max-w-[60%]">{row.placas?.join(", ") ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">{row.telemetrias} telem.</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block">
           <Table className="table-enterprise">
             <TableHeader>
               <TableRow>
