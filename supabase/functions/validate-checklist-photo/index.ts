@@ -28,6 +28,11 @@ const VALIDATION_PROMPTS: Record<string, string> = {
   avaria: "Esta foto mostra um dano, avaria ou defeito em um veículo? O dano está claramente visível?",
 };
 
+// Categories where vehicle model verification matters (exterior photos)
+const VEHICLE_CHECK_CATEGORIES = [
+  "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita",
+];
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -69,7 +74,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { image_base64, category } = await req.json();
+    const { image_base64, category, vehicle_marca, vehicle_modelo } = await req.json();
 
     if (!image_base64 || !category) {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
@@ -78,6 +83,16 @@ Deno.serve(async (req) => {
     }
 
     const contentPrompt = VALIDATION_PROMPTS[category] || "Esta foto é relevante para uma inspeção veicular?";
+
+    // Add vehicle model check for exterior photos
+    const vehicleCheckPrompt = (vehicle_marca || vehicle_modelo) && VEHICLE_CHECK_CATEGORIES.includes(category)
+      ? `\n\nIMPORTANTE - VERIFICAÇÃO DO VEÍCULO:
+O veículo sendo inspecionado é um ${vehicle_marca || ""} ${vehicle_modelo || ""}.
+Verifique se o veículo na foto é COMPATÍVEL com esse modelo. Compare formato da carroceria, lanternas, para-choques e design geral.
+Se a foto mostra CLARAMENTE um veículo de outro modelo/marca (ex: formato completamente diferente, design incompatível), retorne valid=false com reason explicando que o veículo na foto não corresponde ao ${vehicle_marca || ""} ${vehicle_modelo || ""}.
+Se não for possível determinar o modelo com certeza (foto parcial, ângulo difícil), aceite a foto normalmente.
+Só reprove se for CLARAMENTE um veículo diferente.`
+      : "";
 
     const systemPrompt = `Você é um sistema de validação de fotos para checklist de inspeção veicular.
 Analise a imagem e responda APENAS com um JSON válido no formato:
@@ -93,14 +108,14 @@ Critérios de qualidade:
 - BOA: foto nítida e clara
 
 Critérios de conteúdo:
-${contentPrompt}
+${contentPrompt}${vehicleCheckPrompt}
 
 Se a foto estiver com qualidade ruim OU não mostrar o conteúdo esperado, retorne valid=false.
 Se a foto tiver qualidade aceitável ou boa E mostrar o conteúdo correto, retorne valid=true.
 Seja rigoroso: se a foto claramente não mostra o que foi pedido (ex: foto de pessoa quando deveria ser pneu), retorne valid=false.
 Seja rápido e objetivo.`;
 
-    console.log(`Validating photo for category: ${category}, user: ${user.id}`);
+    console.log(`Validating photo for category: ${category}, vehicle: ${vehicle_marca || "?"} ${vehicle_modelo || "?"}, user: ${user.id}`);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
