@@ -8,7 +8,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type SearchableSelectOption = {
   value: string;
@@ -25,15 +24,18 @@ interface SearchableSelectProps {
   disabled?: boolean;
 }
 
-export function SearchableSelect({
-  options,
-  value,
-  onValueChange,
-  placeholder = "Selecione...",
-  searchPlaceholder = "Buscar...",
-  className,
-  disabled = false,
-}: SearchableSelectProps) {
+export const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
+  {
+    options,
+    value,
+    onValueChange,
+    placeholder = "Selecione...",
+    searchPlaceholder = "Buscar...",
+    className,
+    disabled = false,
+  },
+  ref
+) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
@@ -46,9 +48,16 @@ export function SearchableSelect({
   const selectedLabel = options.find((o) => o.value === value)?.label;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
+          ref={ref}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -73,23 +82,25 @@ export function SearchableSelect({
             className="h-8 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
           />
         </div>
-        <ScrollArea className="max-h-[200px]">
-          {filtered.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Nenhum resultado
-            </p>
-          ) : (
-            <div className="p-1">
+
+        {filtered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Nenhum resultado
+          </p>
+        ) : (
+          <>
+            <div className="max-h-[320px] overflow-y-auto p-1">
               {filtered.map((option) => (
                 <button
                   key={option.value}
+                  type="button"
                   onClick={() => {
                     onValueChange(option.value);
                     setOpen(false);
                     setSearch("");
                   }}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none",
+                    "relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 pl-8 pr-2 text-sm outline-none",
                     "hover:bg-accent hover:text-accent-foreground",
                     "focus:bg-accent focus:text-accent-foreground",
                     value === option.value && "bg-accent"
@@ -98,13 +109,16 @@ export function SearchableSelect({
                   {value === option.value && (
                     <Check className="absolute left-2 h-4 w-4" />
                   )}
-                  <span className="truncate">{option.label}</span>
+                  <span className="truncate text-left">{option.label}</span>
                 </button>
               ))}
             </div>
-          )}
-        </ScrollArea>
+            <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+              {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+            </div>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );
-}
+});
