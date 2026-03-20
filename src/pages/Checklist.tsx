@@ -196,7 +196,7 @@ const STEPS = [
   { id: "exterior_360", title: "360° e Exterior", icon: Car },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot },
   { id: "capo", title: "Capô Aberto", icon: Wrench },
-  { id: "interior_kit", title: "Interior e Kit", icon: Shield },
+  { id: "interior", title: "Interior", icon: Shield },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
 ];
