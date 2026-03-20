@@ -385,7 +385,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId("");
     setTripulacao(""); setDestino(""); setObservacoes("");
-    setPhotos({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
+    setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
