@@ -120,6 +120,12 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 type FormData = Record<string, string>;
 type PhotosMap = Record<string, File[]>;
 
+type ValidationSummaryItem = {
+  categoria: string;
+  label: string;
+  motivos: string[];
+};
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
@@ -184,8 +190,76 @@ async function validatePhoto(file: File, category: string): Promise<ValidationRe
     return await response.json();
   } catch (err) {
     console.error("Photo validation error:", err);
-    return { valid: true, quality: "aceitavel", reason: "Validação indisponível", ai_error: true };
+    return { valid: false, quality: "ruim", reason: "Falha ao validar a foto", ai_error: true };
   }
+}
+
+function summarizePhotoValidations(photos: PhotosMap, photoValidations: Record<string, PhotoValidation[]>) {
+  const pendingMap = new Map<string, ValidationSummaryItem>();
+  const invalidMap = new Map<string, ValidationSummaryItem>();
+  const forcedMap = new Map<string, ValidationSummaryItem>();
+  const errorMap = new Map<string, ValidationSummaryItem>();
+
+  const ensureItem = (map: Map<string, ValidationSummaryItem>, category: string) => {
+    if (!map.has(category)) {
+      map.set(category, {
+        categoria: category,
+        label: PHOTO_META[category as PhotoCategory]?.label ?? category,
+        motivos: [],
+      });
+    }
+
+    return map.get(category)!;
+  };
+
+  (Object.keys(photos) as PhotoCategory[]).forEach((category) => {
+    const files = photos[category] ?? [];
+    const validations = photoValidations[category] ?? [];
+
+    files.forEach((_, index) => {
+      const validation = validations[index];
+
+      if (!validation || validation.status === "idle" || validation.status === "validating") {
+        const item = ensureItem(pendingMap, category);
+        if (!item.motivos.includes("Validação em andamento")) item.motivos.push("Validação em andamento");
+        return;
+      }
+
+      if (validation.status === "forced") {
+        const item = ensureItem(forcedMap, category);
+        const reason = validation.result?.reason ?? "Foto forçada pelo técnico";
+        if (!item.motivos.includes(reason)) item.motivos.push(reason);
+        return;
+      }
+
+      if (validation.result?.ai_error) {
+        const item = ensureItem(errorMap, category);
+        const reason = validation.result?.reason ?? "Falha na validação automática";
+        if (!item.motivos.includes(reason)) item.motivos.push(reason);
+        return;
+      }
+
+      if (validation.status === "invalid") {
+        const item = ensureItem(invalidMap, category);
+        const reason = validation.result?.reason ?? "Foto reprovada pela IA";
+        if (!item.motivos.includes(reason)) item.motivos.push(reason);
+      }
+    });
+  });
+
+  const pending = Array.from(pendingMap.values());
+  const invalid = Array.from(invalidMap.values());
+  const forced = Array.from(forcedMap.values());
+  const errors = Array.from(errorMap.values());
+
+  return {
+    pending,
+    invalid,
+    forced,
+    errors,
+    hasPending: pending.length > 0,
+    hasBadPhotos: invalid.length > 0 || forced.length > 0 || errors.length > 0,
+  };
 }
 
 // ═══════════════════════════════════════════
@@ -364,6 +438,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [termoAceito, setTermoAceito] = useState(false);
   const [kmProximaTroca, setKmProximaTroca] = useState("");
 
+  const photoValidationSummary = useMemo(
+    () => summarizePhotoValidations(photos, photoValidations),
+    [photos, photoValidations],
+  );
+
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
@@ -408,6 +487,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const mutation = useMutation({
     mutationFn: async () => {
       setUploading(true);
+
+      if (photoValidationSummary.hasPending) {
+        throw new Error("Aguarde a validação das fotos terminar antes de salvar.");
+      }
+
       const date = format(now, "yyyy-MM-dd");
 
       // Upload photos
@@ -445,26 +529,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         troca_oleo: trocaOleoStatus,
         detalhes: {
           km_proxima_troca: kmTrocaNum,
-          fotos_forcadas: Object.entries(photoValidations)
-            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "forced"))
-            .map(([cat, vals]) => ({
-              categoria: cat,
-              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
-              motivos: (vals as PhotoValidation[]).filter(v => v.status === "forced").map(v => v.result?.reason ?? "Foto forçada pelo técnico"),
-            })),
-          fotos_invalidas: Object.entries(photoValidations)
-            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "invalid"))
-            .map(([cat, vals]) => ({
-              categoria: cat,
-              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
-              motivos: (vals as PhotoValidation[]).filter(v => v.status === "invalid").map(v => v.result?.reason ?? "Foto reprovada pela IA"),
-            })),
-          fotos_erro_validacao: Object.entries(photoValidations)
-            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.result?.ai_error))
-            .map(([cat]) => ({
-              categoria: cat,
-              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
-            })),
+          fotos_forcadas: photoValidationSummary.forced,
+          fotos_invalidas: photoValidationSummary.invalid,
+          fotos_erro_validacao: photoValidationSummary.errors,
         },
         ...answers,
       } as any).select("id").single();
@@ -753,6 +820,42 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <div className="text-xs text-muted-foreground space-y-0.5 mt-2">
               <p>Fotos: {Object.values(photos).reduce((s, arr) => s + arr.length, 0)} tiradas</p>
             </div>
+
+          {photoValidationSummary.hasPending && (
+            <div className="rounded-xl border border-warning/30 bg-warning/10 p-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-warning flex items-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Validação em andamento
+              </p>
+              <p className="mt-1 text-xs text-warning">
+                Aguarde terminar a análise das fotos para liberar o salvamento.
+              </p>
+            </div>
+          )}
+
+          {photoValidationSummary.hasBadPhotos && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
+              </p>
+              <div className="mt-1 space-y-1 text-xs text-destructive">
+                {photoValidationSummary.invalid.map((item) => (
+                  <p key={`invalid-${item.categoria}`}>
+                    <span className="font-semibold">{item.label}:</span> {item.motivos.join("; ")}
+                  </p>
+                ))}
+                {photoValidationSummary.errors.map((item) => (
+                  <p key={`error-${item.categoria}`}>
+                    <span className="font-semibold">{item.label}:</span> {item.motivos.join("; ")}
+                  </p>
+                ))}
+                {photoValidationSummary.forced.map((item) => (
+                  <p key={`forced-${item.categoria}`}>
+                    <span className="font-semibold">{item.label}:</span> validação foi forçada manualmente.
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Critical warning */}
@@ -947,10 +1050,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </Button>
           ) : (
             <Button onClick={() => mutation.mutate()}
-              disabled={!canAdvance() || mutation.isPending || uploading}
+              disabled={!canAdvance() || mutation.isPending || uploading || photoValidationSummary.hasPending}
               className="gap-2 h-12 text-base" size="lg">
-              {(mutation.isPending || uploading) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
-              Salvar
+              {(mutation.isPending || uploading || photoValidationSummary.hasPending) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
+              {photoValidationSummary.hasPending ? "Validando fotos..." : "Salvar"}
             </Button>
           )}
         </div>

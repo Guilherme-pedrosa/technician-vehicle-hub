@@ -362,15 +362,28 @@ export default function ChecklistDetail() {
             {(cl as any).resultado_motivo && <p className="text-sm italic text-muted-foreground">{(cl as any).resultado_motivo}</p>}
           </div>
 
-          {/* Fotos forçadas alert */}
-          {detalhes?.fotos_forcadas?.length > 0 && (
-            <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1.5 mt-4">
-              <p className="text-xs font-bold text-warning flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5" /> ⚠️ Fotos com validação forçada
+          {/* Alertas de validação das fotos */}
+          {((detalhes?.fotos_invalidas?.length ?? 0) > 0 || (detalhes?.fotos_erro_validacao?.length ?? 0) > 0 || (detalhes?.fotos_forcadas?.length ?? 0) > 0) && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2 mt-4">
+              <p className="text-xs font-bold text-destructive flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Fotos fora do padrão
               </p>
-              {(detalhes.fotos_forcadas as any[]).map((ff: any, i: number) => (
-                <div key={i} className="text-xs text-muted-foreground">
-                  <span className="font-medium">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
+
+              {(detalhes?.fotos_invalidas ?? []).map((ff: any, i: number) => (
+                <div key={`invalid-${i}`} className="text-xs text-muted-foreground">
+                  <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto reprovada pela IA"}
+                </div>
+              ))}
+
+              {(detalhes?.fotos_erro_validacao ?? []).map((ff: any, i: number) => (
+                <div key={`error-${i}`} className="text-xs text-muted-foreground">
+                  <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Falha na validação automática"}
+                </div>
+              ))}
+
+              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+                <div key={`forced-${i}`} className="text-xs text-muted-foreground">
+                  <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
                 </div>
               ))}
             </div>
@@ -405,11 +418,13 @@ export default function ChecklistDetail() {
         const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fields.includes(f.category));
         if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
-        // Build a map of flagged categories from fotos_forcadas
+        // Build a map of flagged categories from all validation issues
         const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
+        const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
+        const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
         const flaggedMap: Record<string, string[]> = {};
-        fotosForcadas.forEach((ff: any) => {
-          flaggedMap[ff.categoria] = ff.motivos ?? ["Foto forçada pelo técnico"];
+        [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
+          flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
         });
 
         const hasFlaggedPhotos = sectionPhotos.some((cat) => !!flaggedMap[cat]);
