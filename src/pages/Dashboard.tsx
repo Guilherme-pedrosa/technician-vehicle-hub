@@ -104,16 +104,16 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {stats.map((stat) => (
-          <Card key={stat.label} className="kpi-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+          <Card key={stat.label}>
+            <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+              <stat.icon className={`w-4 sm:w-5 h-4 sm:h-5 ${stat.color}`} />
             </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold tabular-nums">{stat.value}</p>
-              <p className={`text-xs mt-1 ${stat.subtitleColor}`}>{stat.subtitle}</p>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <p className="text-xl sm:text-3xl font-bold tabular-nums">{stat.value}</p>
+              <p className={`text-[10px] sm:text-xs mt-1 ${stat.subtitleColor} line-clamp-1`}>{stat.subtitle}</p>
             </CardContent>
           </Card>
         ))}
