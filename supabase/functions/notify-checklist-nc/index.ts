@@ -105,47 +105,38 @@ serve(async (req) => {
 </body>
 </html>`;
 
-    // Send emails using Resend-compatible API or fallback to logging
-    // For now, use the OpenAI-independent SMTP approach via Supabase
-    // We'll send via a simple fetch to a transactional email service
-    
-    // Try sending via Supabase's built-in email (using auth.admin)
-    // Since there's no email service configured, we'll store the notification
-    // and attempt to send via the admin API's invite mechanism as a workaround
-    
-    // Best approach: Use pg_net to call an email API or store for later
-    // For MVP: Log the notification and store it in the tickets table description
-    
-    // Actually, let's use Resend if RESEND_API_KEY exists, otherwise log
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    
-    if (RESEND_API_KEY) {
-      // Send via Resend
-      const sendPromises = emails.map((email: string) =>
-        fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "Tech Fleet Check <noreply@techfleetcheck.com>",
-            to: [email],
-            subject: `⚠️ NC Checklist — ${placa} — ${data}`,
-            html,
-          }),
-        }).then((r) => r.json())
-      );
-      const results = await Promise.allSettled(sendPromises);
-      console.log("Email results:", JSON.stringify(results));
-    } else {
-      // No email service — log for now
-      console.log(`[NOTIFY-NC] Would send email to ${emails.length} users for checklist ${checklist_id}`);
-      console.log(`[NOTIFY-NC] Recipients: ${emails.join(", ")}`);
-      
-      // Store notification record in maintenance_tickets description as fallback
-      // The ticket was already created by the client
+    if (!RESEND_API_KEY) {
+      console.log(`[NOTIFY-NC] RESEND_API_KEY not configured. Skipping email for checklist ${checklist_id}`);
+      return new Response(JSON.stringify({ success: true, message: "No email service configured" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    // Send via Resend
+    const sendPromises = emails.map((email: string) =>
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "Tech Fleet Check <alertas@wedocorp.com>",
+          to: [email],
+          subject: `⚠️ NC Checklist — ${placa} — ${data}`,
+          html,
+        }),
+      }).then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(`Resend error [${r.status}]: ${JSON.stringify(body)}`);
+        return body;
+      })
+    );
+    const results = await Promise.allSettled(sendPromises);
+    const sent = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
+    console.log(`[NOTIFY-NC] Emails sent: ${sent}, failed: ${failed}`);
 
     return new Response(
       JSON.stringify({ success: true, emails_sent: emails.length }),
