@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -216,25 +217,23 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Veículo *</Label>
-                <Select value={vehicleId} onValueChange={setVehicleId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o veículo" /></SelectTrigger>
-                  <SelectContent>
-                    {vehicles.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{v.placa} — {v.modelo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={vehicleId}
+                  onValueChange={setVehicleId}
+                  placeholder="Selecione o veículo"
+                  searchPlaceholder="Buscar placa ou modelo..."
+                  options={vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.modelo}` }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Motorista Responsável</Label>
-                <Select value={selectedDriverName} onValueChange={setSelectedDriverName}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o motorista" /></SelectTrigger>
-                  <SelectContent>
-                    {drivers.map((d) => (
-                      <SelectItem key={String(d.id)} value={d.nome}>{d.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={selectedDriverName}
+                  onValueChange={setSelectedDriverName}
+                  placeholder="Selecione o motorista"
+                  searchPlaceholder="Buscar motorista..."
+                  options={drivers.map((d) => ({ value: d.nome, label: d.nome }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Tripulação</Label>
