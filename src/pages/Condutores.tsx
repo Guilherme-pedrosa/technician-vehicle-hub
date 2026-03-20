@@ -162,30 +162,32 @@ export default function Condutores() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Condutores</h1>
-          <p className="text-muted-foreground">Gerenciamento de condutores da frota</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Condutores</h1>
+          <p className="text-sm text-muted-foreground">Gerenciamento de condutores</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => syncMutation.mutate()}
               disabled={syncMutation.isPending}
+              className="flex-1 sm:flex-none"
             >
               {syncMutation.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <RefreshCw className="w-4 h-4 mr-2" />
               )}
-              Sincronizar Rota Exata
+              <span className="hidden sm:inline">Sincronizar</span> Rota Exata
             </Button>
           )}
           {isAdmin && (
-            <Button onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Condutor
+            <Button onClick={openCreate} size="sm" className="flex-1 sm:flex-none">
+              <Plus className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Novo</span> Condutor
             </Button>
           )}
         </div>
@@ -223,7 +225,7 @@ export default function Condutores() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Buscar por nome ou CNH..."
@@ -239,11 +241,7 @@ export default function Condutores() {
           {isLoading ? (
             <div className="p-8 space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="skeleton-table-row">
-                  <div className="skeleton-table-cell" />
-                  <div className="skeleton-table-cell" />
-                  <div className="skeleton-table-cell" />
-                </div>
+                <div key={i} className="h-12 rounded bg-muted animate-pulse" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
@@ -251,50 +249,73 @@ export default function Condutores() {
               <Users className="w-12 h-12 mb-4" />
               <p className="text-lg font-medium">Nenhum condutor encontrado</p>
               <p className="text-sm">
-                {drivers.length === 0
-                  ? "Clique em 'Novo Condutor' para cadastrar"
-                  : "Tente alterar os filtros"}
+                {drivers.length === 0 ? "Clique em 'Novo Condutor' para cadastrar" : "Tente alterar os filtros"}
               </p>
             </div>
           ) : (
-            <Table className="table-enterprise">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>CNH</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Validade CNH</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile: card list */}
+              <div className="sm:hidden divide-y divide-border">
                 {filtered.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell className="font-medium">{d.full_name}</TableCell>
-                    <TableCell className="font-mono">{d.cnh}</TableCell>
-                    <TableCell>{d.categoria_cnh}</TableCell>
-                    <TableCell>
-                      <CnhBadge validade={d.cnh_validade} />
-                    </TableCell>
-                    <TableCell>{d.phone ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={d.status === "ativo" ? "default" : "secondary"}>
-                        {d.status === "ativo" ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {isAdmin && (
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(d)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <div key={d.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{d.full_name}</p>
+                      <p className="text-xs text-muted-foreground">CNH: {d.cnh} · {d.categoria_cnh}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <CnhBadge validade={d.cnh_validade} />
+                        <Badge variant={d.status === "ativo" ? "default" : "secondary"} className="text-[10px]">
+                          {d.status === "ativo" ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(d)} className="flex-shrink-0">
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+              {/* Desktop: table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-medium">Nome</th>
+                      <th className="text-left p-3 font-medium">CNH</th>
+                      <th className="text-left p-3 font-medium">Cat.</th>
+                      <th className="text-left p-3 font-medium">Validade</th>
+                      <th className="text-left p-3 font-medium">Telefone</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-right p-3 font-medium">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((d) => (
+                      <tr key={d.id} className="border-b last:border-0">
+                        <td className="p-3 font-medium">{d.full_name}</td>
+                        <td className="p-3 font-mono text-xs">{d.cnh}</td>
+                        <td className="p-3">{d.categoria_cnh}</td>
+                        <td className="p-3"><CnhBadge validade={d.cnh_validade} /></td>
+                        <td className="p-3">{d.phone ?? "—"}</td>
+                        <td className="p-3">
+                          <Badge variant={d.status === "ativo" ? "default" : "secondary"}>
+                            {d.status === "ativo" ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-right">
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(d)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -156,23 +156,23 @@ export default function Relatorios() {
   const totalKmAtual = rows.reduce((s, r) => s + r.km_atual, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
-        <p className="text-muted-foreground">KM rodado e telemetria por veículo/condutor</p>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Relatórios</h1>
+        <p className="text-sm text-muted-foreground">KM rodado e telemetria por veículo/condutor</p>
       </div>
 
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-end">
             {/* Period preset */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Período</label>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(["hoje", "semana", "mes", "personalizado"] as const).map(p => (
-                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)}>
-                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Personalizado"}
+                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)} className="flex-1 sm:flex-none">
+                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Custom"}
                   </Button>
                 ))}
               </div>
@@ -220,7 +220,7 @@ export default function Relatorios() {
                 onValueChange={setDriverFilter}
                 placeholder="Todos"
                 searchPlaceholder="Buscar condutor..."
-                className="w-[200px]"
+                className="w-full sm:w-[200px]"
                 options={[
                   { value: "todos", label: "Todos os condutores" },
                   ...drivers.filter(d => d.status === "ativo").map(d => ({ value: d.id, label: d.full_name })),
@@ -232,23 +232,23 @@ export default function Relatorios() {
       </Card>
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM no Período</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold tabular-nums">
-              {loadingKm ? <Loader2 className="w-6 h-6 animate-spin" /> : totalKmPeriodo.toLocaleString("pt-BR")}
+          <CardHeader className="pb-1 p-3 sm:p-6 sm:pb-2"><CardTitle className="text-xs sm:text-sm text-muted-foreground">KM Período</CardTitle></CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-lg sm:text-3xl font-bold tabular-nums">
+              {loadingKm ? <Loader2 className="w-5 h-5 animate-spin" /> : totalKmPeriodo.toLocaleString("pt-BR")}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{dataInicio} a {dataFim}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block">{dataInicio} a {dataFim}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM Total (Odômetro)</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{totalKmAtual.toLocaleString("pt-BR")}</p></CardContent>
+          <CardHeader className="pb-1 p-3 sm:p-6 sm:pb-2"><CardTitle className="text-xs sm:text-sm text-muted-foreground">Odômetro</CardTitle></CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0"><p className="text-lg sm:text-3xl font-bold tabular-nums">{totalKmAtual.toLocaleString("pt-BR")}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Veículos</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold tabular-nums">{rows.length}</p></CardContent>
+          <CardHeader className="pb-1 p-3 sm:p-6 sm:pb-2"><CardTitle className="text-xs sm:text-sm text-muted-foreground">Veículos</CardTitle></CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0"><p className="text-lg sm:text-3xl font-bold tabular-nums">{rows.length}</p></CardContent>
         </Card>
       </div>
 
@@ -261,61 +261,60 @@ export default function Relatorios() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table className="table-enterprise">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Placa</TableHead>
-                <TableHead>Veículo</TableHead>
-                <TableHead>Condutor</TableHead>
-                <TableHead>KM Período</TableHead>
-                <TableHead>KM Atual</TableHead>
-                <TableHead>Telemetria</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium">Placa</th>
+                <th className="text-left p-3 font-medium hidden md:table-cell">Veículo</th>
+                <th className="text-left p-3 font-medium">Condutor</th>
+                <th className="text-right p-3 font-medium">KM Período</th>
+                <th className="text-right p-3 font-medium hidden md:table-cell">KM Atual</th>
+                <th className="text-center p-3 font-medium hidden lg:table-cell">Telemetria</th>
+              </tr>
+            </thead>
+            <tbody>
               {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    {vehicles.length === 0 ? "Sincronize os veículos primeiro" : "Nenhum veículo encontrado para este filtro"}
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                    {vehicles.length === 0 ? "Sincronize os veículos primeiro" : "Nenhum veículo encontrado"}
+                  </td>
+                </tr>
               ) : (
                 rows.map(r => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono font-semibold">{r.placa}</TableCell>
-                    <TableCell>{r.marca} {r.modelo}</TableCell>
-                    <TableCell>
+                  <tr key={r.id} className="border-b last:border-0">
+                    <td className="p-3 font-mono font-semibold">{r.placa}</td>
+                    <td className="p-3 hidden md:table-cell">{r.marca} {r.modelo}</td>
+                    <td className="p-3">
                       {r.driver ? (
                         <span className="text-sm">{r.driver.full_name}</span>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sem condutor</span>
                       )}
-                    </TableCell>
-                    <TableCell className="tabular-nums font-semibold">
+                    </td>
+                    <td className="p-3 text-right tabular-nums font-semibold">
                       {loadingKm ? "..." : `${r.kmPeriodo.toLocaleString("pt-BR")} km`}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{r.km_atual.toLocaleString("pt-BR")} km</TableCell>
-                    <TableCell>
+                    </td>
+                    <td className="p-3 text-right tabular-nums hidden md:table-cell">{r.km_atual.toLocaleString("pt-BR")} km</td>
+                    <td className="p-3 text-center hidden lg:table-cell">
                       {r.pos ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${r.pos.velocidade > 0 ? "bg-success animate-pulse" : r.pos.ignicao ? "bg-warning" : "bg-muted-foreground/30"}`} />
                           <span className="text-xs tabular-nums">{r.pos.velocidade} km/h</span>
                           <Badge variant={r.pos.ignicao ? "default" : "secondary"} className="text-xs">
                             <Radio className="w-3 h-3 mr-1" /> {r.pos.ignicao ? "ON" : "OFF"}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {r.pos.data_posicao ? new Date(r.pos.data_posicao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : ""}
-                          </span>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">Sem sinal</span>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
+          </div>
         </CardContent>
       </Card>
     </div>

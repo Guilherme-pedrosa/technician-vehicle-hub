@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRotaExataUsuarios } from "@/hooks/useRotaExata";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +29,6 @@ type ChecklistField = {
 };
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
-  // Fluids
   { key: "nivel_oleo", label: "Nível de Óleo", category: "Fluidos", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
@@ -38,15 +36,14 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
   ]},
   { key: "troca_oleo", label: "Troca de Óleo", category: "Fluidos", options: [
     { value: "ok", label: "OK", color: "success" },
-    { value: "se_aproximando", label: "PRÓXIMO DO VENCIMENTO", color: "warning" },
+    { value: "se_aproximando", label: "PRÓXIMO", color: "warning" },
     { value: "vencido", label: "VENCIDO", color: "destructive" },
   ]},
   { key: "nivel_agua", label: "Nível de Água", category: "Fluidos", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  // Exterior
-  { key: "danos_veiculo", label: "Danos no Veículo (arranhão, amassado)", category: "Exterior", options: [
+  { key: "danos_veiculo", label: "Danos no Veículo", category: "Exterior", options: [
     { value: "nao", label: "NÃO", color: "success" },
     { value: "sim", label: "SIM", color: "destructive" },
   ]},
@@ -58,42 +55,39 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  { key: "limpeza_organizacao", label: "Veículo Limpo e Organizado", category: "Exterior", options: [
+  { key: "limpeza_organizacao", label: "Limpo e Organizado", category: "Exterior", options: [
     { value: "sim", label: "SIM", color: "success" },
     { value: "nao", label: "NÃO", color: "destructive" },
   ]},
-  // Mechanical
-  { key: "motor", label: "Motor em Pleno Funcionamento", category: "Mecânica", options: [
+  { key: "motor", label: "Motor Funcionando", category: "Mecânica", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  { key: "cambio", label: "Câmbio Funcionando Corretamente", category: "Mecânica", options: [
+  { key: "cambio", label: "Câmbio", category: "Mecânica", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  { key: "ruido_anormal", label: "Ruído Anormal no Veículo", category: "Mecânica", options: [
+  { key: "ruido_anormal", label: "Ruído Anormal", category: "Mecânica", options: [
     { value: "nao", label: "NÃO", color: "success" },
     { value: "sim", label: "SIM", color: "destructive" },
   ]},
-  { key: "som", label: "Som Funcionando", category: "Mecânica", options: [
+  { key: "som", label: "Som", category: "Mecânica", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  // Tires
-  { key: "pneus", label: "Pneus OK (calibragem e estado)", category: "Pneus", options: [
+  { key: "pneus", label: "Pneus OK", category: "Pneus", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  { key: "pneu_estepe", label: "Pneu Estepe Cheio e em Boas Condições", category: "Pneus", options: [
+  { key: "pneu_estepe", label: "Estepe", category: "Pneus", options: [
     { value: "conforme", label: "CONFORME", color: "success" },
     { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
   ]},
-  // Safety
-  { key: "itens_seguranca", label: "Macaco, Chave de Roda e Triângulo", category: "Segurança", options: [
+  { key: "itens_seguranca", label: "Macaco, Chave, Triângulo", category: "Segurança", options: [
     { value: "sim", label: "SIM", color: "success" },
     { value: "nao", label: "NÃO", color: "destructive" },
   ]},
-  { key: "acessorios", label: "Acessórios no Local (suporte celular, câmera)", category: "Segurança", options: [
+  { key: "acessorios", label: "Acessórios", category: "Segurança", options: [
     { value: "sim", label: "SIM", color: "success" },
     { value: "nao", label: "NÃO", color: "destructive" },
   ]},
@@ -108,6 +102,15 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 };
 
 type FormData = Record<string, string>;
+
+function isNonConforme(key: string, val: string) {
+  return val === "nao_conforme" || val === "vencido" ||
+    (key === "danos_veiculo" && val === "sim") ||
+    (key === "ruido_anormal" && val === "sim") ||
+    (key === "itens_seguranca" && val === "nao") ||
+    (key === "acessorios" && val === "nao") ||
+    (key === "limpeza_organizacao" && val === "nao");
+}
 
 function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
   vehicles: { id: string; placa: string; modelo: string }[];
@@ -124,16 +127,12 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
   const [observacoes, setObservacoes] = useState("");
   const [answers, setAnswers] = useState<FormData>(() => {
     const defaults: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => {
-      const defaultOpt = f.options[0];
-      defaults[f.key] = defaultOpt?.value ?? "";
-    });
+    CHECKLIST_FIELDS.forEach((f) => { defaults[f.key] = f.options[0]?.value ?? ""; });
     return defaults;
   });
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // Try to match selected Rota Exata driver to local drivers table by name
       const matchedLocal = selectedDriverName
         ? localDrivers.find((d) => d.full_name.toLowerCase().trim() === selectedDriverName.toLowerCase().trim())
         : null;
@@ -171,29 +170,17 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
     setDestino("");
     setObservacoes("");
     const defaults: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => {
-      defaults[f.key] = f.options[0]?.value ?? "";
-    });
+    CHECKLIST_FIELDS.forEach((f) => { defaults[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(defaults);
   };
 
-  const nonConformeCount = useMemo(() => {
-    return CHECKLIST_FIELDS.filter((f) => {
-      const val = answers[f.key];
-      return val === "nao_conforme" || val === "vencido" || 
-        (f.key === "danos_veiculo" && val === "sim") ||
-        (f.key === "ruido_anormal" && val === "sim") ||
-        (f.key === "itens_seguranca" && val === "nao") ||
-        (f.key === "acessorios" && val === "nao") ||
-        (f.key === "limpeza_organizacao" && val === "nao");
-    }).length;
-  }, [answers]);
+  const nonConformeCount = useMemo(() =>
+    CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])).length
+  , [answers]);
 
   const categories = useMemo(() => {
     const cats: string[] = [];
-    CHECKLIST_FIELDS.forEach((f) => {
-      if (!cats.includes(f.category)) cats.push(f.category);
-    });
+    CHECKLIST_FIELDS.forEach((f) => { if (!cats.includes(f.category)) cats.push(f.category); });
     return cats;
   }, []);
 
@@ -201,22 +188,23 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2">
-          <Plus className="w-4 h-4" /> Novo Checklist
+          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Novo</span> Checklist
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="flex items-center gap-2">
+      {/* Full-screen on mobile, max-w on desktop */}
+      <DialogContent className="max-w-2xl w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0">
+        <DialogHeader className="p-4 sm:p-6 pb-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <ClipboardCheck className="w-5 h-5 text-primary" />
-            Checklist Diário — {format(new Date(), "dd/MM/yyyy")}
+            Checklist — {format(new Date(), "dd/MM/yyyy")}
           </DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] px-6 pb-6">
-          <div className="space-y-6 pt-4">
-            {/* Identification */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <ScrollArea className="flex-1 px-4 sm:px-6 pb-4 sm:pb-6">
+          <div className="space-y-5 pt-4">
+            {/* Identification — stacked on mobile */}
+            <div className="space-y-3">
               <div className="space-y-2">
-                <Label>Veículo *</Label>
+                <Label className="text-sm">Veículo *</Label>
                 <SearchableSelect
                   value={vehicleId}
                   onValueChange={setVehicleId}
@@ -226,7 +214,7 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Motorista Responsável</Label>
+                <Label className="text-sm">Motorista *</Label>
                 <SearchableSelect
                   value={selectedDriverName}
                   onValueChange={setSelectedDriverName}
@@ -235,33 +223,35 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
                   options={drivers.map((d) => ({ value: d.nome, label: d.nome }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Tripulação</Label>
-                <Input placeholder="Nomes dos técnicos" value={tripulacao} onChange={(e) => setTripulacao(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Destino(s)</Label>
-                <Input placeholder="Destinos do dia" value={destino} onChange={(e) => setDestino(e.target.value)} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm">Tripulação</Label>
+                  <Input placeholder="Nomes dos técnicos" value={tripulacao} onChange={(e) => setTripulacao(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Destino(s)</Label>
+                  <Input placeholder="Destinos do dia" value={destino} onChange={(e) => setDestino(e.target.value)} />
+                </div>
               </div>
             </div>
 
             <Separator />
 
-            {/* Checklist Items by Category */}
+            {/* Checklist Items — mobile optimized */}
             {categories.map((cat) => {
               const Icon = CATEGORY_ICONS[cat] ?? ClipboardCheck;
               const fields = CHECKLIST_FIELDS.filter((f) => f.category === cat);
 
               return (
-                <div key={cat} className="space-y-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                <div key={cat} className="space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground sticky top-0 bg-background py-1 z-10">
                     <Icon className="w-4 h-4 text-primary" />
                     {cat}
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-1">
                     {fields.map((field) => (
-                      <div key={field.key} className="flex items-center justify-between gap-4 py-2">
-                        <span className="text-sm flex-1">{field.label}</span>
+                      <div key={field.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 py-2 border-b border-border/50 last:border-0">
+                        <span className="text-sm font-medium sm:font-normal">{field.label}</span>
                         <div className="flex gap-1.5 flex-shrink-0">
                           {field.options.map((opt) => {
                             const isSelected = answers[field.key] === opt.value;
@@ -276,7 +266,7 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
                                 key={opt.value}
                                 type="button"
                                 onClick={() => setAnswers((prev) => ({ ...prev, [field.key]: opt.value }))}
-                                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${colorMap[opt.color ?? "secondary"]}`}
+                                className={`flex-1 sm:flex-none min-w-0 px-3 py-2 sm:py-1 rounded-md text-xs font-medium border transition-colors active:scale-[0.97] ${colorMap[opt.color ?? "secondary"]}`}
                               >
                                 {opt.label}
                               </button>
@@ -292,19 +282,18 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
 
             <Separator />
 
-            {/* Observations */}
             <div className="space-y-2">
-              <Label>Observações</Label>
+              <Label className="text-sm">Observações</Label>
               <Textarea
-                placeholder="Descreva qualquer problema encontrado, detalhes de não conformidades..."
+                placeholder="Descreva problemas encontrados..."
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 rows={3}
               />
             </div>
 
-            {/* Summary & Submit */}
-            <div className="flex items-center justify-between pt-2">
+            {/* Submit — sticky on mobile */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 pb-4 sticky bottom-0 bg-background">
               <div className="flex items-center gap-3 text-sm">
                 {nonConformeCount > 0 ? (
                   <Badge variant="destructive" className="gap-1">
@@ -320,7 +309,8 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
               <Button
                 onClick={() => mutation.mutate()}
                 disabled={!vehicleId || mutation.isPending}
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
+                size="lg"
               >
                 {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCheck className="w-4 h-4" />}
                 Salvar Checklist
@@ -336,13 +326,10 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
 function statusBadge(value: string, field: ChecklistField) {
   const opt = field.options.find((o) => o.value === value);
   if (!opt) return <span className="text-xs text-muted-foreground">—</span>;
-
   const isOk = opt.color === "success";
   const isWarn = opt.color === "warning";
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-      isOk ? "text-success" : isWarn ? "text-warning" : "text-destructive"
-    }`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-medium ${isOk ? "text-success" : isWarn ? "text-warning" : "text-destructive"}`}>
       {isOk ? <CheckCircle className="w-3 h-3" /> : isWarn ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
       {opt.label}
     </span>
@@ -356,26 +343,23 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
 }) {
   const vehicle = vehicles.find((v) => v.id === checklist.vehicle_id);
   const driver = localDrivers.find((d) => d.id === checklist.driver_id);
-
   const categories = useMemo(() => {
     const cats: string[] = [];
-    CHECKLIST_FIELDS.forEach((f) => {
-      if (!cats.includes(f.category)) cats.push(f.category);
-    });
+    CHECKLIST_FIELDS.forEach((f) => { if (!cats.includes(f.category)) cats.push(f.category); });
     return cats;
   }, []);
 
   return (
-    <DialogContent className="max-w-lg max-h-[80vh] p-0">
-      <DialogHeader className="p-6 pb-0">
+    <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[80vh] p-0 gap-0">
+      <DialogHeader className="p-4 sm:p-6 pb-0">
         <DialogTitle className="flex items-center gap-2 text-base">
           <Eye className="w-4 h-4 text-primary" />
           {vehicle?.placa ?? "—"} — {new Date(checklist.checklist_date + "T12:00:00").toLocaleDateString("pt-BR")}
         </DialogTitle>
       </DialogHeader>
-      <ScrollArea className="max-h-[65vh] px-6 pb-6">
+      <ScrollArea className="flex-1 px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="space-y-4 pt-3">
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             <div><span className="text-muted-foreground">Veículo:</span> {vehicle?.placa} — {vehicle?.modelo}</div>
             <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? checklist.tripulacao ?? "—"}</div>
             {checklist.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {checklist.tripulacao}</div>}
@@ -457,26 +441,19 @@ export default function Checklist() {
   const filledCount = checklists.length;
   const pendingCount = totalVehicles - filledCount;
 
-  const nonConformeChecklists = useMemo(() => {
-    return checklists.filter((cl: any) =>
-      CHECKLIST_FIELDS.some((f) => {
-        const val = cl[f.key];
-        return val === "nao_conforme" || val === "vencido" ||
-          (f.key === "danos_veiculo" && val === "sim") ||
-          (f.key === "ruido_anormal" && val === "sim") ||
-          (f.key === "itens_seguranca" && val === "nao") ||
-          (f.key === "acessorios" && val === "nao") ||
-          (f.key === "limpeza_organizacao" && val === "nao");
-      })
-    ).length;
-  }, [checklists]);
+  const nonConformeChecklists = useMemo(() =>
+    checklists.filter((cl: any) =>
+      CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
+    ).length
+  , [checklists]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header — stacked on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Checklist Veicular</h1>
-          <p className="text-muted-foreground">Inspeção diária dos veículos da frota</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Veicular</h1>
+          <p className="text-sm text-muted-foreground">Inspeção diária dos veículos</p>
         </div>
         {user && (
           <ChecklistFormDialog
@@ -488,46 +465,46 @@ export default function Checklist() {
         )}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="kpi-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Preenchidos</CardTitle>
-            <CheckCircle className="w-5 h-5 text-success" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold tabular-nums">{filledCount}<span className="text-lg text-muted-foreground font-normal">/{totalVehicles}</span></p>
-            <p className="text-xs text-muted-foreground mt-1">{pendingCount} pendente{pendingCount !== 1 ? "s" : ""}</p>
+      {/* KPI Cards — 3 cols on mobile (compact) */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs sm:text-sm text-muted-foreground">Preenchidos</span>
+              <CheckCircle className="w-4 h-4 text-success hidden sm:block" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">{filledCount}<span className="text-sm sm:text-lg text-muted-foreground font-normal">/{totalVehicles}</span></p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{pendingCount} pendente{pendingCount !== 1 ? "s" : ""}</p>
           </CardContent>
         </Card>
-        <Card className="kpi-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Não Conformidades</CardTitle>
-            <AlertTriangle className="w-5 h-5 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold tabular-nums text-destructive">{nonConformeChecklists}</p>
-            <p className="text-xs text-muted-foreground mt-1">veículos com problemas</p>
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs sm:text-sm text-muted-foreground">Não Conforme</span>
+              <AlertTriangle className="w-4 h-4 text-destructive hidden sm:block" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold tabular-nums text-destructive">{nonConformeChecklists}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">com problemas</p>
           </CardContent>
         </Card>
-        <Card className="kpi-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Conformidade</CardTitle>
-            <ClipboardCheck className="w-5 h-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold tabular-nums">
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs sm:text-sm text-muted-foreground">Conformidade</span>
+              <ClipboardCheck className="w-4 h-4 text-primary hidden sm:block" />
+            </div>
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
               {filledCount > 0 ? Math.round(((filledCount - nonConformeChecklists) / filledCount) * 100) : 0}%
             </p>
-            <p className="text-xs text-muted-foreground mt-1">dos veículos inspecionados</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">inspecionados</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Checklist Table */}
+      {/* Checklist list */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
+          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-primary" /> Checklists do Dia
             {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
@@ -535,86 +512,112 @@ export default function Checklist() {
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
-            className="w-40 h-8 text-xs"
+            className="w-full sm:w-40 h-8 text-xs"
             max={format(new Date(), "yyyy-MM-dd")}
           />
         </CardHeader>
-        <CardContent className="p-0">
-          <Table className="table-enterprise">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Placa</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead>Destino</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-center">Hora</TableHead>
-                <TableHead className="text-center">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {checklists.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    <ClipboardCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-medium">Nenhum checklist preenchido</p>
-                    <p className="text-xs">Clique em "Novo Checklist" para começar</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                checklists.map((cl: any) => {
+        <CardContent className="p-0 sm:p-0">
+          {checklists.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-muted-foreground">
+              <ClipboardCheck className="w-10 h-10 mb-3 opacity-30" />
+              <p className="text-sm font-medium">Nenhum checklist preenchido</p>
+              <p className="text-xs">Clique em "Novo Checklist" para começar</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: Card list */}
+              <div className="sm:hidden divide-y divide-border">
+                {checklists.map((cl: any) => {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
-                  const hasIssue = CHECKLIST_FIELDS.some((f) => {
-                    const val = cl[f.key];
-                    return val === "nao_conforme" || val === "vencido" ||
-                      (f.key === "danos_veiculo" && val === "sim") ||
-                      (f.key === "ruido_anormal" && val === "sim") ||
-                      (f.key === "itens_seguranca" && val === "nao") ||
-                      (f.key === "acessorios" && val === "nao") ||
-                      (f.key === "limpeza_organizacao" && val === "nao");
-                  });
+                  const hasIssue = CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]));
 
                   return (
-                    <TableRow key={cl.id}>
-                      <TableCell className="font-medium">{vehicle?.placa ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{driver?.full_name ?? cl.tripulacao ?? "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{cl.destino ?? "—"}</TableCell>
-                      <TableCell className="text-center">
-                        {hasIssue ? (
-                          <Badge variant="destructive" className="gap-1 text-xs">
-                            <XCircle className="w-3 h-3" /> Não conforme
-                          </Badge>
-                        ) : (
-                          <Badge className="gap-1 text-xs bg-success text-success-foreground">
-                            <CheckCircle className="w-3 h-3" /> Conforme
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center text-xs text-muted-foreground tabular-nums">
-                        {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => setSelectedChecklist(cl)}>
-                              <Eye className="w-3.5 h-3.5" /> Ver
-                            </Button>
-                          </DialogTrigger>
-                          {selectedChecklist?.id === cl.id && (
-                            <ChecklistDetailDialog
-                              checklist={selectedChecklist}
-                              vehicles={vehicles}
-                              localDrivers={localDrivers}
-                            />
-                          )}
-                        </Dialog>
-                      </TableCell>
-                    </TableRow>
+                    <Dialog key={cl.id}>
+                      <DialogTrigger asChild>
+                        <button
+                          className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 active:bg-muted/50 transition-colors"
+                          onClick={() => setSelectedChecklist(cl)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {hasIssue ? (
+                              <XCircle className="w-4 h-4 text-destructive" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 text-success" />
+                            )}
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                        </button>
+                      </DialogTrigger>
+                      {selectedChecklist?.id === cl.id && (
+                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} />
+                      )}
+                    </Dialog>
                   );
-                })
-              )}
-            </TableBody>
-          </Table>
+                })}
+              </div>
+
+              {/* Desktop: Table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 font-medium">Placa</th>
+                      <th className="text-left p-3 font-medium">Motorista</th>
+                      <th className="text-left p-3 font-medium">Destino</th>
+                      <th className="text-center p-3 font-medium">Status</th>
+                      <th className="text-center p-3 font-medium">Hora</th>
+                      <th className="text-center p-3 font-medium">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checklists.map((cl: any) => {
+                      const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
+                      const driver = localDrivers.find((d) => d.id === cl.driver_id);
+                      const hasIssue = CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]));
+
+                      return (
+                        <tr key={cl.id} className="border-b last:border-0">
+                          <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
+                          <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
+                          <td className="p-3 text-muted-foreground">{cl.destino ?? "—"}</td>
+                          <td className="p-3 text-center">
+                            {hasIssue ? (
+                              <Badge variant="destructive" className="gap-1 text-xs"><XCircle className="w-3 h-3" /> Não conforme</Badge>
+                            ) : (
+                              <Badge className="gap-1 text-xs bg-success text-success-foreground"><CheckCircle className="w-3 h-3" /> Conforme</Badge>
+                            )}
+                          </td>
+                          <td className="p-3 text-center text-xs text-muted-foreground tabular-nums">
+                            {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => setSelectedChecklist(cl)}>
+                                  <Eye className="w-3.5 h-3.5" /> Ver
+                                </Button>
+                              </DialogTrigger>
+                              {selectedChecklist?.id === cl.id && (
+                                <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers} />
+                              )}
+                            </Dialog>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
