@@ -41,7 +41,7 @@ interface MenuGroup {
   defaultOpen?: boolean;
 }
 
-const menuGroups: MenuGroup[] = [
+const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { adminOnly?: boolean })[] })[] = [
   {
     label: "",
     items: [
@@ -52,7 +52,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Operações",
     items: [
-      { title: "Condutores", icon: Users, href: "/condutores" },
+      { title: "Condutores", icon: Users, href: "/condutores", adminOnly: true },
       { title: "Veículos", icon: Truck, href: "/veiculos" },
       { title: "Checklist", icon: ClipboardCheck, href: "/checklist" },
       { title: "Chamados", icon: Wrench, href: "/chamados" },
@@ -64,12 +64,14 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Relatórios", icon: BarChart3, href: "/relatorios" },
     ],
+    adminOnly: true,
   },
   {
     label: "Sistema",
     items: [
       { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
+    adminOnly: true,
   },
 ];
 
