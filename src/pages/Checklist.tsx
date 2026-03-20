@@ -628,7 +628,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
           {capoPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} />
           ))}
           {capoFields.length > 0 && (
             <>
