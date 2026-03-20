@@ -205,7 +205,7 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
   exterior_360: ["Exterior"],
   pneus: ["Pneus"],
   capo: ["Capô"],
-  interior_kit: ["Interior e Kit"],
+  interior: ["Interior"],
   danos: ["Danos"],
 };
 
