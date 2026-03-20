@@ -115,16 +115,28 @@ const DETAIL_SECTIONS = [
 // Photo gallery inline
 // ═══════════════════════════════════════════
 
-function PhotoGallery({ category, urls }: { category: PhotoCategory; urls: string[] }) {
+function PhotoGallery({ category, urls, isFlagged, flagReasons }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[] }) {
   if (!urls || urls.length === 0) return null;
   const meta = PHOTO_META[category];
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-muted-foreground">{meta?.label ?? category}</p>
+    <div className={`space-y-1.5 rounded-lg p-2 ${isFlagged ? "bg-destructive/5 border border-destructive/30" : ""}`}>
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">{meta?.label ?? category}</p>
+        {isFlagged && (
+          <Badge variant="destructive" className="text-[10px] gap-1 px-1.5 py-0">
+            <AlertTriangle className="w-2.5 h-2.5" /> Foto inadequada
+          </Badge>
+        )}
+      </div>
+      {isFlagged && flagReasons && flagReasons.length > 0 && (
+        <p className="text-[11px] text-destructive font-medium">⚠️ {flagReasons.join("; ")}</p>
+      )}
       <div className="flex gap-2 flex-wrap">
         {urls.map((url, i) => (
           <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-border block hover:ring-2 hover:ring-primary transition-all">
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border-2 block hover:ring-2 hover:ring-primary transition-all ${
+              isFlagged ? "border-destructive shadow-[0_0_8px_rgba(220,38,38,0.3)]" : "border-border"
+            }`}>
             <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
           </a>
         ))}
@@ -393,19 +405,39 @@ export default function ChecklistDetail() {
         const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fields.includes(f.category));
         if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
+        // Build a map of flagged categories from fotos_forcadas
+        const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
+        const flaggedMap: Record<string, string[]> = {};
+        fotosForcadas.forEach((ff: any) => {
+          flaggedMap[ff.categoria] = ff.motivos ?? ["Foto forçada pelo técnico"];
+        });
+
+        const hasFlaggedPhotos = sectionPhotos.some((cat) => !!flaggedMap[cat]);
+
         const Icon = section.icon;
         return (
-          <Card key={section.id}>
+          <Card key={section.id} className={hasFlaggedPhotos ? "border-destructive/40" : ""}>
             <CardContent className="p-4 sm:p-6 space-y-4">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <Icon className="w-4 h-4 text-primary" /> {section.title}
+                {hasFlaggedPhotos && (
+                  <Badge variant="destructive" className="text-[10px] gap-1 ml-auto">
+                    <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
+                  </Badge>
+                )}
               </h3>
 
               {/* Photos for this section */}
               {sectionPhotos.length > 0 && (
                 <div className="space-y-3">
                   {sectionPhotos.map((cat) => (
-                    <PhotoGallery key={cat} category={cat} urls={fotosData[cat]} />
+                    <PhotoGallery
+                      key={cat}
+                      category={cat}
+                      urls={fotosData[cat]}
+                      isFlagged={!!flaggedMap[cat]}
+                      flagReasons={flaggedMap[cat]}
+                    />
                   ))}
                 </div>
               )}
