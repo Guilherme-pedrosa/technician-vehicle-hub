@@ -19,69 +19,162 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ClipboardCheck, Plus, CheckCircle, XCircle, AlertTriangle,
-  Loader2, Car, CalendarDays, Camera, ChevronLeft, ChevronRight,
-  X, Image as ImageIcon, Download, Eye, Pencil, Trash2, Save, ShieldAlert, ShieldCheck, AlertCircle,
+  Loader2, Car, Droplets, Wrench, Shield, CalendarDays, Camera,
+  ChevronLeft, ChevronRight, X, Image as ImageIcon, Download, Eye,
+  Trash2, ShieldAlert, ShieldCheck, AlertCircle, Gauge, CircleDot,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// ─── Constants ───
-const PNEU_PROBLEMAS = [
-  "Careca", "Corte", "Bolha", "Prego / perfuração",
-  "Deformado", "Ressecado / rachado", "Desgaste irregular", "Outro",
-];
-const FLUIDO_PROBLEMAS = ["Óleo", "Água / arrefecimento", "Vazamento", "Outro"];
-const CONDUCAO_PROBLEMAS = ["Freio", "Direção", "Luzes", "Alerta no painel", "Outro"];
-const KIT_FALTANTES = [
-  "Estepe", "Macaco", "Chave de roda", "Triângulo",
-  "Documento", "Ferramenta / equipamento da operação", "Outro",
-];
+// ═══════════════════════════════════════════
+// PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
+// ═══════════════════════════════════════════
 
-const CRITICAL_CONDITIONS = (detalhes: any, answers: Record<string, string>) => {
-  if (answers.calibragem_ok === "nao") return true;
-  if (answers.pneus_visual_ok === "nao") return true;
-  if (answers.fluidos_ok === "nao") {
-    const probs = detalhes?.fluidos_problemas ?? [];
-    if (probs.includes("Vazamento") || probs.includes("Óleo") || probs.includes("Água / arrefecimento")) return true;
-  }
-  if (answers.conducao_ok === "nao") {
-    const probs = detalhes?.conducao_problemas ?? [];
-    if (probs.includes("Freio") || probs.includes("Direção") || probs.includes("Alerta no painel")) return true;
-  }
-  return false;
+type PhotoCategory =
+  | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
+  | "nivel_oleo" | "reservatorio_agua"
+  | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao" | "estepe"
+  | "farois_lanternas" | "motor" | "itens_seguranca" | "interior"
+  | "danos" | "avaria";
+
+const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: number }> = {
+  painel: { label: "📊 Painel do Veículo", hint: "KM e indicadores visíveis, veículo ligado", min: 1 },
+  exterior_frente: { label: "📸 Frente do Veículo", hint: "Foto frontal completa", min: 1 },
+  exterior_traseira: { label: "📸 Traseira do Veículo", hint: "Foto traseira completa", min: 1 },
+  exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto lateral esquerda completa", min: 1 },
+  exterior_direita: { label: "📸 Lateral Direita", hint: "Foto lateral direita completa", min: 1 },
+  nivel_oleo: { label: "🛢️ Nível de Óleo", hint: "Foto da vareta ou indicador de nível", min: 1 },
+  reservatorio_agua: { label: "💧 Reservatório de Água", hint: "Foto do reservatório de arrefecimento", min: 1 },
+  pneu_de: { label: "🔵 Pneu Dianteiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
+  pneu_dd: { label: "🔵 Pneu Dianteiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
+  pneu_te: { label: "🔵 Pneu Traseiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
+  pneu_td: { label: "🔵 Pneu Traseiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
+  calibracao: { label: "📏 Calibração dos Pneus", hint: "Foto do calibrador mostrando pressão", min: 1 },
+  estepe: { label: "🔄 Pneu Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
+  farois_lanternas: { label: "💡 Faróis e Lanternas", hint: "Faróis acesos, setas funcionando", min: 1 },
+  motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
+  itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
+  interior: { label: "🪑 Interior do Veículo", hint: "Foto da organização e limpeza interna", min: 1 },
+  danos: { label: "⚠️ Registro de Dano/Avaria", hint: "Foto detalhada do dano encontrado", min: 1 },
+  avaria: { label: "⚠️ Nova Avaria", hint: "Foto obrigatória da avaria encontrada", min: 1 },
 };
 
+// ═══════════════════════════════════════════
+// CHECKLIST FIELDS — Itens de inspeção
+// ═══════════════════════════════════════════
+
+type ChecklistField = {
+  key: string;
+  label: string;
+  options: { value: string; label: string; color: string }[];
+  category: string;
+  critical?: boolean;
+};
+
+const CONFORME_NAO = [
+  { value: "conforme", label: "CONFORME", color: "success" },
+  { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
+];
+const SIM_NAO = [
+  { value: "sim", label: "SIM", color: "success" },
+  { value: "nao", label: "NÃO", color: "destructive" },
+];
+const NAO_SIM = [
+  { value: "nao", label: "NÃO", color: "success" },
+  { value: "sim", label: "SIM", color: "destructive" },
+];
+const OIL_OPTS = [
+  { value: "ok", label: "OK", color: "success" },
+  { value: "se_aproximando", label: "PRÓXIMO", color: "warning" },
+  { value: "vencido", label: "VENCIDO", color: "destructive" },
+];
+
+const CHECKLIST_FIELDS: ChecklistField[] = [
+  // Fluidos
+  { key: "nivel_oleo", label: "Nível de óleo OK?", category: "Fluidos", options: CONFORME_NAO, critical: true },
+  { key: "troca_oleo", label: "Troca de óleo em dia?", category: "Fluidos", options: OIL_OPTS },
+  { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Fluidos", options: CONFORME_NAO, critical: true },
+  // Pneus
+  { key: "pneus", label: "Pneus em condição de saída?", category: "Pneus e Calibração", options: CONFORME_NAO, critical: true },
+  { key: "pneu_estepe", label: "Estepe em boas condições?", category: "Pneus e Calibração", options: CONFORME_NAO },
+  // Exterior
+  { key: "farois_lanternas", label: "Faróis e lanternas funcionando?", category: "Exterior e Iluminação", options: CONFORME_NAO, critical: true },
+  { key: "vidros", label: "Vidros sem trincas/danos?", category: "Exterior e Iluminação", options: SIM_NAO },
+  { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Exterior e Iluminação", options: SIM_NAO },
+  // Mecânica
+  { key: "motor", label: "Motor funcionando normalmente?", category: "Mecânica", options: CONFORME_NAO, critical: true },
+  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Mecânica", options: CONFORME_NAO, critical: true },
+  { key: "som", label: "Som/rádio funcionando?", category: "Mecânica", options: CONFORME_NAO },
+  { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Mecânica", options: NAO_SIM, critical: true },
+  // Segurança
+  { key: "itens_seguranca", label: "Triângulo, macaco e chave de roda?", category: "Kit e Segurança", options: SIM_NAO, critical: true },
+  { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Kit e Segurança", options: SIM_NAO },
+  // Danos
+  { key: "danos_veiculo", label: "Há algum dano/avaria nova no veículo?", category: "Danos", options: NAO_SIM },
+];
+
+const CATEGORY_ICONS: Record<string, typeof Droplets> = {
+  "Fluidos": Droplets,
+  "Pneus e Calibração": CircleDot,
+  "Exterior e Iluminação": Car,
+  "Mecânica": Wrench,
+  "Kit e Segurança": Shield,
+  "Danos": AlertTriangle,
+};
+
+type FormData = Record<string, string>;
 type PhotosMap = Record<string, File[]>;
 
-// ─── Camera Capture ───
-function CameraCapture({ id, label, hint, photos, onCapture, onRemove, required }: {
-  id: string; label: string; hint: string; photos: File[];
-  onCapture: (id: string, files: FileList) => void;
-  onRemove: (id: string, idx: number) => void;
+function isNonConforme(key: string, val: string) {
+  return val === "nao_conforme" || val === "vencido" ||
+    (key === "danos_veiculo" && val === "sim") ||
+    (key === "ruido_anormal" && val === "sim") ||
+    (["itens_seguranca", "acessorios", "limpeza_organizacao", "vidros"].includes(key) && val === "nao");
+}
+
+function isCriticalNonConforme(key: string, val: string) {
+  const field = CHECKLIST_FIELDS.find((f) => f.key === key);
+  if (!field?.critical) return false;
+  return isNonConforme(key, val);
+}
+
+// ═══════════════════════════════════════════
+// CAMERA CAPTURE COMPONENT
+// ═══════════════════════════════════════════
+
+function CameraCapture({ category, photos, onCapture, onRemove, required }: {
+  category: PhotoCategory;
+  photos: File[];
+  onCapture: (cat: PhotoCategory, files: FileList) => void;
+  onRemove: (cat: PhotoCategory, idx: number) => void;
   required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const meta = PHOTO_META[category];
+  const hasEnough = photos.length >= meta.min;
+
   return (
-    <div className="space-y-2 rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
+    <div className={`space-y-2 rounded-xl border-2 p-3 transition-colors ${
+      required && !hasEnough ? "border-destructive/50 bg-destructive/5" : "border-dashed border-border bg-muted/20"
+    }`}>
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold">{label} {required && <span className="text-destructive">*</span>}</p>
-          <p className="text-xs text-muted-foreground">{hint}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{meta.label}</p>
+          <p className="text-xs text-muted-foreground">{meta.hint}</p>
         </div>
-        {required && (
-          <Badge variant={photos.length > 0 ? "default" : "destructive"} className="text-[10px]">
-            {photos.length > 0 ? "✓" : "Obrigatória"}
-          </Badge>
-        )}
+        <Badge variant={hasEnough ? "default" : "destructive"} className="text-[10px] shrink-0 ml-2">
+          {photos.length}/{meta.min}
+        </Badge>
       </div>
+
       {photos.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {photos.map((file, i) => (
             <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-border">
               <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => onRemove(id, i)}
+              <button type="button" onClick={() => onRemove(category, i)}
                 className="absolute top-0 right-0 bg-destructive text-destructive-foreground rounded-bl-lg p-0.5">
                 <X className="w-3 h-3" />
               </button>
@@ -89,69 +182,55 @@ function CameraCapture({ id, label, hint, photos, onCapture, onRemove, required 
           ))}
         </div>
       )}
+
       <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => { if (e.target.files?.length) { onCapture(id, e.target.files); e.target.value = ""; } }} />
-      <Button type="button" variant="outline" className="w-full gap-2 h-12 text-base active:scale-[0.97]"
+        onChange={(e) => { if (e.target.files?.length) { onCapture(category, e.target.files); e.target.value = ""; } }} />
+      <Button type="button" variant={hasEnough ? "outline" : "default"} className="w-full gap-2 h-12 text-base active:scale-[0.97]"
         onClick={() => inputRef.current?.click()}>
-        <Camera className="w-5 h-5" /> Tirar Foto
+        <Camera className="w-5 h-5" /> {hasEnough ? "Tirar Outra" : "Tirar Foto"}
       </Button>
     </div>
   );
 }
 
-// ─── Yes/No Toggle ───
-function YesNoToggle({ value, onChange, yesLabel = "Sim", noLabel = "Não", invertColors = false }: {
-  value: string; onChange: (v: string) => void;
-  yesLabel?: string; noLabel?: string; invertColors?: boolean;
-}) {
-  const yesColor = invertColors
-    ? (value === "sim" ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive")
-    : (value === "sim" ? "bg-success text-success-foreground border-success" : "border-success/40 text-success");
-  const noColor = invertColors
-    ? (value === "nao" ? "bg-success text-success-foreground border-success" : "border-success/40 text-success")
-    : (value === "nao" ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive");
+// ═══════════════════════════════════════════
+// WIZARD STEPS — Benchmark Localiza/Movida/Sigefro
+// ═══════════════════════════════════════════
 
-  return (
-    <div className="flex gap-2">
-      <button type="button" onClick={() => onChange("sim")}
-        className={`flex-1 py-3 rounded-xl text-base font-bold border-2 transition-all active:scale-[0.96] ${yesColor}`}>
-        {yesLabel}
-      </button>
-      <button type="button" onClick={() => onChange("nao")}
-        className={`flex-1 py-3 rounded-xl text-base font-bold border-2 transition-all active:scale-[0.96] ${noColor}`}>
-        {noLabel}
-      </button>
-    </div>
-  );
-}
+const STEPS = [
+  { id: "info", title: "Identificação", icon: ClipboardCheck },
+  { id: "painel_360", title: "Painel e 360°", icon: Camera },
+  { id: "fluidos", title: "Fluidos", icon: Droplets },
+  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot },
+  { id: "exterior", title: "Exterior e Iluminação", icon: Car },
+  { id: "mecanica", title: "Mecânica", icon: Wrench },
+  { id: "seguranca", title: "Kit e Segurança", icon: Shield },
+  { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
+  { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
+];
 
-// ─── Multi-select chips ───
-function ChipSelect({ options, selected, onChange }: {
-  options: string[]; selected: string[]; onChange: (v: string[]) => void;
-}) {
-  const toggle = (opt: string) => {
-    onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt]);
-  };
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((opt) => {
-        const isSelected = selected.includes(opt);
-        return (
-          <button key={opt} type="button" onClick={() => toggle(opt)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all active:scale-[0.96] ${
-              isSelected
-                ? "bg-destructive/10 border-destructive text-destructive"
-                : "border-border text-muted-foreground hover:border-foreground/30"
-            }`}>
-            {opt}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
+  fluidos: ["Fluidos"],
+  pneus: ["Pneus e Calibração"],
+  exterior: ["Exterior e Iluminação"],
+  mecanica: ["Mecânica"],
+  seguranca: ["Kit e Segurança"],
+  danos: ["Danos"],
+};
 
-// ─── Form Dialog ───
+const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
+  painel_360: ["painel", "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
+  fluidos: ["nivel_oleo", "reservatorio_agua"],
+  pneus: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe"],
+  exterior: ["farois_lanternas", "interior"],
+  mecanica: ["motor"],
+  seguranca: ["itens_seguranca"],
+};
+
+// ═══════════════════════════════════════════
+// FORM DIALOG
+// ═══════════════════════════════════════════
+
 function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string }[];
@@ -163,45 +242,47 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
   const [vehicleId, setVehicleId] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [answers, setAnswers] = useState({
-    calibragem_ok: "sim",
-    pneus_visual_ok: "sim",
-    fluidos_ok: "sim",
-    conducao_ok: "sim",
-    kit_ok: "sim",
-    avaria_nova: "nao",
+  const [tripulacao, setTripulacao] = useState("");
+  const [destino, setDestino] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [answers, setAnswers] = useState<FormData>(() => {
+    const d: FormData = {};
+    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
+    return d;
   });
-  const [detalhes, setDetalhes] = useState<Record<string, any>>({});
+  const [photos, setPhotos] = useState<PhotosMap>({});
+  const [uploading, setUploading] = useState(false);
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
-  const [photos, setPhotos] = useState<PhotosMap>({});
-  const [uploading, setUploading] = useState(false);
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const setDetail = (key: string, value: any) => setDetalhes((prev) => ({ ...prev, [key]: value }));
-  const getDetail = (key: string, fallback: any = "") => detalhes[key] ?? fallback;
-
-  const handleCapture = useCallback((id: string, files: FileList) => {
-    setPhotos((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), ...Array.from(files)] }));
+  const handleCapture = useCallback((cat: PhotoCategory, files: FileList) => {
+    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...Array.from(files)] }));
   }, []);
-  const handleRemovePhoto = useCallback((id: string, idx: number) => {
-    setPhotos((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((_, i) => i !== idx) }));
+  const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
+    setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
   }, []);
-
-  const isCritical = CRITICAL_CONDITIONS(detalhes, answers);
-  const hasAnyProblem = Object.values(answers).some((v) => v === "nao") || answers.avaria_nova === "sim";
-
-  const suggestedResult = isCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId("");
-    setAnswers({ calibragem_ok: "sim", pneus_visual_ok: "sim", fluidos_ok: "sim", conducao_ok: "sim", kit_ok: "sim", avaria_nova: "nao" });
-    setDetalhes({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false); setPhotos({});
+    setTripulacao(""); setDestino(""); setObservacoes("");
+    setPhotos({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
+    const d: FormData = {};
+    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
+    setAnswers(d);
   };
+
+  const nonConformeFields = useMemo(() =>
+    CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
+  const criticalCount = useMemo(() =>
+    CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
+  const hasCritical = criticalCount > 0;
+  const hasAnyProblem = nonConformeFields.length > 0;
+  const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -216,7 +297,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           const ext = file.name.split(".").pop() || "jpg";
           const path = `${date}/${vehicleId}/${cat}/${crypto.randomUUID()}.${ext}`;
           const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type });
-          if (error) throw new Error(`Erro no upload: ${error.message}`);
+          if (error) throw new Error(`Upload: ${error.message}`);
           const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
           fotosUrls[cat].push(urlData.publicUrl);
         }
@@ -224,32 +305,50 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       const finalResultado = resultado || suggestedResult;
 
-      const { error } = await supabase.from("vehicle_checklists").insert({
+      // Save checklist
+      const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
         created_by: userId,
         checklist_date: date,
-        tripulacao: selectedDriver?.full_name || null,
+        tripulacao: tripulacao || selectedDriver?.full_name || null,
+        destino: destino || null,
+        observacoes: observacoes || null,
         fotos: fotosUrls,
-        calibragem_ok: answers.calibragem_ok,
-        pneus_visual_ok: answers.pneus_visual_ok,
-        fluidos_ok: answers.fluidos_ok,
-        conducao_ok: answers.conducao_ok,
-        kit_ok: answers.kit_ok,
-        avaria_nova: answers.avaria_nova,
-        avaria_descricao: answers.avaria_nova === "sim" ? (getDetail("avaria_descricao") || null) : null,
         resultado: finalResultado,
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
-        detalhes,
-        observacoes: null,
-      } as any);
+        ...answers,
+      } as any).select("id").single();
       if (error) throw error;
+
+      // AUTO-TICKET: criar chamado de não conformidade se houver problemas
+      if (hasAnyProblem && savedChecklist) {
+        const problemItems = nonConformeFields.map((f) => `• ${f.label}: ${answers[f.key]}`).join("\n");
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}\n\nItens com problema:\n${problemItems}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+
+        await supabase.from("maintenance_tickets").insert({
+          vehicle_id: vehicleId,
+          driver_id: selectedDriverId || null,
+          created_by: userId,
+          tipo: "nao_conformidade" as any,
+          prioridade: hasCritical ? "alta" : "media",
+          status: "aberto",
+          titulo: `Checklist NC — ${selectedVehicle?.placa} — ${format(now, "dd/MM")}`,
+          descricao: ticketDesc,
+          fotos: Object.values(fotosUrls).flat().slice(0, 5),
+        } as any);
+      }
     },
     onSuccess: () => {
       setUploading(false);
-      toast.success("Checklist salvo!");
+      if (hasAnyProblem) {
+        toast.success("Checklist salvo! Chamado de não conformidade criado automaticamente.", { duration: 5000 });
+      } else {
+        toast.success("Checklist salvo com sucesso!");
+      }
       queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
       setOpen(false); resetForm();
     },
     onError: (err: any) => {
@@ -262,18 +361,20 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     },
   });
 
-  const STEPS = [
-    { id: "info", title: "Identificação" },
-    { id: "painel", title: "Foto do Painel" },
-    { id: "conferencia", title: "Conferência" },
-    { id: "resultado", title: "Resultado" },
-  ];
-
   const canAdvance = () => {
-    if (step === 0) return !!vehicleId && !!selectedDriverId;
-    if (step === 1) return (photos["painel"]?.length ?? 0) > 0;
-    if (step === 2) return true;
-    if (step === 3) {
+    const currentStep = STEPS[step];
+    if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
+    // Check mandatory photos for photo steps
+    const requiredPhotos = STEP_PHOTOS[currentStep.id];
+    if (requiredPhotos) {
+      const missing = requiredPhotos.filter((cat) => !(photos[cat]?.length > 0));
+      if (currentStep.id === "danos") {
+        // danos photos only required if danos_veiculo === "sim"
+        return true;
+      }
+      if (missing.length > 0) return false;
+    }
+    if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
       if (finalRes !== "liberado" && !resultadoMotivo.trim()) return false;
       return termoAceito;
@@ -282,7 +383,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   };
 
   const renderStep = () => {
-    if (step === 0) {
+    const currentStep = STEPS[step];
+
+    // ── IDENTIFICAÇÃO ──
+    if (currentStep.id === "info") {
       return (
         <div className="space-y-4">
           <div className="space-y-2">
@@ -297,17 +401,25 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               placeholder="Selecione o técnico" searchPlaceholder="Buscar nome..."
               options={localDrivers.map((d) => ({ value: d.id, label: d.full_name }))} />
           </div>
+          <div className="space-y-2">
+            <Label>Tripulação</Label>
+            <Input placeholder="Outros técnicos a bordo" value={tripulacao} onChange={(e) => setTripulacao(e.target.value)} className="h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label>Destino</Label>
+            <Input placeholder="Destino(s) do dia" value={destino} onChange={(e) => setDestino(e.target.value)} className="h-11" />
+          </div>
 
           {selectedVehicle && selectedDriver && (
-            <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Dados Automáticos</p>
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-1.5">
+              <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">Dados Automáticos</p>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><span className="text-muted-foreground">Placa:</span> <strong>{selectedVehicle.placa}</strong></div>
                 <div><span className="text-muted-foreground">Modelo:</span> <strong>{selectedVehicle.modelo}</strong></div>
-                <div><span className="text-muted-foreground">Técnico:</span> <strong>{selectedDriver.full_name}</strong></div>
-                <div><span className="text-muted-foreground">KM Atual:</span> <strong>{selectedVehicle.km_atual.toLocaleString("pt-BR")}</strong></div>
+                <div><span className="text-muted-foreground">KM:</span> <strong>{selectedVehicle.km_atual.toLocaleString("pt-BR")}</strong></div>
                 <div><span className="text-muted-foreground">Data:</span> <strong>{format(now, "dd/MM/yyyy")}</strong></div>
                 <div><span className="text-muted-foreground">Hora:</span> <strong>{format(now, "HH:mm")}</strong></div>
+                <div><span className="text-muted-foreground">Técnico:</span> <strong>{selectedDriver.full_name}</strong></div>
               </div>
             </div>
           )}
@@ -315,177 +427,208 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       );
     }
 
-    if (step === 1) {
+    // ── PAINEL + 360° ──
+    if (currentStep.id === "painel_360") {
       return (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Tire uma foto do painel do veículo ligado, mostrando KM e indicadores.</p>
-          <CameraCapture id="painel" label="Foto do Painel" hint="KM e indicadores visíveis"
-            photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground font-medium">📷 Tire as fotos obrigatórias do veículo:</p>
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+          <Separator />
+          <p className="text-sm font-semibold">Fotos 360° — 4 ângulos obrigatórios</p>
+          <div className="grid grid-cols-1 gap-3">
+            {(["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[]).map((cat) => (
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            ))}
+          </div>
         </div>
       );
     }
 
-    if (step === 2) {
+    // ── RESULTADO FINAL ──
+    if (currentStep.id === "resultado") {
+      const finalRes = resultado || suggestedResult;
       return (
         <div className="space-y-5">
-          {/* Q1: Calibragem */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">1. Calibragem diária realizada?</p>
-            <YesNoToggle value={answers.calibragem_ok} onChange={(v) => setAnswers((a) => ({ ...a, calibragem_ok: v }))} />
-            {answers.calibragem_ok === "nao" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <Input placeholder="Qual anormalidade?" value={getDetail("calibragem_anormalidade")}
-                  onChange={(e) => setDetail("calibragem_anormalidade", e.target.value)} className="h-11" />
-                <Textarea placeholder="Observação..." value={getDetail("calibragem_obs")}
-                  onChange={(e) => setDetail("calibragem_obs", e.target.value)} rows={2} />
+          {/* Summary */}
+          <div className="rounded-xl border border-border p-4 space-y-2">
+            <h4 className="text-sm font-bold">Resumo da Inspeção</h4>
+            {nonConformeFields.length > 0 ? (
+              <div className="space-y-1">
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {nonConformeFields.length} não conformidade{nonConformeFields.length > 1 ? "s" : ""}
+                  {hasCritical && ` (${criticalCount} crítica${criticalCount > 1 ? "s" : ""})`}
+                </Badge>
+                <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                  {nonConformeFields.map((f) => (
+                    <li key={f.key} className="flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-destructive shrink-0" />
+                      {f.label}
+                    </li>
+                  ))}
+                </ul>
               </div>
+            ) : (
+              <Badge className="gap-1 bg-success/10 text-success border-success/30">
+                <CheckCircle className="w-3 h-3" /> Tudo conforme
+              </Badge>
             )}
+            <div className="text-xs text-muted-foreground space-y-0.5 mt-2">
+              <p>Fotos: {Object.values(photos).reduce((s, arr) => s + arr.length, 0)} tiradas</p>
+            </div>
           </div>
 
-          {/* Q2: Pneus */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">2. Pneus em condição visual de saída?</p>
-            <YesNoToggle value={answers.pneus_visual_ok} onChange={(v) => setAnswers((a) => ({ ...a, pneus_visual_ok: v }))} />
-            {answers.pneus_visual_ok === "nao" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <ChipSelect options={PNEU_PROBLEMAS} selected={getDetail("pneus_problemas", [])}
-                  onChange={(v) => setDetail("pneus_problemas", v)} />
-                <Textarea placeholder="Observação..." value={getDetail("pneus_obs")}
-                  onChange={(e) => setDetail("pneus_obs", e.target.value)} rows={2} />
-                <CameraCapture id="pneus_exc" label="Foto do Problema" hint="Registre a anormalidade"
-                  photos={photos["pneus_exc"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} />
+          {/* Critical warning */}
+          {hasCritical && (
+            <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-3 flex items-start gap-2">
+              <ShieldAlert className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-destructive font-bold">Item crítico detectado!</p>
+                <p className="text-xs text-destructive/80">Recomendação: Bloqueado para saída. Um chamado será aberto automaticamente.</p>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Observações */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">Observações Gerais</Label>
+            <Textarea placeholder="Descreva problemas, detalhes adicionais..." value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)} rows={3} />
           </div>
 
-          {/* Q3: Fluidos */}
+          {/* Resultado */}
           <div className="space-y-2">
-            <p className="text-sm font-semibold">3. Óleo, água e ausência de vazamentos conferidos?</p>
-            <YesNoToggle value={answers.fluidos_ok} onChange={(v) => setAnswers((a) => ({ ...a, fluidos_ok: v }))} />
-            {answers.fluidos_ok === "nao" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <ChipSelect options={FLUIDO_PROBLEMAS} selected={getDetail("fluidos_problemas", [])}
-                  onChange={(v) => setDetail("fluidos_problemas", v)} />
-                <Textarea placeholder="Observação..." value={getDetail("fluidos_obs")}
-                  onChange={(e) => setDetail("fluidos_obs", e.target.value)} rows={2} />
-                <CameraCapture id="fluidos_exc" label="Foto do Problema" hint="Registre a anormalidade"
-                  photos={photos["fluidos_exc"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} />
-              </div>
-            )}
+            <Label className="text-base font-bold">Resultado da Inspeção *</Label>
+            <div className="space-y-2">
+              {[
+                { value: "liberado", label: "Liberado", icon: ShieldCheck, color: "success" },
+                { value: "liberado_obs", label: "Liberado com observação", icon: AlertCircle, color: "warning" },
+                { value: "bloqueado", label: "Bloqueado para saída", icon: ShieldAlert, color: "destructive" },
+              ].map((opt) => {
+                const isSelected = finalRes === opt.value;
+                const colorMap: Record<string, string> = {
+                  success: isSelected ? "bg-success/10 border-success text-success" : "border-border text-muted-foreground",
+                  warning: isSelected ? "bg-warning/10 border-warning text-warning" : "border-border text-muted-foreground",
+                  destructive: isSelected ? "bg-destructive/10 border-destructive text-destructive" : "border-border text-muted-foreground",
+                };
+                return (
+                  <button key={opt.value} type="button" onClick={() => setResultado(opt.value)}
+                    className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.97] ${colorMap[opt.color]}`}>
+                    <opt.icon className="w-5 h-5 shrink-0" />
+                    <span className="text-base font-bold">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Q4: Condução */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">4. Veículo em condição normal de condução?</p>
-            <YesNoToggle value={answers.conducao_ok} onChange={(v) => setAnswers((a) => ({ ...a, conducao_ok: v }))} />
-            {answers.conducao_ok === "nao" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <ChipSelect options={CONDUCAO_PROBLEMAS} selected={getDetail("conducao_problemas", [])}
-                  onChange={(v) => setDetail("conducao_problemas", v)} />
-                <Textarea placeholder="Observação..." value={getDetail("conducao_obs")}
-                  onChange={(e) => setDetail("conducao_obs", e.target.value)} rows={2} />
-                <CameraCapture id="conducao_exc" label="Foto do Problema" hint="Registre a anormalidade"
-                  photos={photos["conducao_exc"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} />
-              </div>
-            )}
+          {finalRes !== "liberado" && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Motivo da classificação *</Label>
+              <Textarea placeholder="Descreva o motivo..." value={resultadoMotivo}
+                onChange={(e) => setResultadoMotivo(e.target.value)} rows={3} />
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Termo */}
+          <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-3">
+            <p className="text-sm leading-relaxed italic">
+              "Declaro que conferi o veículo antes da saída e registrei neste checklist qualquer anormalidade identificada."
+            </p>
+            <div className="flex items-center gap-3">
+              <Checkbox id="termo" checked={termoAceito} onCheckedChange={(v) => setTermoAceito(v === true)} className="w-5 h-5" />
+              <label htmlFor="termo" className="text-sm font-semibold cursor-pointer">Li e concordo</label>
+            </div>
           </div>
 
-          {/* Q5: Kit */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">5. Kit obrigatório e itens de operação conferidos?</p>
-            <YesNoToggle value={answers.kit_ok} onChange={(v) => setAnswers((a) => ({ ...a, kit_ok: v }))} />
-            {answers.kit_ok === "nao" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <ChipSelect options={KIT_FALTANTES} selected={getDetail("kit_faltantes", [])}
-                  onChange={(v) => setDetail("kit_faltantes", v)} />
-                <Textarea placeholder="Observação..." value={getDetail("kit_obs")}
-                  onChange={(e) => setDetail("kit_obs", e.target.value)} rows={2} />
-              </div>
-            )}
-          </div>
-
-          {/* Q6: Avaria */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">6. Há nova avaria visível no veículo?</p>
-            <YesNoToggle value={answers.avaria_nova} onChange={(v) => setAnswers((a) => ({ ...a, avaria_nova: v }))}
-              yesLabel="Sim" noLabel="Não" invertColors />
-            {answers.avaria_nova === "sim" && (
-              <div className="space-y-2 pl-2 border-l-2 border-destructive/30 ml-1">
-                <Textarea placeholder="Descreva a avaria..." value={getDetail("avaria_descricao")}
-                  onChange={(e) => setDetail("avaria_descricao", e.target.value)} rows={2} />
-                <CameraCapture id="avaria" label="Foto da Avaria" hint="Obrigatória para registro"
-                  photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
-              </div>
-            )}
-          </div>
+          {hasAnyProblem && (
+            <div className="rounded-xl bg-warning/10 border border-warning/30 p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-warning font-medium">
+                Um chamado de manutenção será criado automaticamente e o gestor será notificado.
+              </p>
+            </div>
+          )}
         </div>
       );
     }
 
-    // Step 3: Resultado
-    const finalRes = resultado || suggestedResult;
+    // ── CATEGORY STEPS (Fluidos, Pneus, Exterior, Mecânica, Segurança, Danos) ──
+    const categories = STEP_FIELD_CATEGORIES[currentStep.id] ?? [];
+    const fields = CHECKLIST_FIELDS.filter((f) => categories.includes(f.category));
+    const stepPhotos = STEP_PHOTOS[currentStep.id] ?? [];
+
     return (
-      <div className="space-y-5">
-        {/* Suggestion */}
-        {isCritical && (
-          <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-3 flex items-start gap-2">
-            <ShieldAlert className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-            <p className="text-sm text-destructive font-medium">
-              Item crítico detectado. Recomendação: <strong>Bloqueado para saída</strong>.
-            </p>
+      <div className="space-y-4">
+        {/* Photos first */}
+        {stepPhotos.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
+            {stepPhotos.map((cat) => (
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            ))}
+            <Separator />
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label className="text-base font-semibold">Resultado da Inspeção *</Label>
-          <div className="space-y-2">
-            {[
-              { value: "liberado", label: "Liberado", icon: ShieldCheck, color: "success" },
-              { value: "liberado_obs", label: "Liberado com observação", icon: AlertCircle, color: "warning" },
-              { value: "bloqueado", label: "Bloqueado para saída", icon: ShieldAlert, color: "destructive" },
-            ].map((opt) => {
-              const isSelected = finalRes === opt.value;
-              const colorMap: Record<string, string> = {
-                success: isSelected ? "bg-success/10 border-success text-success" : "border-border text-muted-foreground",
-                warning: isSelected ? "bg-warning/10 border-warning text-warning" : "border-border text-muted-foreground",
-                destructive: isSelected ? "bg-destructive/10 border-destructive text-destructive" : "border-border text-muted-foreground",
-              };
-              return (
-                <button key={opt.value} type="button"
-                  onClick={() => setResultado(opt.value)}
-                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.97] ${colorMap[opt.color]}`}>
-                  <opt.icon className="w-5 h-5 shrink-0" />
-                  <span className="text-base font-semibold">{opt.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Questions */}
+        {fields.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-muted-foreground">Conferências:</p>
+            {fields.map((field) => (
+              <div key={field.key} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold flex-1">{field.label}</p>
+                  {field.critical && <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">Crítico</Badge>}
+                </div>
+                <div className="flex gap-2">
+                  {field.options.map((opt) => {
+                    const isSelected = answers[field.key] === opt.value;
+                    const colorMap: Record<string, string> = {
+                      success: isSelected ? "bg-success text-success-foreground border-success" : "border-success/40 text-success hover:bg-success/10",
+                      destructive: isSelected ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                      warning: isSelected ? "bg-warning text-warning-foreground border-warning" : "border-warning/40 text-warning hover:bg-warning/10",
+                    };
+                    return (
+                      <button key={opt.value} type="button"
+                        onClick={() => setAnswers((prev) => ({ ...prev, [field.key]: opt.value }))}
+                        className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all active:scale-[0.96] ${colorMap[opt.color]}`}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
-        {finalRes !== "liberado" && (
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Motivo da classificação *</Label>
-            <Textarea placeholder="Descreva o motivo..." value={resultadoMotivo}
-              onChange={(e) => setResultadoMotivo(e.target.value)} rows={3} />
+                {/* Conditional: photo of problem when non-conforme */}
+                {isNonConforme(field.key, answers[field.key]) && (
+                  <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
+                    <Textarea placeholder={`Descreva o problema com ${field.label.toLowerCase()}...`}
+                      value={answers[`obs_${field.key}`] ?? ""} rows={2}
+                      onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                    <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
+                      onCapture={(_, files) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...Array.from(files)] }))}
+                      onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        <Separator />
-
-        <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-3">
-          <p className="text-sm leading-relaxed">
-            "Declaro que conferi o veículo antes da saída e registrei neste checklist qualquer anormalidade identificada."
-          </p>
-          <div className="flex items-center gap-3">
-            <Checkbox id="termo" checked={termoAceito} onCheckedChange={(v) => setTermoAceito(v === true)} className="w-5 h-5" />
-            <label htmlFor="termo" className="text-sm font-medium cursor-pointer">Li e concordo</label>
+        {/* Danos step special */}
+        {currentStep.id === "danos" && answers.danos_veiculo === "sim" && (
+          <div className="space-y-3 pl-2 border-l-2 border-destructive/30 ml-1">
+            <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
+              value={answers["obs_danos_veiculo"] ?? ""}
+              onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
           </div>
-        </div>
+        )}
       </div>
     );
   };
-
-  const STEP_TITLES = ["Identificação", "Foto do Painel", "Conferência", "Resultado"];
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
@@ -497,16 +640,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 flex flex-col">
         <DialogHeader className="p-4 pb-2">
           <DialogTitle className="text-base flex items-center gap-2">
-            <ClipboardCheck className="w-5 h-5 text-primary" />
-            {STEP_TITLES[step]}
+            {(() => { const Icon = STEPS[step].icon; return <Icon className="w-5 h-5 text-primary" />; })()}
+            {STEPS[step].title}
           </DialogTitle>
-          <div className="flex gap-1.5 pt-2">
-            {STEP_TITLES.map((_, i) => (
+          <div className="flex gap-1 pt-2">
+            {STEPS.map((_, i) => (
               <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">
-            Etapa {step + 1} de {STEP_TITLES.length}
+            Etapa {step + 1} de {STEPS.length} — {format(now, "dd/MM/yyyy HH:mm")}
           </p>
         </DialogHeader>
 
@@ -521,7 +664,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </Button>
           )}
           <div className="flex-1" />
-          {step < STEP_TITLES.length - 1 ? (
+          {step < STEPS.length - 1 ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canAdvance()} className="gap-1 h-12 text-base">
               Próximo <ChevronRight className="w-4 h-4" />
             </Button>
@@ -539,63 +682,87 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   );
 }
 
-// ─── Question labels for detail/PDF ───
-const QUESTION_MAP = [
-  { key: "calibragem_ok", label: "Calibragem diária realizada?" },
-  { key: "pneus_visual_ok", label: "Pneus em condição visual de saída?" },
-  { key: "fluidos_ok", label: "Óleo, água e ausência de vazamentos conferidos?" },
-  { key: "conducao_ok", label: "Veículo em condição normal de condução?" },
-  { key: "kit_ok", label: "Kit obrigatório e itens conferidos?" },
-  { key: "avaria_nova", label: "Há nova avaria visível no veículo?", invert: true },
-];
+// ═══════════════════════════════════════════
+// RESULT LABELS
+// ═══════════════════════════════════════════
 
 const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
   liberado: { label: "Liberado", color: "success" },
-  liberado_obs: { label: "Liberado com observação", color: "warning" },
-  bloqueado: { label: "Bloqueado para saída", color: "destructive" },
+  liberado_obs: { label: "Liberado c/ observação", color: "warning" },
+  bloqueado: { label: "Bloqueado", color: "destructive" },
 };
 
-// ─── PDF Export ───
+// ═══════════════════════════════════════════
+// PDF EXPORT
+// ═══════════════════════════════════════════
+
 function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   const doc = new jsPDF();
   const dateStr = new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR");
   const placa = vehicle?.placa ?? "—";
 
   doc.setFontSize(16);
-  doc.text("Checklist Pré-Operação — WeDo", 14, 20);
+  doc.text("Checklist Pré-Operação Veicular — WeDo", 14, 20);
   doc.setFontSize(10);
-  doc.text(`Data: ${dateStr}`, 14, 28);
+  doc.text(`Data: ${dateStr} — Hora: ${new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`, 14, 28);
   doc.text(`Veículo: ${placa} — ${vehicle?.modelo ?? ""}`, 14, 34);
   doc.text(`Técnico: ${driverName}`, 14, 40);
+  if (cl.tripulacao) doc.text(`Tripulação: ${cl.tripulacao}`, 14, 46);
+  if (cl.destino) doc.text(`Destino: ${cl.destino}`, 14, cl.tripulacao ? 52 : 46);
 
+  const categories = [...new Set(CHECKLIST_FIELDS.map((f) => f.category))];
   const rows: any[][] = [];
-  QUESTION_MAP.forEach((q) => {
-    const val = cl[q.key];
-    const isOk = q.invert ? val === "nao" : val === "sim";
-    rows.push([q.label, isOk ? "OK" : "PROBLEMA"]);
+  categories.forEach((cat) => {
+    rows.push([{ content: cat, colSpan: 2, styles: { fontStyle: "bold", fillColor: [230, 230, 240] } } as any]);
+    CHECKLIST_FIELDS.filter((f) => f.category === cat).forEach((f) => {
+      const val = cl[f.key];
+      const opt = f.options.find((o) => o.value === val);
+      rows.push([f.label, opt?.label ?? val ?? "—"]);
+    });
   });
 
+  let startY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
   autoTable(doc, {
-    startY: 48,
+    startY,
     head: [["Item", "Resultado"]],
     body: rows,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [41, 98, 255] },
+    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 50 } },
   });
 
+  let finalY = (doc as any).lastAutoTable?.finalY ?? 200;
+
+  // Resultado
   const res = RESULTADO_LABELS[cl.resultado];
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 120;
   doc.setFontSize(11);
+  doc.setTextColor(res?.color === "destructive" ? 220 : res?.color === "warning" ? 180 : 0, res?.color === "destructive" ? 40 : res?.color === "warning" ? 120 : 150, res?.color === "success" ? 80 : 40);
   doc.text(`Resultado: ${res?.label ?? cl.resultado ?? "—"}`, 14, finalY + 10);
+  doc.setTextColor(0, 0, 0);
+
   if (cl.resultado_motivo) {
     doc.setFontSize(9);
     doc.text(`Motivo: ${cl.resultado_motivo}`, 14, finalY + 16, { maxWidth: 180 });
+    finalY += 8;
   }
+
+  if (cl.observacoes) {
+    doc.setFontSize(9);
+    doc.text(`Observações: ${cl.observacoes}`, 14, finalY + 22, { maxWidth: 180 });
+  }
+
+  // Photo count
+  const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
+  doc.setFontSize(8);
+  doc.text(`Total de fotos registradas: ${fotoCount}`, 14, finalY + 32);
 
   doc.save(`checklist_${placa}_${cl.checklist_date}.pdf`);
 }
 
-// ─── Detail Dialog ───
+// ═══════════════════════════════════════════
+// DETAIL DIALOG
+// ═══════════════════════════════════════════
+
 function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDeleted }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
@@ -607,27 +774,32 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
   const driver = localDrivers.find((d) => d.id === cl.driver_id);
   const driverName = driver?.full_name ?? cl.tripulacao ?? "—";
   const fotosData = (cl.fotos && typeof cl.fotos === "object") ? cl.fotos : {};
-  const detalhes = (cl.detalhes && typeof cl.detalhes === "object") ? cl.detalhes : {};
   const res = RESULTADO_LABELS[cl.resultado] ?? { label: cl.resultado ?? "—", color: "muted" };
+
+  const categories = useMemo(() => {
+    const cats: string[] = [];
+    CHECKLIST_FIELDS.forEach((f) => { if (!cats.includes(f.category)) cats.push(f.category); });
+    return cats;
+  }, []);
 
   const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
     setDeleting(true);
-    if (fotosData && typeof fotosData === "object") {
-      for (const urls of Object.values(fotosData)) {
-        if (Array.isArray(urls)) {
-          for (const url of urls) {
-            const path = (url as string).split("/checklist-photos/")[1];
-            if (path) await supabase.storage.from("checklist-photos").remove([path]);
-          }
+    for (const urls of Object.values(fotosData)) {
+      if (Array.isArray(urls)) {
+        for (const url of urls) {
+          const path = (url as string).split("/checklist-photos/")[1];
+          if (path) await supabase.storage.from("checklist-photos").remove([path]);
         }
       }
     }
     const { error } = await supabase.from("vehicle_checklists").delete().eq("id", cl.id);
     setDeleting(false);
-    if (error) { toast.error("Erro: " + error.message); }
+    if (error) toast.error("Erro: " + error.message);
     else { toast.success("Checklist apagado!"); queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] }); onDeleted?.(); }
   };
+
+  const allPhotoEntries = Object.entries(fotosData).filter(([_, urls]: [string, any]) => Array.isArray(urls) && urls.length > 0);
 
   return (
     <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0 flex flex-col">
@@ -644,9 +816,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="icon" className="h-8 w-8">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                <Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="w-3.5 h-3.5" /></Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -667,99 +837,103 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
       </DialogHeader>
       <ScrollArea className="flex-1 px-4 pb-4">
         <div className="space-y-4 pt-3">
-          {/* Header info */}
+          {/* Header */}
           <div className="grid grid-cols-2 gap-1.5 text-sm">
             <div><span className="text-muted-foreground">Veículo:</span> {vehicle?.placa} — {vehicle?.modelo}</div>
             <div><span className="text-muted-foreground">Técnico:</span> {driverName}</div>
+            {cl.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {cl.tripulacao}</div>}
+            {cl.destino && <div><span className="text-muted-foreground">Destino:</span> {cl.destino}</div>}
             <div><span className="text-muted-foreground">Data:</span> {new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR")}</div>
             <div><span className="text-muted-foreground">Hora:</span> {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
           </div>
 
-          {/* Photos */}
-          {Object.entries(fotosData).map(([key, urls]: [string, any]) => {
-            if (!Array.isArray(urls) || urls.length === 0) return null;
-            return (
-              <div key={key} className="space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase">{key.replace(/_/g, " ")}</p>
-                <div className="flex gap-2 flex-wrap">
-                  {urls.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      className="w-14 h-14 rounded-md overflow-hidden border border-border block">
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          <Separator />
-
-          {/* Questions */}
-          {QUESTION_MAP.map((q) => {
-            const val = cl[q.key];
-            const isOk = q.invert ? val === "nao" : val === "sim";
-            return (
-              <div key={q.key} className="flex items-center justify-between py-1.5">
-                <span className="text-sm flex-1">{q.label}</span>
-                {isOk ? (
-                  <Badge className="bg-success/10 text-success border-success/30 gap-1"><CheckCircle className="w-3 h-3" /> OK</Badge>
-                ) : (
-                  <Badge variant="destructive" className="gap-1"><XCircle className="w-3 h-3" /> Problema</Badge>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Detail expansions */}
-          {detalhes && Object.keys(detalhes).length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase">Detalhes das Anormalidades</p>
-                {Object.entries(detalhes).map(([key, value]: [string, any]) => {
-                  if (!value || (Array.isArray(value) && value.length === 0)) return null;
-                  return (
-                    <div key={key} className="text-sm">
-                      <span className="text-muted-foreground">{key.replace(/_/g, " ")}:</span>{" "}
-                      {Array.isArray(value) ? value.join(", ") : String(value)}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {cl.avaria_descricao && (
-            <div className="text-sm">
-              <span className="text-muted-foreground">Avaria:</span> {cl.avaria_descricao}
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Result */}
-          <div className="space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase">Resultado</p>
-            <Badge className={`gap-1 ${
+          {/* Result badge */}
+          <div className="flex items-center gap-2">
+            <Badge className={`gap-1 px-3 py-1 ${
               res.color === "success" ? "bg-success/10 text-success border-success/30" :
               res.color === "warning" ? "bg-warning/10 text-warning border-warning/30" :
               "bg-destructive/10 text-destructive border-destructive/30"
             }`}>
-              {res.color === "success" ? <ShieldCheck className="w-3 h-3" /> :
-               res.color === "warning" ? <AlertCircle className="w-3 h-3" /> :
-               <ShieldAlert className="w-3 h-3" />}
+              {res.color === "success" ? <ShieldCheck className="w-3.5 h-3.5" /> :
+               res.color === "warning" ? <AlertCircle className="w-3.5 h-3.5" /> :
+               <ShieldAlert className="w-3.5 h-3.5" />}
               {res.label}
             </Badge>
-            {cl.resultado_motivo && <p className="text-sm mt-1">{cl.resultado_motivo}</p>}
           </div>
+          {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
+
+          <Separator />
+
+          {/* Photos gallery */}
+          {allPhotoEntries.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5" /> Fotos ({allPhotoEntries.reduce((s, [_, urls]) => s + (urls as any[]).length, 0)})
+              </h4>
+              {allPhotoEntries.map(([key, urls]: [string, any]) => (
+                <div key={key} className="space-y-1">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {PHOTO_META[key as PhotoCategory]?.label ?? key.replace(/_/g, " ")}
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {urls.map((url: string, i: number) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="w-16 h-16 rounded-lg overflow-hidden border border-border block hover:ring-2 hover:ring-primary transition-all">
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <Separator />
+            </div>
+          )}
+
+          {/* Inspection items */}
+          {categories.map((cat) => {
+            const fields = CHECKLIST_FIELDS.filter((f) => f.category === cat);
+            const Icon = CATEGORY_ICONS[cat] ?? ClipboardCheck;
+            return (
+              <div key={cat} className="space-y-1.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Icon className="w-3.5 h-3.5" /> {cat}
+                </h4>
+                {fields.map((f) => {
+                  const nc = isNonConforme(f.key, cl[f.key]);
+                  const opt = f.options.find((o) => o.value === cl[f.key]);
+                  return (
+                    <div key={f.key} className="flex items-center justify-between py-1">
+                      <span className="text-sm flex-1">{f.label}</span>
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                        {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                        {opt?.label ?? cl[f.key] ?? "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+
+          {cl.observacoes && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Observações</h4>
+                <p className="text-sm whitespace-pre-wrap">{cl.observacoes}</p>
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
     </DialogContent>
   );
 }
 
-// ─── Main Page ───
+// ═══════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════
+
 export default function Checklist() {
   const { user } = useAuth();
   const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -797,49 +971,61 @@ export default function Checklist() {
   const [selectedChecklist, setSelectedChecklist] = useState<any>(null);
   const totalVehicles = vehicles.length;
   const filledCount = checklists.length;
-  const pendingCount = totalVehicles - filledCount;
 
   const blockedCount = useMemo(() =>
     checklists.filter((cl: any) => cl.resultado === "bloqueado").length, [checklists]);
-  const obsCount = useMemo(() =>
-    checklists.filter((cl: any) => cl.resultado === "liberado_obs").length, [checklists]);
+  const nonConformeCount = useMemo(() =>
+    checklists.filter((cl: any) =>
+      CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
+    ).length, [checklists]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
-          <p className="text-sm text-muted-foreground">Inspeção rápida antes da saída</p>
+          <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
         {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} />}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="p-3 sm:p-6">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs sm:text-sm text-muted-foreground">Preenchidos</span>
               <CheckCircle className="w-4 h-4 text-success hidden sm:block" />
             </div>
-            <p className="text-xl sm:text-3xl font-bold tabular-nums">{filledCount}<span className="text-sm sm:text-lg text-muted-foreground font-normal">/{totalVehicles}</span></p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums">{filledCount}<span className="text-sm text-muted-foreground font-normal">/{totalVehicles}</span></p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 sm:p-6">
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs sm:text-sm text-muted-foreground">Não Conforme</span>
+              <AlertTriangle className="w-4 h-4 text-destructive hidden sm:block" />
+            </div>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums text-destructive">{nonConformeCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs sm:text-sm text-muted-foreground">Bloqueados</span>
               <ShieldAlert className="w-4 h-4 text-destructive hidden sm:block" />
             </div>
-            <p className="text-xl sm:text-3xl font-bold tabular-nums text-destructive">{blockedCount}</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums text-destructive">{blockedCount}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-3 sm:p-6">
+          <CardContent className="p-3 sm:p-5">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs sm:text-sm text-muted-foreground">Com Obs.</span>
-              <AlertCircle className="w-4 h-4 text-warning hidden sm:block" />
+              <span className="text-xs sm:text-sm text-muted-foreground">Conformidade</span>
+              <ShieldCheck className="w-4 h-4 text-success hidden sm:block" />
             </div>
-            <p className="text-xl sm:text-3xl font-bold tabular-nums text-warning">{obsCount}</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums">
+              {filledCount > 0 ? Math.round(((filledCount - nonConformeCount) / filledCount) * 100) : 0}%
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -868,6 +1054,7 @@ export default function Checklist() {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
+                  const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                   return (
                     <Dialog key={cl.id}>
                       <DialogTrigger asChild>
@@ -878,6 +1065,11 @@ export default function Checklist() {
                             <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            {fotoCount > 0 && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                                <ImageIcon className="w-3 h-3" /> {fotoCount}
+                              </span>
+                            )}
                             {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
                              res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
                              <ShieldAlert className="w-4 h-4 text-destructive" />}
@@ -903,6 +1095,7 @@ export default function Checklist() {
                     <tr className="border-b bg-muted/50">
                       <th className="text-left p-3 font-medium">Placa</th>
                       <th className="text-left p-3 font-medium">Técnico</th>
+                      <th className="text-center p-3 font-medium">Fotos</th>
                       <th className="text-center p-3 font-medium">Resultado</th>
                       <th className="text-center p-3 font-medium">Hora</th>
                       <th className="text-center p-3 font-medium">Ações</th>
@@ -913,10 +1106,16 @@ export default function Checklist() {
                       const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
+                      const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                       return (
                         <tr key={cl.id} className="border-b last:border-0">
                           <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
+                          <td className="p-3 text-center">
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                              <ImageIcon className="w-3 h-3" /> {fotoCount}
+                            </span>
+                          </td>
                           <td className="p-3 text-center">
                             <Badge className={`gap-1 text-xs ${
                               res.color === "success" ? "bg-success/10 text-success border-success/30" :
