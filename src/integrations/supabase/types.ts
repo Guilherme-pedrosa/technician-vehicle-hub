@@ -285,6 +285,7 @@ export type Database = {
           destino: string | null
           driver_id: string | null
           farois_lanternas: string
+          fotos: Json | null
           id: string
           itens_seguranca: string
           limpeza_organizacao: string
@@ -312,6 +313,7 @@ export type Database = {
           destino?: string | null
           driver_id?: string | null
           farois_lanternas?: string
+          fotos?: Json | null
           id?: string
           itens_seguranca?: string
           limpeza_organizacao?: string
@@ -339,6 +341,7 @@ export type Database = {
           destino?: string | null
           driver_id?: string | null
           farois_lanternas?: string
+          fotos?: Json | null
           id?: string
           itens_seguranca?: string
           limpeza_organizacao?: string
