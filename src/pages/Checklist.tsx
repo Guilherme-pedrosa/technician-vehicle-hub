@@ -1125,6 +1125,22 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           </div>
           {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
 
+          {/* Fotos forçadas alert */}
+          {(cl.detalhes as any)?.fotos_forcadas?.length > 0 && (
+            <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1.5">
+              <p className="text-xs font-bold text-warning flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> ⚠️ Fotos com validação forçada
+              </p>
+              {((cl.detalhes as any).fotos_forcadas as any[]).map((ff: any, i: number) => (
+                <div key={i} className="text-xs text-muted-foreground">
+                  <span className="font-medium">{ff.label}:</span>{" "}
+                  {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
+                </div>
+              ))}
+              <p className="text-[10px] text-warning/80 italic">Este checklist requer atenção — fotos foram aceitas manualmente apesar de reprovadas pela validação automática.</p>
+            </div>
+          )}
+
           <Separator />
 
           {/* Photos gallery */}
