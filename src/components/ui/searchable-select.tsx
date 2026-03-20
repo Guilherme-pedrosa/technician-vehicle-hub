@@ -54,7 +54,7 @@ export function SearchableSelect({
     >
       <PopoverTrigger asChild>
         <Button
-          ref={ref}
+          
           variant="outline"
           role="combobox"
           aria-expanded={open}
