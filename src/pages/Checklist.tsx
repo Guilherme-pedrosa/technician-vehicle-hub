@@ -220,7 +220,7 @@ function ChecklistFormDialog({ vehicles, drivers, localDrivers, userId }: {
                   onValueChange={setSelectedDriverName}
                   placeholder="Selecione o motorista"
                   searchPlaceholder="Buscar motorista..."
-                  options={drivers.map((d) => ({ value: d.nome, label: d.nome }))}
+                  options={localDrivers.map((d) => ({ value: d.full_name, label: d.full_name }))}
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
