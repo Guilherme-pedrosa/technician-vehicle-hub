@@ -423,19 +423,121 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       );
     }
 
-    // ── PAINEL + 360° ──
-    if (currentStep.id === "painel_360") {
+    // ── PAINEL (dentro do veículo, ligado) ──
+    if (currentStep.id === "painel") {
       return (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground font-medium">📷 Tire as fotos obrigatórias do veículo:</p>
+          <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
           <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
-          <Separator />
-          <p className="text-sm font-semibold">Fotos 360° — 4 ângulos obrigatórios</p>
-          <div className="grid grid-cols-1 gap-3">
-            {(["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[]).map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
-            ))}
+        </div>
+      );
+    }
+
+    // ── 360° + EXTERIOR (caminhada ao redor) ──
+    if (currentStep.id === "exterior_360") {
+      const extCategories = STEP_FIELD_CATEGORIES[currentStep.id] ?? [];
+      const extFields = CHECKLIST_FIELDS.filter((f) => extCategories.includes(f.category));
+      const extPhotos = STEP_PHOTOS[currentStep.id] ?? [];
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground font-medium">📷 Caminhe ao redor do veículo tirando as fotos:</p>
+          {extPhotos.map((cat) => (
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+          ))}
+          {extFields.length > 0 && (
+            <>
+              <Separator />
+              <p className="text-sm font-semibold text-muted-foreground">Conferências:</p>
+              {extFields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold flex-1">{field.label}</p>
+                    {field.critical && <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">Crítico</Badge>}
+                  </div>
+                  <div className="flex gap-2">
+                    {field.options.map((opt) => {
+                      const isSelected = answers[field.key] === opt.value;
+                      const colorMap: Record<string, string> = {
+                        success: isSelected ? "bg-success text-success-foreground border-success" : "border-success/40 text-success hover:bg-success/10",
+                        destructive: isSelected ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                        warning: isSelected ? "bg-warning text-warning-foreground border-warning" : "border-warning/40 text-warning hover:bg-warning/10",
+                      };
+                      return (
+                        <button key={opt.value} type="button"
+                          onClick={() => setAnswers((prev) => ({ ...prev, [field.key]: opt.value }))}
+                          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all active:scale-[0.96] ${colorMap[opt.color]}`}>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isNonConforme(field.key, answers[field.key]) && (
+                    <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
+                      <Textarea placeholder={`Descreva o problema...`}
+                        value={answers[`obs_${field.key}`] ?? ""} rows={2}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // ── CAPÔ ABERTO (motor + óleo + água — abre capô 1x) ──
+    if (currentStep.id === "capo") {
+      const capoCategories = STEP_FIELD_CATEGORIES[currentStep.id] ?? [];
+      const capoFields = CHECKLIST_FIELDS.filter((f) => capoCategories.includes(f.category));
+      const capoPhotos = STEP_PHOTOS[currentStep.id] ?? [];
+      return (
+        <div className="space-y-3">
+          <div className="rounded-xl bg-primary/5 border border-primary/20 p-3">
+            <p className="text-sm font-bold text-primary">🔧 Abra o capô do veículo</p>
+            <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
+          {capoPhotos.map((cat) => (
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+          ))}
+          {capoFields.length > 0 && (
+            <>
+              <Separator />
+              <p className="text-sm font-semibold text-muted-foreground">Conferências:</p>
+              {capoFields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold flex-1">{field.label}</p>
+                    {field.critical && <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">Crítico</Badge>}
+                  </div>
+                  <div className="flex gap-2">
+                    {field.options.map((opt) => {
+                      const isSelected = answers[field.key] === opt.value;
+                      const colorMap: Record<string, string> = {
+                        success: isSelected ? "bg-success text-success-foreground border-success" : "border-success/40 text-success hover:bg-success/10",
+                        destructive: isSelected ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                        warning: isSelected ? "bg-warning text-warning-foreground border-warning" : "border-warning/40 text-warning hover:bg-warning/10",
+                      };
+                      return (
+                        <button key={opt.value} type="button"
+                          onClick={() => setAnswers((prev) => ({ ...prev, [field.key]: opt.value }))}
+                          className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all active:scale-[0.96] ${colorMap[opt.color]}`}>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isNonConforme(field.key, answers[field.key]) && (
+                    <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
+                      <Textarea placeholder={`Descreva o problema...`}
+                        value={answers[`obs_${field.key}`] ?? ""} rows={2}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
         </div>
       );
     }
