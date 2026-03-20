@@ -19,9 +19,11 @@ import {
 import {
   Settings, ClipboardCheck, Camera, Plus, Trash2,
   Save, Loader2, Pencil, AlertTriangle, CheckCircle,
-  ChevronRight, ArrowLeft, FolderCog,
+  ChevronRight, ArrowLeft, FolderCog, Users, Shield,
+  Mail, Phone, Eye, EyeOff, UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface PhotoConfig {
   key: string;
