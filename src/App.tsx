@@ -44,6 +44,7 @@ const App = () => (
               <Route path="/checklist/:id" element={<ChecklistDetail />} />
               <Route path="/chamados" element={<Chamados />} />
               <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />

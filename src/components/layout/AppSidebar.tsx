@@ -65,6 +65,12 @@ const menuGroups: MenuGroup[] = [
       { title: "Relatórios", icon: BarChart3, href: "/relatorios" },
     ],
   },
+  {
+    label: "Sistema",
+    items: [
+      { title: "Configurações", icon: Settings, href: "/configuracoes" },
+    ],
+  },
 ];
 
 export function AppSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: AppSidebarProps) {
