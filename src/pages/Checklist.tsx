@@ -21,8 +21,6 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format } from "date-fns";
-import { toast } from "sonner";
 
 // ─── Photo categories that require camera capture ───
 type PhotoCategory =
