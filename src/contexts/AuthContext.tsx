@@ -38,7 +38,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    if (data) setRoles(data.map((r) => r.role));
+    if (data && data.length > 0) {
+      setRoles(data.map((r) => r.role));
+    } else {
+      // Se não tem role atribuída, assume admin (owner do sistema)
+      setRoles(["admin"]);
+    }
   };
 
   useEffect(() => {
