@@ -261,7 +261,7 @@ export default function Relatorios() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table className="table-enterprise">
+          <div className="overflow-x-auto">
             <TableHeader>
               <TableRow>
                 <TableHead>Placa</TableHead>
