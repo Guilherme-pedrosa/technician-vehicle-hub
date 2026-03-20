@@ -1382,7 +1382,7 @@ export default function Checklist() {
     },
   });
 
-  const [selectedChecklist, setSelectedChecklist] = useState<any>(null);
+  
   const totalVehicles = vehicles.length;
   const filledCount = checklists.length;
 
