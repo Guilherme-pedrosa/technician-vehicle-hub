@@ -209,7 +209,8 @@ function CameraCapture({ category, photos, onCapture, onRemove }: {
 const STEPS = [
   { id: "info", title: "Identificação" },
   { id: "fluidos", title: "Fluidos" },
-  { id: "exterior", title: "Exterior 360°" },
+  { id: "exterior_360", title: "Fotos 360°" },
+  { id: "exterior_check", title: "Exterior" },
   { id: "funcionamento", title: "Funcionamento" },
   { id: "seguranca", title: "Inspeção" },
   { id: "final", title: "Finalizar" },
@@ -217,7 +218,7 @@ const STEPS = [
 
 const STEP_CATEGORIES: Record<string, string[]> = {
   fluidos: ["Fluidos"],
-  exterior: ["Fotos 360° Exterior"],
+  exterior_check: ["Fotos 360° Exterior"],
   funcionamento: ["Verificações de Funcionamento"],
   seguranca: ["Inspeção do Veículo"],
 };
