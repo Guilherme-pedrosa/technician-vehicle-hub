@@ -46,6 +46,7 @@ const App = () => (
               <Route path="/chamados" element={<Chamados />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
+              <Route path="/emails" element={<EmailLogs />} />
               <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />

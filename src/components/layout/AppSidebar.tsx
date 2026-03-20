@@ -72,6 +72,7 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
   {
     label: "Sistema",
     items: [
+      { title: "E-mails", icon: Mail, href: "/emails" },
       { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
     adminOnly: true,
