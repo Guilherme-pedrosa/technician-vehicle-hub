@@ -69,7 +69,7 @@ async function syncVehicles() {
 
 // ========== SYNC DRIVERS ==========
 async function syncDrivers() {
-  const rawUsers = await fetchRotaExata("/usuarios?quantidade=1000");
+  const rawUsers = await fetchRotaExata("/usuarios", { quantidade: "1000" });
   if (!Array.isArray(rawUsers)) return { created: 0, updated: 0 };
 
   const driversToSync = rawUsers
