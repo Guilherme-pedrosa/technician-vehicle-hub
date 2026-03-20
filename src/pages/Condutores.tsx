@@ -162,30 +162,32 @@ export default function Condutores() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Condutores</h1>
-          <p className="text-muted-foreground">Gerenciamento de condutores da frota</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Condutores</h1>
+          <p className="text-sm text-muted-foreground">Gerenciamento de condutores</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => syncMutation.mutate()}
               disabled={syncMutation.isPending}
+              className="flex-1 sm:flex-none"
             >
               {syncMutation.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <RefreshCw className="w-4 h-4 mr-2" />
               )}
-              Sincronizar Rota Exata
+              <span className="hidden sm:inline">Sincronizar</span> Rota Exata
             </Button>
           )}
           {isAdmin && (
-            <Button onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Condutor
+            <Button onClick={openCreate} size="sm" className="flex-1 sm:flex-none">
+              <Plus className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Novo</span> Condutor
             </Button>
           )}
         </div>
