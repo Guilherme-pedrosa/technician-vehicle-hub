@@ -112,7 +112,7 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
   "Exterior": Car,
   "Pneus": CircleDot,
   "Capô": Wrench,
-  "Interior e Kit": Shield,
+  "Interior": Shield,
   "Danos": AlertTriangle,
 };
 
