@@ -153,8 +153,13 @@ function isCriticalNonConforme(key: string, val: string) {
 
 type ValidationResult = {
   valid: boolean;
+  vehicle_match?: boolean;
+  target_match?: boolean;
+  focus_ok?: boolean;
+  critical_visible?: boolean;
   quality: "boa" | "aceitavel" | "ruim";
   reason: string;
+  confidence?: number;
   ai_error?: boolean;
 };
 
