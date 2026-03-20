@@ -442,7 +442,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
         troca_oleo: trocaOleoStatus,
-        detalhes: { km_proxima_troca: kmTrocaNum },
+        detalhes: {
+          km_proxima_troca: kmTrocaNum,
+          fotos_forcadas: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "forced"))
+            .map(([cat, vals]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+              motivos: (vals as PhotoValidation[]).filter(v => v.status === "forced").map(v => v.result?.reason ?? "Foto forçada pelo técnico"),
+            })),
+        },
         ...answers,
       } as any).select("id").single();
       if (error) throw error;
@@ -1116,6 +1125,22 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           </div>
           {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
 
+          {/* Fotos forçadas alert */}
+          {(cl.detalhes as any)?.fotos_forcadas?.length > 0 && (
+            <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1.5">
+              <p className="text-xs font-bold text-warning flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> ⚠️ Fotos com validação forçada
+              </p>
+              {((cl.detalhes as any).fotos_forcadas as any[]).map((ff: any, i: number) => (
+                <div key={i} className="text-xs text-muted-foreground">
+                  <span className="font-medium">{ff.label}:</span>{" "}
+                  {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
+                </div>
+              ))}
+              <p className="text-[10px] text-warning/80 italic">Este checklist requer atenção — fotos foram aceitas manualmente apesar de reprovadas pela validação automática.</p>
+            </div>
+          )}
+
           <Separator />
 
           {/* Photos gallery */}
@@ -1309,6 +1334,7 @@ export default function Checklist() {
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
+                  const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
                   return (
                     <Dialog key={cl.id}>
                       <DialogTrigger asChild>
@@ -1320,8 +1346,9 @@ export default function Checklist() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {fotoCount > 0 && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                              <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
+                                {hasForcedPhotos && <AlertCircle className="w-3 h-3" />}
                               </span>
                             )}
                             {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
@@ -1361,13 +1388,15 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
+                      const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
                       return (
                         <tr key={cl.id} className="border-b last:border-0">
                           <td className="p-3 font-medium">{vehicle?.placa ?? "—"}</td>
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
-                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
                               <ImageIcon className="w-3 h-3" /> {fotoCount}
+                              {hasForcedPhotos && <AlertCircle className="w-3 h-3 text-warning" />}
                             </span>
                           </td>
                           <td className="p-3 text-center">
