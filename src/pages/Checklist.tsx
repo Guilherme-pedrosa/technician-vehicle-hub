@@ -1155,6 +1155,14 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 
   const allPhotoEntries = Object.entries(fotosData).filter(([_, urls]: [string, any]) => Array.isArray(urls) && urls.length > 0);
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try { await exportChecklistPDF(cl, vehicle, driverName); }
+    catch (e) { console.error("PDF export error:", e); }
+    finally { setExportingPdf(false); }
+  };
+
   return (
     <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0 flex flex-col">
       <DialogHeader className="p-4 pb-0">
@@ -1165,8 +1173,9 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           </DialogTitle>
           <div className="flex items-center gap-1.5 shrink-0">
             <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
-              onClick={() => exportChecklistPDF(cl, vehicle, driverName)}>
-              <Download className="w-3.5 h-3.5" /> PDF
+              onClick={handleExportPdf} disabled={exportingPdf}>
+              {exportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {exportingPdf ? "Gerando..." : "PDF"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
