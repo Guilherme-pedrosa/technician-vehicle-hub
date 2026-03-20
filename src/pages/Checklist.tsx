@@ -1301,6 +1301,16 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
 // DETAIL DIALOG
 // ═══════════════════════════════════════════
 
+// Detail sections for dialog (matching wizard flow)
+const DIALOG_SECTIONS = [
+  { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
+  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fieldCategories: ["Exterior"] },
+  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
+  { id: "capo", title: "Capô Aberto", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
+  { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
+  { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fieldCategories: ["Danos"] },
+];
+
 function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDeleted }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
@@ -1313,12 +1323,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
   const driverName = driver?.full_name ?? cl.tripulacao ?? "—";
   const fotosData = (cl.fotos && typeof cl.fotos === "object") ? cl.fotos : {};
   const res = RESULTADO_LABELS[cl.resultado] ?? { label: cl.resultado ?? "—", color: "muted" };
-
-  const categories = useMemo(() => {
-    const cats: string[] = [];
-    CHECKLIST_FIELDS.forEach((f) => { if (!cats.includes(f.category)) cats.push(f.category); });
-    return cats;
-  }, []);
+  const detalhes = (cl.detalhes as any) ?? {};
 
   const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
@@ -1336,8 +1341,6 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
     if (error) toast.error("Erro: " + error.message);
     else { toast.success("Checklist apagado!"); queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] }); onDeleted?.(); }
   };
-
-  const allPhotoEntries = Object.entries(fotosData).filter(([_, urls]: [string, any]) => Array.isArray(urls) && urls.length > 0);
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const handleExportPdf = async () => {
@@ -1409,26 +1412,29 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           </div>
           {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
 
-          {/* Fotos forçadas alert */}
-          {(cl.detalhes as any)?.fotos_forcadas?.length > 0 && (
-            <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1.5">
-              <p className="text-xs font-bold text-warning flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5" /> ⚠️ Fotos com validação forçada
+          {/* Alertas de validação */}
+          {((detalhes?.fotos_invalidas?.length ?? 0) > 0 || (detalhes?.fotos_erro_validacao?.length ?? 0) > 0 || (detalhes?.fotos_forcadas?.length ?? 0) > 0) && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-1.5">
+              <p className="text-xs font-bold text-destructive flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Fotos fora do padrão
               </p>
-              {((cl.detalhes as any).fotos_forcadas as any[]).map((ff: any, i: number) => (
-                <div key={i} className="text-xs text-muted-foreground">
-                  <span className="font-medium">{ff.label}:</span>{" "}
-                  {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
+              {(detalhes?.fotos_invalidas ?? []).map((ff: any, i: number) => (
+                <div key={`inv-${i}`} className="text-xs text-muted-foreground">
+                  <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ")}
                 </div>
               ))}
-              <p className="text-[10px] text-warning/80 italic">Este checklist requer atenção — fotos foram aceitas manualmente apesar de reprovadas pela validação automática.</p>
+              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+                <div key={i} className="text-xs text-muted-foreground">
+                  <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
+                </div>
+              ))}
             </div>
           )}
 
           <Separator />
 
           {/* Troca de óleo */}
-          {(cl.troca_oleo || (cl.detalhes as any)?.km_proxima_troca) && (
+          {(cl.troca_oleo || detalhes?.km_proxima_troca) && (
             <div className="space-y-1.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Droplets className="w-3.5 h-3.5" /> Troca de Óleo
@@ -1439,47 +1445,94 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
                   {cl.troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
                 </span>
               </div>
-              {(cl.detalhes as any)?.km_proxima_troca && (
+              {detalhes?.km_proxima_troca && (
                 <div className="flex items-center justify-between py-1">
                   <span className="text-sm">KM próxima troca</span>
-                  <span className="text-xs font-semibold tabular-nums">{Number((cl.detalhes as any).km_proxima_troca).toLocaleString("pt-BR")} km</span>
+                  <span className="text-xs font-semibold tabular-nums">{Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km</span>
                 </div>
               )}
               <Separator />
             </div>
           )}
 
-          {/* Inspection items */}
-          {categories.map((cat) => {
-            const fields = CHECKLIST_FIELDS.filter((f) => f.category === cat);
-            const Icon = CATEGORY_ICONS[cat] ?? ClipboardCheck;
+          {/* Sections: photos + fields interleaved */}
+          {DIALOG_SECTIONS.map((section) => {
+            const sectionPhotos = section.photos.filter((cat) => (fotosData as any)[cat]?.length > 0);
+            const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fieldCategories.includes(f.category));
+            if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
+
+            const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
+            const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
+            const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
+            const flaggedMap: Record<string, string[]> = {};
+            [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
+              flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
+            });
+
+            const Icon = section.icon;
             return (
-              <div key={cat} className="space-y-1.5">
+              <div key={section.id} className="space-y-1.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Icon className="w-3.5 h-3.5" /> {cat}
+                  <Icon className="w-3.5 h-3.5" /> {section.title}
                 </h4>
-                {fields.map((f) => {
-                  const nc = isNonConforme(f.key, cl[f.key]);
-                  const opt = f.options.find((o) => o.value === cl[f.key]);
-                  const obsKey = `obs_${f.key}`;
-                  const obsValue = cl[obsKey] ?? (cl.detalhes as any)?.[obsKey];
-                  return (
-                    <div key={f.key}>
-                      <div className="flex items-center justify-between py-1">
-                        <span className="text-sm flex-1">{f.label}</span>
-                        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                          {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                          {opt?.label ?? cl[f.key] ?? "—"}
-                        </span>
-                      </div>
-                      {nc && obsValue && (
-                        <div className="ml-3 pl-2 border-l-2 border-destructive/30 mb-2">
-                          <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
+                <div className="space-y-1 divide-y divide-border">
+                  {sectionPhotos.map((cat) => {
+                    const urls = (fotosData as any)[cat] as string[];
+                    const isFlagged = !!flaggedMap[cat];
+                    const meta = PHOTO_META[cat as PhotoCategory];
+                    return (
+                      <div key={cat} className={`py-1.5 ${isFlagged ? "bg-destructive/5 rounded-lg px-2" : ""}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">{meta?.label ?? cat}</span>
+                          {isFlagged ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-destructive">
+                              <AlertTriangle className="w-3 h-3" /> Inadequada
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                              <CheckCircle className="w-3 h-3" /> OK
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {isFlagged && flaggedMap[cat] && (
+                          <p className="text-[10px] text-destructive font-medium mb-1">⚠️ {flaggedMap[cat].join("; ")}</p>
+                        )}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {urls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              className={`w-14 h-14 rounded-lg overflow-hidden border-2 block hover:ring-2 hover:ring-primary transition-all ${
+                                isFlagged ? "border-destructive" : "border-border"
+                              }`}>
+                              <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {sectionFields.map((f) => {
+                    const nc = isNonConforme(f.key, cl[f.key]);
+                    const opt = f.options.find((o) => o.value === cl[f.key]);
+                    const obsKey = `obs_${f.key}`;
+                    const obsValue = cl[obsKey] ?? detalhes?.[obsKey];
+                    return (
+                      <div key={f.key} className="py-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm flex-1">{f.label}</span>
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                            {nc ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                            {opt?.label ?? cl[f.key] ?? "—"}
+                          </span>
+                        </div>
+                        {nc && obsValue && (
+                          <div className="ml-3 pl-2 border-l-2 border-destructive/30 mt-1 mb-1">
+                            <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -1490,33 +1543,6 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Observações</h4>
                 <p className="text-sm whitespace-pre-wrap">{cl.observacoes}</p>
-              </div>
-            </>
-          )}
-
-          {/* Photos gallery — after inspection items */}
-          {allPhotoEntries.length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5" /> Fotos ({allPhotoEntries.reduce((s, [_, urls]) => s + (urls as any[]).length, 0)})
-                </h4>
-                {allPhotoEntries.map(([key, urls]: [string, any]) => (
-                  <div key={key} className="space-y-1">
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      {PHOTO_META[key as PhotoCategory]?.label ?? key.replace(/_/g, " ")}
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {urls.map((url: string, i: number) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                          className="w-16 h-16 rounded-lg overflow-hidden border border-border block hover:ring-2 hover:ring-primary transition-all">
-                          <img src={url} alt="" className="w-full h-full object-cover" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                ))}
               </div>
             </>
           )}
