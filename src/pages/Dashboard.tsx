@@ -90,14 +90,14 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">KM rodado e telemetria da frota</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">KM rodado e telemetria da frota</p>
         </div>
         {isAdmin && (
-          <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+          <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="w-full sm:w-auto">
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Sincronizar Rota Exata
           </Button>
