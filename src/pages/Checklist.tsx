@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1348,6 +1349,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 
 export default function Checklist() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const { data: vehicles = [] } = useQuery({
@@ -1380,7 +1382,7 @@ export default function Checklist() {
     },
   });
 
-  const [selectedChecklist, setSelectedChecklist] = useState<any>(null);
+  
   const totalVehicles = vehicles.length;
   const filledCount = checklists.length;
 
@@ -1469,35 +1471,27 @@ export default function Checklist() {
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                   const hasForcedPhotos = (cl.detalhes as any)?.fotos_forcadas?.length > 0;
                   return (
-                    <Dialog key={cl.id}>
-                      <DialogTrigger asChild>
-                        <button className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 active:bg-muted/50"
-                          onClick={() => setSelectedChecklist(cl)}>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
-                            <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {fotoCount > 0 && (
-                              <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
-                                <ImageIcon className="w-3 h-3" /> {fotoCount}
-                                {hasForcedPhotos && <AlertCircle className="w-3 h-3" />}
-                              </span>
-                            )}
-                            {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
-                             res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
-                             <ShieldAlert className="w-4 h-4 text-destructive" />}
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                        </button>
-                      </DialogTrigger>
-                      {selectedChecklist?.id === cl.id && (
-                        <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers}
-                          onDeleted={() => setSelectedChecklist(null)} />
-                      )}
-                    </Dialog>
+                    <button key={cl.id} className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 active:bg-muted/50"
+                      onClick={() => navigate(`/checklist/${cl.id}`)}>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {fotoCount > 0 && (
+                          <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
+                            <ImageIcon className="w-3 h-3" /> {fotoCount}
+                            {hasForcedPhotos && <AlertCircle className="w-3 h-3" />}
+                          </span>
+                        )}
+                        {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
+                         res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
+                         <ShieldAlert className="w-4 h-4 text-destructive" />}
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
@@ -1548,17 +1542,9 @@ export default function Checklist() {
                             {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </td>
                           <td className="p-3 text-center">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => setSelectedChecklist(cl)}>
-                                  <Eye className="w-3.5 h-3.5" /> Ver
-                                </Button>
-                              </DialogTrigger>
-                              {selectedChecklist?.id === cl.id && (
-                                <ChecklistDetailDialog checklist={selectedChecklist} vehicles={vehicles} localDrivers={localDrivers}
-                                  onDeleted={() => setSelectedChecklist(null)} />
-                              )}
-                            </Dialog>
+                            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                              <Eye className="w-3.5 h-3.5" /> Ver
+                            </Button>
                           </td>
                         </tr>
                       );
