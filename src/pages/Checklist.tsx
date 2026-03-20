@@ -92,35 +92,33 @@ const OIL_OPTS = [
 ];
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
-  // Fluidos
-  { key: "nivel_oleo", label: "Nível de óleo OK?", category: "Fluidos", options: CONFORME_NAO, critical: true },
-  { key: "troca_oleo", label: "Troca de óleo em dia?", category: "Fluidos", options: OIL_OPTS },
-  { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Fluidos", options: CONFORME_NAO, critical: true },
-  // Pneus
-  { key: "pneus", label: "Pneus em condição de saída?", category: "Pneus e Calibração", options: CONFORME_NAO, critical: true },
-  { key: "pneu_estepe", label: "Estepe em boas condições?", category: "Pneus e Calibração", options: CONFORME_NAO },
-  // Exterior
-  { key: "farois_lanternas", label: "Faróis e lanternas funcionando?", category: "Exterior e Iluminação", options: CONFORME_NAO, critical: true },
-  { key: "vidros", label: "Vidros sem trincas/danos?", category: "Exterior e Iluminação", options: SIM_NAO },
-  { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Exterior e Iluminação", options: SIM_NAO },
-  // Mecânica
-  { key: "motor", label: "Motor funcionando normalmente?", category: "Mecânica", options: CONFORME_NAO, critical: true },
-  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Mecânica", options: CONFORME_NAO, critical: true },
-  { key: "som", label: "Som/rádio funcionando?", category: "Mecânica", options: CONFORME_NAO },
-  { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Mecânica", options: NAO_SIM, critical: true },
-  // Segurança
-  { key: "itens_seguranca", label: "Triângulo, macaco e chave de roda?", category: "Kit e Segurança", options: SIM_NAO, critical: true },
-  { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Kit e Segurança", options: SIM_NAO },
+  // Exterior (durante caminhada 360°)
+  { key: "farois_lanternas", label: "Faróis e lanternas funcionando?", category: "Exterior", options: CONFORME_NAO, critical: true },
+  { key: "vidros", label: "Vidros sem trincas/danos?", category: "Exterior", options: SIM_NAO },
+  { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Exterior", options: SIM_NAO },
+  // Pneus (ainda ao redor do veículo)
+  { key: "pneus", label: "Pneus em condição de saída?", category: "Pneus", options: CONFORME_NAO, critical: true },
+  { key: "pneu_estepe", label: "Estepe em boas condições?", category: "Pneus", options: CONFORME_NAO },
+  // Capô — tudo junto: motor + fluidos (abre capô 1x só)
+  { key: "motor", label: "Motor funcionando normalmente?", category: "Capô", options: CONFORME_NAO, critical: true },
+  { key: "nivel_oleo", label: "Nível de óleo OK?", category: "Capô", options: CONFORME_NAO, critical: true },
+  { key: "troca_oleo", label: "Troca de óleo em dia?", category: "Capô", options: OIL_OPTS },
+  { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Capô", options: CONFORME_NAO, critical: true },
+  { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Capô", options: NAO_SIM, critical: true },
+  // Interior + Kit (cabine + porta-malas)
+  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Interior e Kit", options: CONFORME_NAO, critical: true },
+  { key: "som", label: "Som/rádio funcionando?", category: "Interior e Kit", options: CONFORME_NAO },
+  { key: "itens_seguranca", label: "Triângulo, macaco e chave de roda?", category: "Interior e Kit", options: SIM_NAO, critical: true },
+  { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Interior e Kit", options: SIM_NAO },
   // Danos
   { key: "danos_veiculo", label: "Há algum dano/avaria nova no veículo?", category: "Danos", options: NAO_SIM },
 ];
 
 const CATEGORY_ICONS: Record<string, typeof Droplets> = {
-  "Fluidos": Droplets,
-  "Pneus e Calibração": CircleDot,
-  "Exterior e Iluminação": Car,
-  "Mecânica": Wrench,
-  "Kit e Segurança": Shield,
+  "Exterior": Car,
+  "Pneus": CircleDot,
+  "Capô": Wrench,
+  "Interior e Kit": Shield,
   "Danos": AlertTriangle,
 };
 
@@ -194,37 +192,35 @@ function CameraCapture({ category, photos, onCapture, onRemove, required }: {
 }
 
 // ═══════════════════════════════════════════
-// WIZARD STEPS — Benchmark Localiza/Movida/Sigefro
+// WIZARD STEPS — Fluxo físico do técnico
+// Lógica: painel → ao redor (360°+exterior) → pneus → capô (motor+óleo+água) → interior+kit → danos → resultado
 // ═══════════════════════════════════════════
 
 const STEPS = [
   { id: "info", title: "Identificação", icon: ClipboardCheck },
-  { id: "painel_360", title: "Painel e 360°", icon: Camera },
-  { id: "fluidos", title: "Fluidos", icon: Droplets },
+  { id: "painel", title: "Foto do Painel", icon: Gauge },
+  { id: "exterior_360", title: "360° e Exterior", icon: Car },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot },
-  { id: "exterior", title: "Exterior e Iluminação", icon: Car },
-  { id: "mecanica", title: "Mecânica", icon: Wrench },
-  { id: "seguranca", title: "Kit e Segurança", icon: Shield },
+  { id: "capo", title: "Capô Aberto", icon: Wrench },
+  { id: "interior_kit", title: "Interior e Kit", icon: Shield },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
 ];
 
 const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
-  fluidos: ["Fluidos"],
-  pneus: ["Pneus e Calibração"],
-  exterior: ["Exterior e Iluminação"],
-  mecanica: ["Mecânica"],
-  seguranca: ["Kit e Segurança"],
+  exterior_360: ["Exterior"],
+  pneus: ["Pneus"],
+  capo: ["Capô"],
+  interior_kit: ["Interior e Kit"],
   danos: ["Danos"],
 };
 
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
-  painel_360: ["painel", "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
-  fluidos: ["nivel_oleo", "reservatorio_agua"],
+  painel: ["painel"],
+  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"],
   pneus: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe"],
-  exterior: ["farois_lanternas", "interior"],
-  mecanica: ["motor"],
-  seguranca: ["itens_seguranca"],
+  capo: ["motor", "nivel_oleo", "reservatorio_agua"],
+  interior_kit: ["interior", "itens_seguranca"],
 };
 
 // ═══════════════════════════════════════════
