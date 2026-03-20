@@ -96,10 +96,9 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
     { value: "vencido", label: "VENCIDO", color: "destructive" },
   ]},
   { key: "nivel_agua", label: "Nível de Água OK?", category: "Fluidos", options: CONFORME_NAO, photoAfter: "reservatorio", photoConditional: "always" },
-  // Exterior — 4 fotos separadas por ângulo
+  // Exterior — danos + faróis (360° photos are in their own step)
   { key: "danos_veiculo", label: "Tem algum dano diferente no veículo?", category: "Fotos 360° Exterior", options: NAO_SIM,
-    photoAfter: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
-    photoConditional: "always" },
+    photoAfter: "danos_veiculo", photoConditional: "non_conforme" },
   { key: "farois_lanternas", label: "Faróis e Lanternas funcionando?", category: "Fotos 360° Exterior", options: CONFORME_NAO, photoAfter: "farois_lanternas", photoConditional: "always" },
   // Funcionamento
   { key: "som", label: "Som funcionando?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "som", photoConditional: "always" },
@@ -209,7 +208,8 @@ function CameraCapture({ category, photos, onCapture, onRemove }: {
 const STEPS = [
   { id: "info", title: "Identificação" },
   { id: "fluidos", title: "Fluidos" },
-  { id: "exterior", title: "Exterior 360°" },
+  { id: "exterior_360", title: "Fotos 360°" },
+  { id: "exterior_check", title: "Exterior" },
   { id: "funcionamento", title: "Funcionamento" },
   { id: "seguranca", title: "Inspeção" },
   { id: "final", title: "Finalizar" },
@@ -217,7 +217,7 @@ const STEPS = [
 
 const STEP_CATEGORIES: Record<string, string[]> = {
   fluidos: ["Fluidos"],
-  exterior: ["Fotos 360° Exterior"],
+  exterior_check: ["Fotos 360° Exterior"],
   funcionamento: ["Verificações de Funcionamento"],
   seguranca: ["Inspeção do Veículo"],
 };
@@ -410,6 +410,25 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               <p>Fotos: {Object.values(photos).reduce((sum, arr) => sum + arr.length, 0)} tiradas</p>
             </div>
           </div>
+        </div>
+      );
+    }
+
+    // Dedicated 360° photos step
+    if (currentStep.id === "exterior_360") {
+      const angleCats: PhotoCategory[] = ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"];
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Tire uma foto de cada ângulo do veículo:</p>
+          {angleCats.map((cat) => (
+            <CameraCapture
+              key={cat}
+              category={cat}
+              photos={photos[cat] ?? []}
+              onCapture={handleCapture}
+              onRemove={handleRemovePhoto}
+            />
+          ))}
         </div>
       );
     }
