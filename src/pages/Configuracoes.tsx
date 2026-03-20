@@ -59,7 +59,7 @@ const STEP_LABELS: Record<number, string> = {
 
 const CATEGORIES = ["Exterior", "Pneus", "Capô", "Interior", "Danos"];
 
-type SettingsView = "root" | "checklists" | "checklist-pre-op";
+type SettingsView = "root" | "checklists" | "checklist-pre-op" | "usuarios";
 
 interface SettingsMenuItem {
   id: SettingsView;
@@ -70,6 +70,12 @@ interface SettingsMenuItem {
 }
 
 const ROOT_ITEMS: SettingsMenuItem[] = [
+  {
+    id: "usuarios",
+    title: "Usuários",
+    description: "Cadastro de usuários e permissões de acesso",
+    icon: Users,
+  },
   {
     id: "checklists",
     title: "Check-lists",
