@@ -24,18 +24,15 @@ interface SearchableSelectProps {
   disabled?: boolean;
 }
 
-export const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
-  {
-    options,
-    value,
-    onValueChange,
-    placeholder = "Selecione...",
-    searchPlaceholder = "Buscar...",
-    className,
-    disabled = false,
-  },
-  ref
-) {
+export function SearchableSelect({
+  options,
+  value,
+  onValueChange,
+  placeholder = "Selecione...",
+  searchPlaceholder = "Buscar...",
+  className,
+  disabled = false,
+}: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
@@ -57,7 +54,7 @@ export const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSe
     >
       <PopoverTrigger asChild>
         <Button
-          ref={ref}
+          
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -121,4 +118,4 @@ export const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSe
       </PopoverContent>
     </Popover>
   );
-});
+}
