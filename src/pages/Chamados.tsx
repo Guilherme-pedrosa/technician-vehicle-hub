@@ -813,6 +813,10 @@ export default function Chamados() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onStatusChange={handleStatusChange}
+        onUpdate={(id, data) => updateTicket.mutate({ id, data })}
+        onDelete={(id) => deleteTicket.mutate(id)}
+        vehicles={vehicles}
+        drivers={drivers}
       />
     </div>
   );
