@@ -31,46 +31,58 @@ async function getRotaExataToken(): Promise<string> {
 }
 
 async function doLogin(): Promise<string> {
-
   const email = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
 
   if (!email) throw new Error("ROTAEXATA_EMAIL is not configured");
   if (!password) throw new Error("ROTAEXATA_PASSWORD is not configured");
 
-  console.log(`Attempting login with email: ${email}`);
-
   const loginBody = { email, password };
+  const MAX_RETRIES = 3;
 
-  const res = await fetch(`${ROTAEXATA_API}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(loginBody),
-  });
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`Login attempt ${attempt}/${MAX_RETRIES} with email: ${email}`);
 
-  const responseText = await res.text();
-  console.log(`Login response status: ${res.status}, body: ${responseText}`);
+    const res = await fetch(`${ROTAEXATA_API}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(loginBody),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
+    const responseText = await res.text();
+    console.log(`Login response status: ${res.status}`);
+
+    if (res.ok) {
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Login response is not JSON: ${responseText.substring(0, 200)}`);
+      }
+      const token = data.token || data.access_token || data.authorization;
+      if (!token) throw new Error("No token in login response");
+      cachedToken = token;
+      tokenExpiry = Date.now() + 55 * 60 * 1000;
+      return token;
+    }
+
+    // Retry on 502/503/429, fail immediately on other errors
+    if (res.status !== 502 && res.status !== 503 && res.status !== 429) {
+      throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
+    }
+
+    if (attempt < MAX_RETRIES) {
+      const delay = attempt * 2000; // 2s, 4s
+      console.log(`Retrying login in ${delay}ms...`);
+      await new Promise((r) => setTimeout(r, delay));
+    } else {
+      throw new Error(`Rota Exata login failed after ${MAX_RETRIES} attempts [${res.status}]: ${responseText}`);
+    }
   }
 
-  let data;
-  try {
-    data = JSON.parse(responseText);
-  } catch {
-    throw new Error(`Rota Exata login returned non-JSON: ${responseText}`);
-  }
-
-  cachedToken = data.token || data.access_token || data.authorization;
-
-  if (!cachedToken) {
-    throw new Error(`Rota Exata login returned no token: ${responseText}`);
-  }
-
-  tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
-  return cachedToken;
+  throw new Error("Unreachable");
 }
+
 
 async function proxyRequest(
   token: string,
