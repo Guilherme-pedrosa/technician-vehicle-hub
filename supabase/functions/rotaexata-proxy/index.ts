@@ -83,22 +83,6 @@ async function doLogin(): Promise<string> {
   throw new Error("Unreachable");
 }
 
-  let data;
-  try {
-    data = JSON.parse(responseText);
-  } catch {
-    throw new Error(`Rota Exata login returned non-JSON: ${responseText}`);
-  }
-
-  cachedToken = data.token || data.access_token || data.authorization;
-
-  if (!cachedToken) {
-    throw new Error(`Rota Exata login returned no token: ${responseText}`);
-  }
-
-  tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
-  return cachedToken;
-}
 
 async function proxyRequest(
   token: string,
