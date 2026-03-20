@@ -415,6 +415,25 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       );
     }
 
+    // Dedicated 360° photos step
+    if (currentStep.id === "exterior_360") {
+      const angleCats: PhotoCategory[] = ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"];
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Tire uma foto de cada ângulo do veículo:</p>
+          {angleCats.map((cat) => (
+            <CameraCapture
+              key={cat}
+              category={cat}
+              photos={photos[cat] ?? []}
+              onCapture={handleCapture}
+              onRemove={handleRemovePhoto}
+            />
+          ))}
+        </div>
+      );
+    }
+
     // Category-based steps
     const categories = STEP_CATEGORIES[currentStep.id] ?? [];
     const fields = CHECKLIST_FIELDS.filter((f) => categories.includes(f.category));
