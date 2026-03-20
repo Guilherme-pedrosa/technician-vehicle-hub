@@ -85,11 +85,6 @@ const NAO_SIM = [
   { value: "nao", label: "NÃO", color: "success" },
   { value: "sim", label: "SIM", color: "destructive" },
 ];
-const OIL_OPTS = [
-  { value: "ok", label: "OK", color: "success" },
-  { value: "se_aproximando", label: "PRÓXIMO", color: "warning" },
-  { value: "vencido", label: "VENCIDO", color: "destructive" },
-];
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
   // Exterior (durante caminhada 360°)
