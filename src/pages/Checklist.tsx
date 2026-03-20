@@ -15,8 +15,12 @@ import { Separator } from "@/components/ui/separator";
 import {
   ClipboardCheck, Plus, CheckCircle, XCircle, AlertTriangle,
   Loader2, Car, Droplets, Wrench, Shield, Eye, CalendarDays,
-  Camera, ChevronLeft, ChevronRight, X, Image as ImageIcon,
+  Camera, ChevronLeft, ChevronRight, X, Image as ImageIcon, Download,
 } from "lucide-react";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
