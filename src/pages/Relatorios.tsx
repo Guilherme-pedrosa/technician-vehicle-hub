@@ -220,7 +220,7 @@ export default function Relatorios() {
                 onValueChange={setDriverFilter}
                 placeholder="Todos"
                 searchPlaceholder="Buscar condutor..."
-                className="w-[200px]"
+                className="w-full sm:w-[200px]"
                 options={[
                   { value: "todos", label: "Todos os condutores" },
                   ...drivers.filter(d => d.status === "ativo").map(d => ({ value: d.id, label: d.full_name })),
