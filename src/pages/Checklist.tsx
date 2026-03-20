@@ -653,7 +653,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       );
     }
 
-    // ── CATEGORY STEPS (Fluidos, Pneus, Exterior, Mecânica, Segurança, Danos) ──
+    // ── GENERIC CATEGORY STEPS (Pneus, Interior+Kit, Danos) ──
     const categories = STEP_FIELD_CATEGORIES[currentStep.id] ?? [];
     const fields = CHECKLIST_FIELDS.filter((f) => categories.includes(f.category));
     const stepPhotos = STEP_PHOTOS[currentStep.id] ?? [];
