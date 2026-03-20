@@ -605,7 +605,7 @@ export default function Checklist() {
                             <ChecklistDetailDialog
                               checklist={selectedChecklist}
                               vehicles={vehicles}
-                              drivers={drivers}
+                              localDrivers={localDrivers}
                             />
                           )}
                         </Dialog>
