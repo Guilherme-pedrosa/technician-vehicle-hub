@@ -743,7 +743,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
-      if (finalRes !== "liberado" && !resultadoMotivo.trim()) return false;
+      // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
+      if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
       return termoAceito;
     }
     return true;
