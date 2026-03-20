@@ -22,22 +22,46 @@ import { toast } from "sonner";
 
 // ─── Photo categories that require camera capture ───
 type PhotoCategory =
+  | "nivel_oleo"
   | "reservatorio"
-  | "exterior_360"
+  | "exterior_frente"
+  | "exterior_traseira"
+  | "exterior_esquerda"
+  | "exterior_direita"
+  | "danos_veiculo"
+  | "farois_lanternas"
   | "calibracao_pneus"
   | "estepe"
   | "itens_seguranca"
   | "pneus_todos"
-  | "vidros";
+  | "vidros"
+  | "som"
+  | "motor"
+  | "cambio"
+  | "acessorios"
+  | "limpeza"
+  | "ruido_anormal";
 
 const PHOTO_LABELS: Record<PhotoCategory, { label: string; hint: string; min: number }> = {
+  nivel_oleo: { label: "Foto do Nível de Óleo", hint: "Foto da vareta ou painel mostrando o nível", min: 1 },
   reservatorio: { label: "Reservatório de Água", hint: "Foto com a tampa fechada, após conferir", min: 1 },
-  exterior_360: { label: "Fotos 360° Exterior", hint: "Frente, traseira, lateral esquerda e direita", min: 4 },
+  exterior_frente: { label: "📸 Frente do Veículo", hint: "Foto da frente completa", min: 1 },
+  exterior_traseira: { label: "📸 Traseira do Veículo", hint: "Foto da traseira completa", min: 1 },
+  exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto da lateral esquerda completa", min: 1 },
+  exterior_direita: { label: "📸 Lateral Direita", hint: "Foto da lateral direita completa", min: 1 },
+  danos_veiculo: { label: "Foto dos Danos", hint: "Registre cada dano encontrado", min: 1 },
+  farois_lanternas: { label: "Foto dos Faróis/Lanternas", hint: "Faróis acesos, lanternas funcionando", min: 1 },
   calibracao_pneus: { label: "Calibração dos 4 Pneus", hint: "Foto do calibrador mostrando a pressão de cada pneu", min: 4 },
   estepe: { label: "Pneu de Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
   itens_seguranca: { label: "Itens de Segurança", hint: "Macaco, chave de roda e triângulo visíveis na foto", min: 1 },
   pneus_todos: { label: "Fotos de Todos os Pneus", hint: "Uma foto de cada pneu mostrando estado da banda", min: 4 },
   vidros: { label: "Fotos dos Vidros", hint: "Para-brisa e vidros laterais", min: 2 },
+  som: { label: "Foto do Som/Painel", hint: "Foto do painel ou som ligado", min: 1 },
+  motor: { label: "Foto do Motor", hint: "Foto do compartimento do motor aberto", min: 1 },
+  cambio: { label: "Foto do Câmbio", hint: "Foto mostrando o câmbio", min: 1 },
+  acessorios: { label: "Foto dos Acessórios", hint: "Suporte celular, câmera, etc", min: 1 },
+  limpeza: { label: "Foto do Interior", hint: "Foto mostrando organização e limpeza", min: 1 },
+  ruido_anormal: { label: "Vídeo/Foto do Ruído", hint: "Registre evidência do ruído", min: 1 },
 };
 
 // ─── Checklist inspection fields ───
@@ -46,7 +70,8 @@ type ChecklistField = {
   label: string;
   options: { value: string; label: string; color: string }[];
   category: string;
-  photoAfter?: PhotoCategory;
+  photoAfter?: PhotoCategory | PhotoCategory[];
+  photoConditional?: "always" | "non_conforme";
 };
 
 const CONFORME_NAO = [
@@ -64,28 +89,30 @@ const NAO_SIM = [
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
   // Fluidos
-  { key: "nivel_oleo", label: "Nível de Óleo OK?", category: "Fluidos", options: CONFORME_NAO },
+  { key: "nivel_oleo", label: "Nível de Óleo OK?", category: "Fluidos", options: CONFORME_NAO, photoAfter: "nivel_oleo", photoConditional: "always" },
   { key: "troca_oleo", label: "Troca de Óleo", category: "Fluidos", options: [
     { value: "ok", label: "OK", color: "success" },
     { value: "se_aproximando", label: "PRÓXIMO", color: "warning" },
     { value: "vencido", label: "VENCIDO", color: "destructive" },
   ]},
-  { key: "nivel_agua", label: "Nível de Água OK?", category: "Fluidos", options: CONFORME_NAO, photoAfter: "reservatorio" },
-  // Exterior
-  { key: "danos_veiculo", label: "Tem algum dano diferente no veículo?", category: "Fotos 360° Exterior", options: NAO_SIM, photoAfter: "exterior_360" },
-  { key: "farois_lanternas", label: "Faróis e Lanternas funcionando?", category: "Fotos 360° Exterior", options: CONFORME_NAO },
+  { key: "nivel_agua", label: "Nível de Água OK?", category: "Fluidos", options: CONFORME_NAO, photoAfter: "reservatorio", photoConditional: "always" },
+  // Exterior — 4 fotos separadas por ângulo
+  { key: "danos_veiculo", label: "Tem algum dano diferente no veículo?", category: "Fotos 360° Exterior", options: NAO_SIM,
+    photoAfter: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
+    photoConditional: "always" },
+  { key: "farois_lanternas", label: "Faróis e Lanternas funcionando?", category: "Fotos 360° Exterior", options: CONFORME_NAO, photoAfter: "farois_lanternas", photoConditional: "always" },
   // Funcionamento
-  { key: "som", label: "Som funcionando?", category: "Verificações de Funcionamento", options: CONFORME_NAO },
-  { key: "motor", label: "Motor em pleno funcionamento?", category: "Verificações de Funcionamento", options: CONFORME_NAO },
-  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Verificações de Funcionamento", options: CONFORME_NAO },
-  { key: "pneus", label: "Pneus OK?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "calibracao_pneus" },
-  { key: "pneu_estepe", label: "Estepe cheio e em boas condições?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "estepe" },
+  { key: "som", label: "Som funcionando?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "som", photoConditional: "always" },
+  { key: "motor", label: "Motor em pleno funcionamento?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "motor", photoConditional: "always" },
+  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "cambio", photoConditional: "always" },
+  { key: "pneus", label: "Pneus OK?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "calibracao_pneus", photoConditional: "always" },
+  { key: "pneu_estepe", label: "Estepe cheio e em boas condições?", category: "Verificações de Funcionamento", options: CONFORME_NAO, photoAfter: "estepe", photoConditional: "always" },
   // Segurança
-  { key: "itens_seguranca", label: "Chave de roda, macaco e triângulo disponíveis?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "itens_seguranca" },
-  { key: "acessorios", label: "Acessórios no local adequado e funcionando?", category: "Inspeção do Veículo", options: SIM_NAO },
-  { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Inspeção do Veículo", options: SIM_NAO },
-  { key: "vidros", label: "Todos os vidros estão OK?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "vidros" },
-  { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Inspeção do Veículo", options: NAO_SIM },
+  { key: "itens_seguranca", label: "Chave de roda, macaco e triângulo disponíveis?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "itens_seguranca", photoConditional: "always" },
+  { key: "acessorios", label: "Acessórios no local adequado e funcionando?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "acessorios", photoConditional: "always" },
+  { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "limpeza", photoConditional: "always" },
+  { key: "vidros", label: "Todos os vidros estão OK?", category: "Inspeção do Veículo", options: SIM_NAO, photoAfter: "vidros", photoConditional: "always" },
+  { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Inspeção do Veículo", options: NAO_SIM, photoAfter: "ruido_anormal", photoConditional: "non_conforme" },
 ];
 
 const CATEGORY_ICONS: Record<string, typeof Droplets> = {
