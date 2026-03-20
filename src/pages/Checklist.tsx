@@ -378,7 +378,7 @@ function ChecklistDetailDialog({ checklist, vehicles, localDrivers }: {
         <div className="space-y-4 pt-3">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div><span className="text-muted-foreground">Veículo:</span> {vehicle?.placa} — {vehicle?.modelo}</div>
-            <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? "—"}</div>
+            <div><span className="text-muted-foreground">Motorista:</span> {driver?.full_name ?? checklist.tripulacao ?? "—"}</div>
             {checklist.tripulacao && <div><span className="text-muted-foreground">Tripulação:</span> {checklist.tripulacao}</div>}
             {checklist.destino && <div><span className="text-muted-foreground">Destino:</span> {checklist.destino}</div>}
           </div>
