@@ -68,18 +68,96 @@ async function syncVehicles() {
 }
 
 // ========== SYNC DRIVERS ==========
+type RotaExataUser = {
+  id?: string | number;
+  nome?: string;
+  name?: string;
+  full_name?: string;
+  telefone?: string | null;
+  phone?: string | null;
+  celular?: string | null;
+};
+
+function getUserUniqueKey(user: RotaExataUser) {
+  return String(user.id ?? `${user.nome ?? user.name ?? user.full_name ?? ""}`.trim().toLowerCase());
+}
+
+async function fetchAllRotaExataUsers(): Promise<RotaExataUser[]> {
+  const collected = new Map<string, RotaExataUser>();
+
+  const addUsers = (items: unknown) => {
+    if (!Array.isArray(items)) return 0;
+    let added = 0;
+    for (const item of items as RotaExataUser[]) {
+      const key = getUserUniqueKey(item);
+      if (!key || collected.has(key)) continue;
+      collected.set(key, item);
+      added++;
+    }
+    return added;
+  };
+
+  const directBatch = await fetchRotaExata("/usuarios", { quantidade: "1000" });
+  addUsers(directBatch);
+
+  const paginationStrategies = [
+    { pageKey: "pagina", sizeKey: "quantidade" },
+    { pageKey: "page", sizeKey: "quantidade" },
+    { pageKey: "pagina", sizeKey: "limit" },
+    { pageKey: "page", sizeKey: "limit" },
+    { pageKey: "pagina", sizeKey: "per_page" },
+    { pageKey: "page", sizeKey: "per_page" },
+  ] as const;
+
+  for (const strategy of paginationStrategies) {
+    const page1 = await fetchRotaExata("/usuarios", {
+      [strategy.pageKey]: "1",
+      [strategy.sizeKey]: "100",
+    });
+    const page2 = await fetchRotaExata("/usuarios", {
+      [strategy.pageKey]: "2",
+      [strategy.sizeKey]: "100",
+    });
+
+    if (!Array.isArray(page1) || page1.length === 0) continue;
+    if (!Array.isArray(page2) || page2.length === 0) continue;
+
+    const page1Signature = page1.map(getUserUniqueKey).join("|");
+    const page2Signature = page2.map(getUserUniqueKey).join("|");
+
+    if (page1Signature === page2Signature) continue;
+
+    addUsers(page1);
+    addUsers(page2);
+
+    for (let page = 3; page <= 50; page++) {
+      const currentPage = await fetchRotaExata("/usuarios", {
+        [strategy.pageKey]: String(page),
+        [strategy.sizeKey]: "100",
+      });
+
+      if (!Array.isArray(currentPage) || currentPage.length === 0) break;
+
+      const added = addUsers(currentPage);
+      if (added === 0) break;
+    }
+
+    break;
+  }
+
+  return Array.from(collected.values());
+}
+
 async function syncDrivers() {
-  const rawUsers = await fetchRotaExata("/usuarios", { quantidade: "1000" });
-  if (!Array.isArray(rawUsers)) return { created: 0, updated: 0 };
+  const rawUsers = await fetchAllRotaExataUsers();
+  if (!Array.isArray(rawUsers) || rawUsers.length === 0) return { created: 0, updated: 0 };
 
   const driversToSync = rawUsers
-    .map((u: any) => ({
+    .map((u) => ({
       full_name: u.nome ?? u.name ?? u.full_name ?? "",
       phone: u.telefone ?? u.phone ?? u.celular ?? null,
-      // Rota Exata user ID for linking
-      rotaexata_id: String(u.id ?? ""),
     }))
-    .filter((d: any) => d.full_name);
+    .filter((d) => d.full_name.trim().length > 0);
 
   if (driversToSync.length === 0) return { created: 0, updated: 0 };
 
@@ -88,9 +166,9 @@ async function syncDrivers() {
 
   let created = 0, updated = 0;
   for (const driver of driversToSync) {
-    const match = existingByName.get(driver.full_name.toLowerCase().trim());
+    const normalizedName = driver.full_name.toLowerCase().trim();
+    const match = existingByName.get(normalizedName);
     if (match) {
-      // Update phone if we have it and they don't
       if (driver.phone && !match.phone) {
         await supabase.from("drivers").update({ phone: driver.phone }).eq("id", match.id);
       }
@@ -104,7 +182,10 @@ async function syncDrivers() {
         categoria_cnh: "B",
         status: "ativo" as const,
       });
-      if (!error) created++;
+      if (!error) {
+        created++;
+        existingByName.set(normalizedName, { id: "", full_name: driver.full_name, phone: driver.phone });
+      }
     }
   }
   return { created, updated };
