@@ -452,6 +452,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
               motivos: (vals as PhotoValidation[]).filter(v => v.status === "forced").map(v => v.result?.reason ?? "Foto forçada pelo técnico"),
             })),
+          fotos_invalidas: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.status === "invalid"))
+            .map(([cat, vals]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+              motivos: (vals as PhotoValidation[]).filter(v => v.status === "invalid").map(v => v.result?.reason ?? "Foto reprovada pela IA"),
+            })),
+          fotos_erro_validacao: Object.entries(photoValidations)
+            .filter(([_, vals]) => (vals as PhotoValidation[]).some(v => v.result?.ai_error))
+            .map(([cat]) => ({
+              categoria: cat,
+              label: PHOTO_META[cat as PhotoCategory]?.label ?? cat,
+            })),
         },
         ...answers,
       } as any).select("id").single();
