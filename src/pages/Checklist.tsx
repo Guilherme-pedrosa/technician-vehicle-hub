@@ -666,8 +666,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     },
     onSuccess: () => {
       setUploading(false);
-      if (hasAnyProblem) {
-        toast.success("Checklist salvo! Chamado de não conformidade criado automaticamente.", { duration: 5000 });
+      const hasPhotoIssuesOnSuccess = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
+      const hadProblems = hasAnyProblem || hasPhotoIssuesOnSuccess;
+      if (hadProblems) {
+        toast.success("Checklist salvo! Chamado criado e notificação enviada por e-mail.", { duration: 5000 });
       } else {
         toast.success("Checklist salvo com sucesso!");
       }
