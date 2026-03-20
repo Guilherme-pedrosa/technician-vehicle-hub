@@ -527,11 +527,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         </DialogHeader>
 
         {/* Scrollable content */}
-        <ScrollArea className="flex-1 px-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4">
           <div className="pb-28 sm:pb-6">
             {renderStepContent()}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Navigation — sticky bottom */}
         <div className="border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex gap-2">
