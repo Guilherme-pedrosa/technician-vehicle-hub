@@ -234,12 +234,12 @@ export default function Relatorios() {
       {/* Summary KPIs */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">KM no Período</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold tabular-nums">
-              {loadingKm ? <Loader2 className="w-6 h-6 animate-spin" /> : totalKmPeriodo.toLocaleString("pt-BR")}
+          <CardHeader className="pb-1 p-3 sm:p-6 sm:pb-2"><CardTitle className="text-xs sm:text-sm text-muted-foreground">KM Período</CardTitle></CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-lg sm:text-3xl font-bold tabular-nums">
+              {loadingKm ? <Loader2 className="w-5 h-5 animate-spin" /> : totalKmPeriodo.toLocaleString("pt-BR")}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{dataInicio} a {dataFim}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 hidden sm:block">{dataInicio} a {dataFim}</p>
           </CardContent>
         </Card>
         <Card>
