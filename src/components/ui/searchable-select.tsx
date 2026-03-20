@@ -118,4 +118,4 @@ export function SearchableSelect({
       </PopoverContent>
     </Popover>
   );
-});
+}
