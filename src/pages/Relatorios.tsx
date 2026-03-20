@@ -165,7 +165,7 @@ export default function Relatorios() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-end">
             {/* Period preset */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Período</label>
