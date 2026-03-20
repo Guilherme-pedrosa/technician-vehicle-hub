@@ -25,19 +25,14 @@ interface SearchableSelectProps {
 }
 
 export function SearchableSelect({
-    options,
-    value,
-    onValueChange,
-    placeholder = "Selecione...",
-    searchPlaceholder = "Buscar...",
-    className,
-    disabled = false,
-  }: SearchableSelectProps) {
-    className,
-    disabled = false,
-  },
-  ref
-) {
+  options,
+  value,
+  onValueChange,
+  placeholder = "Selecione...",
+  searchPlaceholder = "Buscar...",
+  className,
+  disabled = false,
+}: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
