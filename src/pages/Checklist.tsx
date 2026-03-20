@@ -959,7 +959,7 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
 // PDF EXPORT
 // ═══════════════════════════════════════════
 
-function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
+async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   const doc = new jsPDF();
   const dateStr = new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR");
   const placa = vehicle?.placa ?? "—";
@@ -973,25 +973,39 @@ function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   if (cl.tripulacao) doc.text(`Tripulação: ${cl.tripulacao}`, 14, 46);
   if (cl.destino) doc.text(`Destino: ${cl.destino}`, 14, cl.tripulacao ? 52 : 46);
 
+  // Troca de óleo
+  const detalhes = cl.detalhes as any;
+  if (cl.troca_oleo || detalhes?.km_proxima_troca) {
+    let oilY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
+    doc.setFontSize(9);
+    doc.text(`Troca de óleo: ${cl.troca_oleo === "vencido" ? "⚠ VENCIDO" : "OK"}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
+  }
+
   const categories = [...new Set(CHECKLIST_FIELDS.map((f) => f.category))];
   const rows: any[][] = [];
   categories.forEach((cat) => {
-    rows.push([{ content: cat, colSpan: 2, styles: { fontStyle: "bold", fillColor: [230, 230, 240] } } as any]);
+    rows.push([{ content: cat, colSpan: 3, styles: { fontStyle: "bold", fillColor: [230, 230, 240] } } as any]);
     CHECKLIST_FIELDS.filter((f) => f.category === cat).forEach((f) => {
       const val = cl[f.key];
       const opt = f.options.find((o) => o.value === val);
-      rows.push([f.label, opt?.label ?? val ?? "—"]);
+      const nc = isNonConforme(f.key, val);
+      const obsValue = cl[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`] ?? "";
+      rows.push([
+        f.label,
+        opt?.label ?? val ?? "—",
+        nc && obsValue ? obsValue : "",
+      ]);
     });
   });
 
-  let startY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
+  let startY = cl.destino ? 64 : cl.tripulacao ? 60 : 54;
   autoTable(doc, {
     startY,
-    head: [["Item", "Resultado"]],
+    head: [["Item", "Resultado", "Observação"]],
     body: rows,
-    styles: { fontSize: 9 },
+    styles: { fontSize: 8 },
     headStyles: { fillColor: [41, 98, 255] },
-    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 50 } },
+    columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 35 }, 2: { cellWidth: 65 } },
   });
 
   let finalY = (doc as any).lastAutoTable?.finalY ?? 200;
@@ -1012,12 +1026,89 @@ function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   if (cl.observacoes) {
     doc.setFontSize(9);
     doc.text(`Observações: ${cl.observacoes}`, 14, finalY + 22, { maxWidth: 180 });
+    finalY += 10;
   }
 
-  // Photo count
-  const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
+  // Fotos forçadas warning
+  if (detalhes?.fotos_forcadas?.length > 0) {
+    doc.setFontSize(8);
+    doc.setTextColor(180, 100, 0);
+    doc.text(`⚠ Fotos com validação forçada: ${detalhes.fotos_forcadas.map((f: any) => f.label).join(", ")}`, 14, finalY + 28, { maxWidth: 180 });
+    doc.setTextColor(0, 0, 0);
+    finalY += 8;
+  }
+
+  // ══════════════════════════════════════
+  // FOTOS — nova página para cada categoria
+  // ══════════════════════════════════════
+  const fotosData = (cl.fotos && typeof cl.fotos === "object") ? cl.fotos as Record<string, string[]> : {};
+  const photoEntries = Object.entries(fotosData).filter(([_, urls]) => Array.isArray(urls) && urls.length > 0);
+
+  if (photoEntries.length > 0) {
+    for (const [cat, urls] of photoEntries) {
+      doc.addPage();
+      const catLabel = PHOTO_META[cat as PhotoCategory]?.label ?? cat.replace(/_/g, " ").toUpperCase();
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`📷 ${catLabel}`, 14, 20);
+      doc.setFont("helvetica", "normal");
+
+      let imgX = 14;
+      let imgY = 28;
+      const imgW = 85;
+      const imgH = 64;
+      const gap = 6;
+
+      for (let i = 0; i < urls.length; i++) {
+        try {
+          // Fetch image and convert to base64
+          const response = await fetch(urls[i]);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+
+          // Check if we need a new row or new page
+          if (imgY + imgH > 280) {
+            doc.addPage();
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text(`📷 ${catLabel} (cont.)`, 14, 20);
+            doc.setFont("helvetica", "normal");
+            imgX = 14;
+            imgY = 28;
+          }
+
+          doc.addImage(base64, "JPEG", imgX, imgY, imgW, imgH);
+
+          // 2 per row
+          if (i % 2 === 0) {
+            imgX = 14 + imgW + gap;
+          } else {
+            imgX = 14;
+            imgY += imgH + gap;
+          }
+        } catch (e) {
+          console.warn(`Erro ao carregar foto ${cat}[${i}]:`, e);
+        }
+      }
+    }
+  }
+
+  // Termo
+  doc.addPage();
+  doc.setFontSize(10);
+  doc.text("Termo de Ciência", 14, 20);
   doc.setFontSize(8);
-  doc.text(`Total de fotos registradas: ${fotoCount}`, 14, finalY + 32);
+  doc.text(
+    "Declaro que conferi o veículo antes da saída e registrei neste checklist qualquer anormalidade identificada. Estou ciente de que qualquer problema decorrente de verificação inadequada será de minha inteira responsabilidade.",
+    14, 30, { maxWidth: 180 }
+  );
+  doc.text(`Aceito: ${cl.termo_aceito ? "SIM" : "NÃO"}`, 14, 55);
+  doc.text(`Técnico: ${driverName}`, 14, 62);
+  doc.text(`Data: ${dateStr}`, 14, 69);
 
   doc.save(`checklist_${placa}_${cl.checklist_date}.pdf`);
 }
@@ -1064,6 +1155,14 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 
   const allPhotoEntries = Object.entries(fotosData).filter(([_, urls]: [string, any]) => Array.isArray(urls) && urls.length > 0);
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try { await exportChecklistPDF(cl, vehicle, driverName); }
+    catch (e) { console.error("PDF export error:", e); }
+    finally { setExportingPdf(false); }
+  };
+
   return (
     <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[85vh] p-0 gap-0 flex flex-col">
       <DialogHeader className="p-4 pb-0">
@@ -1074,8 +1173,9 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           </DialogTitle>
           <div className="flex items-center gap-1.5 shrink-0">
             <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs"
-              onClick={() => exportChecklistPDF(cl, vehicle, driverName)}>
-              <Download className="w-3.5 h-3.5" /> PDF
+              onClick={handleExportPdf} disabled={exportingPdf}>
+              {exportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {exportingPdf ? "Gerando..." : "PDF"}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -1168,6 +1268,28 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
             </div>
           )}
 
+          {/* Troca de óleo */}
+          {(cl.troca_oleo || (cl.detalhes as any)?.km_proxima_troca) && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Droplets className="w-3.5 h-3.5" /> Troca de Óleo
+              </h4>
+              <div className="flex items-center justify-between py-1">
+                <span className="text-sm">Status da troca de óleo</span>
+                <span className={`text-xs font-semibold ${cl.troca_oleo === "vencido" ? "text-destructive" : "text-success"}`}>
+                  {cl.troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
+                </span>
+              </div>
+              {(cl.detalhes as any)?.km_proxima_troca && (
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm">KM próxima troca</span>
+                  <span className="text-xs font-semibold tabular-nums">{Number((cl.detalhes as any).km_proxima_troca).toLocaleString("pt-BR")} km</span>
+                </div>
+              )}
+              <Separator />
+            </div>
+          )}
+
           {/* Inspection items */}
           {categories.map((cat) => {
             const fields = CHECKLIST_FIELDS.filter((f) => f.category === cat);
@@ -1180,13 +1302,22 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
                 {fields.map((f) => {
                   const nc = isNonConforme(f.key, cl[f.key]);
                   const opt = f.options.find((o) => o.value === cl[f.key]);
+                  const obsKey = `obs_${f.key}`;
+                  const obsValue = cl[obsKey] ?? (cl.detalhes as any)?.[obsKey];
                   return (
-                    <div key={f.key} className="flex items-center justify-between py-1">
-                      <span className="text-sm flex-1">{f.label}</span>
-                      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                        {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                        {opt?.label ?? cl[f.key] ?? "—"}
-                      </span>
+                    <div key={f.key}>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm flex-1">{f.label}</span>
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                          {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                          {opt?.label ?? cl[f.key] ?? "—"}
+                        </span>
+                      </div>
+                      {nc && obsValue && (
+                        <div className="ml-3 pl-2 border-l-2 border-destructive/30 mb-2">
+                          <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
