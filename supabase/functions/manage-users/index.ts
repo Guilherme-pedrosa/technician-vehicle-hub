@@ -145,7 +145,7 @@ serve(async (req) => {
     if (action === "delete") {
       const { user_id } = payload;
       if (!user_id) throw new Error("user_id é obrigatório");
-      if (user_id === caller.id) throw new Error("Você não pode excluir seu próprio usuário");
+      if (user_id === callerId) throw new Error("Você não pode excluir seu próprio usuário");
 
       await supabaseAdmin.auth.admin.deleteUser(user_id);
 
