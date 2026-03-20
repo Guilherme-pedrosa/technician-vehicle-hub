@@ -91,19 +91,19 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
   { key: "farois_lanternas", label: "Faróis e lanternas funcionando?", category: "Exterior", options: CONFORME_NAO, critical: true },
   { key: "vidros", label: "Vidros sem trincas/danos?", category: "Exterior", options: SIM_NAO },
   { key: "limpeza_organizacao", label: "Veículo limpo e organizado?", category: "Exterior", options: SIM_NAO },
-  // Pneus (ainda ao redor do veículo)
+  // Pneus + Estepe + Itens de segurança (tudo no mesmo local)
   { key: "pneus", label: "Pneus em condição de saída?", category: "Pneus", options: CONFORME_NAO, critical: true },
   { key: "pneu_estepe", label: "Estepe em boas condições?", category: "Pneus", options: CONFORME_NAO },
+  { key: "itens_seguranca", label: "Triângulo, macaco e chave de roda?", category: "Pneus", options: SIM_NAO, critical: true },
   // Capô — tudo junto: motor + fluidos (abre capô 1x só)
   { key: "motor", label: "Motor funcionando normalmente?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "nivel_oleo", label: "Nível de óleo OK?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Capô", options: NAO_SIM, critical: true },
-  // Interior + Kit (cabine + porta-malas)
-  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Interior e Kit", options: CONFORME_NAO, critical: true },
-  { key: "som", label: "Som/rádio funcionando?", category: "Interior e Kit", options: CONFORME_NAO },
-  { key: "itens_seguranca", label: "Triângulo, macaco e chave de roda?", category: "Interior e Kit", options: SIM_NAO, critical: true },
-  { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Interior e Kit", options: SIM_NAO },
+  // Interior (cabine)
+  { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Interior", options: CONFORME_NAO, critical: true },
+  { key: "som", label: "Som/rádio funcionando?", category: "Interior", options: CONFORME_NAO },
+  { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Interior", options: SIM_NAO },
   // Danos
   { key: "danos_veiculo", label: "Há algum dano/avaria nova no veículo?", category: "Danos", options: NAO_SIM },
 ];
