@@ -6,29 +6,106 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const VALIDATION_PROMPTS: Record<string, string> = {
-  painel: "Esta foto mostra o painel/dashboard de um veículo com o hodômetro (KM) visível e legível? Verifique se o KM pode ser lido claramente. O painel deve ser de um veículo automotivo real.",
-  exterior_frente: "Esta foto mostra a frente completa de um veículo (capô, para-choque dianteiro, faróis)?",
-  exterior_traseira: "Esta foto mostra a traseira completa de um veículo (para-choque traseiro, lanternas, placa)?",
-  exterior_esquerda: "Esta foto mostra a lateral esquerda completa de um veículo?",
-  exterior_direita: "Esta foto mostra a lateral direita completa de um veículo?",
-  nivel_oleo: "Esta foto mostra a vareta de óleo ou indicador de nível de óleo de um motor de veículo?",
-  reservatorio_agua: "Esta foto mostra o reservatório de água/arrefecimento de um veículo?",
-  pneu_de: "Esta foto mostra um pneu de veículo com a banda de rodagem visível?",
-  pneu_dd: "Esta foto mostra um pneu de veículo com a banda de rodagem visível?",
-  pneu_te: "Esta foto mostra um pneu de veículo com a banda de rodagem visível?",
-  pneu_td: "Esta foto mostra um pneu de veículo com a banda de rodagem visível?",
-  calibracao: "Esta foto mostra um calibrador/medidor de pressão de pneus com o valor visível?",
-  estepe: "Esta foto mostra um pneu estepe (pneu reserva) de veículo?",
-  farois_lanternas: "Esta foto mostra faróis ou lanternas de um veículo, preferencialmente acesos?",
-  motor: "Esta foto mostra o compartimento do motor de um veículo com o capô aberto?",
-  itens_seguranca: "Esta foto mostra itens de segurança veicular como triângulo, macaco ou chave de roda?",
-  interior: "Esta foto mostra o interior/cabine de um veículo?",
-  danos: "Esta foto mostra um dano, avaria ou defeito em um veículo? O dano está claramente visível?",
-  avaria: "Esta foto mostra um dano, avaria ou defeito em um veículo? O dano está claramente visível?",
+// Critérios específicos por categoria
+const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean }> = {
+  painel: {
+    label: "Painel do veículo",
+    criterio: "Deve mostrar o painel/dashboard do veículo com o hodômetro (KM) visível e legível. O painel deve ser de um veículo automotivo real.",
+    has_critical: true,
+  },
+  exterior_frente: {
+    label: "Frente do veículo",
+    criterio: "Deve mostrar a frente completa do veículo (capô, para-choque dianteiro, faróis).",
+    has_critical: false,
+  },
+  exterior_traseira: {
+    label: "Traseira do veículo",
+    criterio: "Deve mostrar a traseira completa do veículo (para-choque traseiro, lanternas, placa).",
+    has_critical: false,
+  },
+  exterior_esquerda: {
+    label: "Lateral esquerda do veículo",
+    criterio: "Deve mostrar a lateral esquerda completa do veículo.",
+    has_critical: false,
+  },
+  exterior_direita: {
+    label: "Lateral direita do veículo",
+    criterio: "Deve mostrar a lateral direita completa do veículo.",
+    has_critical: false,
+  },
+  nivel_oleo: {
+    label: "Nível de óleo",
+    criterio: "Deve mostrar a vareta de óleo ou indicador de nível de óleo de um motor de veículo.",
+    has_critical: false,
+  },
+  reservatorio_agua: {
+    label: "Reservatório de água",
+    criterio: "Deve mostrar o reservatório de água/arrefecimento do veículo.",
+    has_critical: false,
+  },
+  pneu_de: {
+    label: "Pneu dianteiro esquerdo",
+    criterio: "Deve mostrar claramente o pneu dianteiro esquerdo com condição visual da banda de rodagem minimamente verificável.",
+    has_critical: false,
+  },
+  pneu_dd: {
+    label: "Pneu dianteiro direito",
+    criterio: "Deve mostrar claramente o pneu dianteiro direito com condição visual da banda de rodagem minimamente verificável.",
+    has_critical: false,
+  },
+  pneu_te: {
+    label: "Pneu traseiro esquerdo",
+    criterio: "Deve mostrar claramente o pneu traseiro esquerdo com condição visual da banda de rodagem minimamente verificável.",
+    has_critical: false,
+  },
+  pneu_td: {
+    label: "Pneu traseiro direito",
+    criterio: "Deve mostrar claramente o pneu traseiro direito com condição visual da banda de rodagem minimamente verificável.",
+    has_critical: false,
+  },
+  calibracao: {
+    label: "Calibrador de pressão",
+    criterio: "Deve mostrar o calibrador/medidor de pressão de pneus com o valor visível e legível.",
+    has_critical: true,
+  },
+  estepe: {
+    label: "Pneu estepe",
+    criterio: "Deve mostrar o pneu estepe (pneu reserva) do veículo de forma identificável.",
+    has_critical: false,
+  },
+  farois_lanternas: {
+    label: "Faróis e lanternas",
+    criterio: "Deve mostrar faróis ou lanternas do veículo, preferencialmente acesos.",
+    has_critical: false,
+  },
+  motor: {
+    label: "Compartimento do motor",
+    criterio: "Deve mostrar o compartimento do motor do veículo com o capô aberto.",
+    has_critical: false,
+  },
+  itens_seguranca: {
+    label: "Itens de segurança",
+    criterio: "Deve mostrar itens de segurança veicular como triângulo, macaco ou chave de roda de forma identificável.",
+    has_critical: false,
+  },
+  interior: {
+    label: "Interior do veículo",
+    criterio: "Deve mostrar o interior/cabine do veículo.",
+    has_critical: false,
+  },
+  danos: {
+    label: "Dano/avaria",
+    criterio: "Deve mostrar claramente o dano, avaria ou defeito no veículo. O dano deve ser visível.",
+    has_critical: true,
+  },
+  avaria: {
+    label: "Dano/avaria",
+    criterio: "Deve mostrar claramente o dano, avaria ou defeito no veículo. O dano deve ser visível.",
+    has_critical: true,
+  },
 };
 
-// Categories where vehicle model verification matters (exterior photos)
+// Categories where vehicle model verification matters
 const VEHICLE_CHECK_CATEGORIES = [
   "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "painel",
 ];
@@ -55,7 +132,6 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      console.error("Auth error:", authError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -63,10 +139,9 @@ Deno.serve(async (req) => {
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY not configured");
       return new Response(JSON.stringify({
-        valid: false,
-        quality: "ruim",
+        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
+        critical_visible: false, quality: "ruim", confidence: 0,
         reason: "Validação IA não configurada. Contate o administrador.",
         ai_error: true,
       }), {
@@ -82,40 +157,69 @@ Deno.serve(async (req) => {
       });
     }
 
-    const contentPrompt = VALIDATION_PROMPTS[category] || "Esta foto é relevante para uma inspeção veicular?";
+    const catConfig = CATEGORY_CRITERIA[category] || {
+      label: category,
+      criterio: "A foto deve ser relevante para uma inspeção veicular.",
+      has_critical: false,
+    };
 
-    // Add vehicle model check for exterior photos
-    const vehicleCheckPrompt = (vehicle_marca || vehicle_modelo) && VEHICLE_CHECK_CATEGORIES.includes(category)
-      ? `\n\nIMPORTANTE - VERIFICAÇÃO DO VEÍCULO:
-O veículo sendo inspecionado é um ${vehicle_marca || ""} ${vehicle_modelo || ""}.
-Para fotos exteriores: Compare formato da carroceria, lanternas, para-choques e design geral. Se a foto mostra CLARAMENTE um veículo de outro modelo/marca, retorne valid=false.
-Para foto do painel: Verifique se o painel/dashboard é compatível com um ${vehicle_marca || ""} ${vehicle_modelo || ""}. Compare design dos instrumentos, formato do painel e estilo. Se for CLARAMENTE de outro veículo (ex: painel digital moderno vs analógico simples, design incompatível), retorne valid=false.
-Se não for possível determinar o modelo com certeza (ângulo parcial, iluminação), aceite a foto normalmente.
-Só reprove se for CLARAMENTE um veículo diferente.`
-      : "";
+    const vehicleInfo = (vehicle_marca || vehicle_modelo)
+      ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
+      : "Não informado";
+
+    const shouldCheckVehicle = VEHICLE_CHECK_CATEGORIES.includes(category);
 
     const systemPrompt = `Você é um sistema de validação de fotos para checklist de inspeção veicular.
-Analise a imagem e responda APENAS com um JSON válido no formato:
+
+Sua função é verificar separadamente:
+1. Se a foto parece ser do veículo correto
+2. Se a foto mostra exatamente o item/área solicitada
+3. Se a imagem tem foco e qualidade suficientes
+4. Se o conteúdo está legível/confirmável quando houver dado crítico
+
+Responda APENAS com um JSON válido, sem texto extra, no formato:
+
 {
-  "valid": true/false,
-  "quality": "boa" | "aceitavel" | "ruim",
-  "reason": "motivo breve em português"
+  "valid": true,
+  "vehicle_match": true,
+  "target_match": true,
+  "focus_ok": true,
+  "critical_visible": true,
+  "quality": "boa",
+  "reason": "motivo breve em português",
+  "confidence": 0.95
 }
 
-Critérios de qualidade:
-- RUIM: foto muito escura, borrada, desfocada, não dá pra ver nada
-- ACEITÁVEL: foto com foco parcial mas ainda dá pra identificar o que foi pedido
-- BOA: foto nítida e clara
+Regras:
 
-Critérios de conteúdo:
-${contentPrompt}${vehicleCheckPrompt}
+- "vehicle_match": ${shouldCheckVehicle
+  ? 'true se a imagem for compatível com o veículo esperado; false se mostrar CLARAMENTE outro veículo de modelo/marca diferente. Se não for possível determinar (ângulo parcial, iluminação), aceite como true. Só reprove se for CLARAMENTE um veículo diferente.'
+  : 'true (não aplicável para esta categoria — não é possível verificar o veículo por este tipo de foto)'}
+- "target_match": true somente se a imagem mostrar exatamente o item, peça ou área solicitada. Se mostrar algo completamente diferente (ex: foto de pessoa quando deveria ser pneu), false.
+- "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Desfoque leve é aceitável se ainda for possível identificar o item.
+- "critical_visible": ${catConfig.has_critical
+  ? 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
+  : 'true (não há dado crítico a ser verificado nesta categoria)'}
+- "quality":
+  - "boa" = imagem nítida, clara, bem enquadrada
+  - "aceitavel" = pequena limitação de ângulo ou iluminação, mas ainda validável
+  - "ruim" = desfocada, escura, tremida, estourada ou insuficiente para validação
+- "valid": true somente se TODAS estas condições forem verdadeiras:
+  - target_match = true
+  - focus_ok = true
+  - quality = "boa" ou "aceitavel"
+  - vehicle_match = true (quando aplicável)
+  - critical_visible = true (quando aplicável)
+- "reason": deve ser curta, objetiva e em português
+- "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
+- Nunca invente detalhes não visíveis na foto
+- Seja tolerante com pequenas limitações de ângulo ou iluminação, desde que ainda seja possível confirmar o que foi solicitado
 
-Se a foto estiver com qualidade ruim OU não mostrar o conteúdo esperado, retorne valid=false.
-Se a foto tiver qualidade aceitável ou boa E mostrar o conteúdo correto, retorne valid=true.
-Seja rigoroso: se a foto claramente não mostra o que foi pedido (ex: foto de pessoa quando deveria ser pneu), retorne valid=false.
-Seja rápido e objetivo.`;
+Veículo esperado: ${vehicleInfo}
+Categoria esperada: ${catConfig.label}
+Critério esperado: ${catConfig.criterio}`;
 
-    console.log(`Validating photo for category: ${category}, vehicle: ${vehicle_marca || "?"} ${vehicle_modelo || "?"}, user: ${user.id}`);
+    console.log(`Validating photo: category=${category}, vehicle=${vehicleInfo}, user=${user.id}`);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -131,11 +235,11 @@ Seja rápido e objetivo.`;
             role: "user",
             content: [
               { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "low" } },
-              { type: "text", text: "Valide esta foto." },
+              { type: "text", text: "Valide esta foto conforme os critérios informados." },
             ],
           },
         ],
-        max_tokens: 150,
+        max_tokens: 250,
         temperature: 0.1,
       }),
     });
@@ -144,8 +248,8 @@ Seja rápido e objetivo.`;
       const errorText = await response.text();
       console.error("OpenAI API error:", response.status, errorText);
       return new Response(JSON.stringify({
-        valid: false,
-        quality: "ruim",
+        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
+        critical_visible: false, quality: "ruim", confidence: 0,
         reason: "Erro na validação IA. Tente novamente.",
         ai_error: true,
       }), {
@@ -160,9 +264,30 @@ Seja rápido e objetivo.`;
     let result;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      result = jsonMatch ? JSON.parse(jsonMatch[0]) : { valid: false, quality: "ruim", reason: "Resposta inválida da IA" };
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Ensure all fields exist with defaults
+        result = {
+          valid: Boolean(parsed.valid),
+          vehicle_match: parsed.vehicle_match !== undefined ? Boolean(parsed.vehicle_match) : true,
+          target_match: parsed.target_match !== undefined ? Boolean(parsed.target_match) : false,
+          focus_ok: parsed.focus_ok !== undefined ? Boolean(parsed.focus_ok) : false,
+          critical_visible: parsed.critical_visible !== undefined ? Boolean(parsed.critical_visible) : !catConfig.has_critical,
+          quality: ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
+          reason: parsed.reason || "Sem motivo informado",
+          confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
+        };
+      } else {
+        result = {
+          valid: false, vehicle_match: false, target_match: false, focus_ok: false,
+          critical_visible: false, quality: "ruim", reason: "Resposta inválida da IA", confidence: 0,
+        };
+      }
     } catch {
-      result = { valid: false, quality: "ruim", reason: "Resposta inválida da IA" };
+      result = {
+        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
+        critical_visible: false, quality: "ruim", reason: "Resposta inválida da IA", confidence: 0,
+      };
     }
 
     return new Response(JSON.stringify(result), {
@@ -171,8 +296,8 @@ Seja rápido e objetivo.`;
   } catch (error: unknown) {
     console.error("Validation error:", error);
     return new Response(JSON.stringify({
-      valid: false,
-      quality: "ruim",
+      valid: false, vehicle_match: false, target_match: false, focus_ok: false,
+      critical_visible: false, quality: "ruim", confidence: 0,
       reason: "Erro na validação. Tente novamente.",
       ai_error: true,
     }), {
