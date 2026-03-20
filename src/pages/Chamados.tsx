@@ -228,7 +228,19 @@ function TicketDetailDialog({
               <div className="grid grid-cols-3 gap-2 mt-1">
                 {ticket.fotos.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img src={url} alt={`Foto ${i + 1}`} className="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity" />
+                    <img
+                      src={url}
+                      alt={`Foto ${i + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = "none";
+                        const placeholder = document.createElement("div");
+                        placeholder.className = "w-full h-24 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 flex items-center justify-center text-xs text-muted-foreground";
+                        placeholder.textContent = "Foto indisponível";
+                        target.parentElement?.appendChild(placeholder);
+                      }}
+                    />
                   </a>
                 ))}
               </div>

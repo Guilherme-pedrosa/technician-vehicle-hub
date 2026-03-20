@@ -561,17 +561,33 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       const date = format(now, "yyyy-MM-dd");
 
-      // Upload photos
+      // Upload photos with retry
+      const uploadWithRetry = async (path: string, file: File, maxRetries = 3): Promise<string> => {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type, upsert: true });
+          if (error) {
+            if (attempt === maxRetries) throw new Error(`Upload falhou após ${maxRetries} tentativas: ${error.message}`);
+            await new Promise(r => setTimeout(r, 1000 * attempt)); // backoff
+            continue;
+          }
+          // Verify the file actually exists
+          const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
+          const verifyRes = await fetch(urlData.publicUrl, { method: "HEAD" });
+          if (verifyRes.ok) return urlData.publicUrl;
+          if (attempt === maxRetries) throw new Error(`Foto enviada mas não confirmada no storage: ${path}`);
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+        throw new Error("Upload falhou");
+      };
+
       const fotosUrls: Record<string, string[]> = {};
       for (const [cat, files] of Object.entries(photos)) {
         fotosUrls[cat] = [];
         for (const file of files) {
           const ext = file.name.split(".").pop() || "jpg";
           const path = `${date}/${vehicleId}/${cat}/${crypto.randomUUID()}.${ext}`;
-          const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type });
-          if (error) throw new Error(`Upload: ${error.message}`);
-          const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
-          fotosUrls[cat].push(urlData.publicUrl);
+          const url = await uploadWithRetry(path, file);
+          fotosUrls[cat].push(url);
         }
       }
 
