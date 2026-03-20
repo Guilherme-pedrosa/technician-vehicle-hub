@@ -652,8 +652,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
               itens_problema: nonConformeFields.map((f) => ({ label: f.label, valor: answers[f.key] })),
               fotos_problema: [
-                ...photoValidationSummary.invalid.map((i) => ({ categoria: PHOTO_META[i.category as PhotoCategory]?.label ?? i.category, motivo: i.reason ?? "Fora do padrão", tipo: "reprovada" })),
-                ...photoValidationSummary.forced.map((f) => ({ categoria: PHOTO_META[f.category as PhotoCategory]?.label ?? f.category, motivo: "Forçada pelo técnico", tipo: "forcada" })),
+                ...photoValidationSummary.invalid.map((i) => ({ categoria: PHOTO_META[i.categoria as PhotoCategory]?.label ?? i.categoria, motivo: i.motivos?.[0] ?? "Fora do padrão", tipo: "reprovada" })),
+                ...photoValidationSummary.forced.map((f) => ({ categoria: PHOTO_META[f.categoria as PhotoCategory]?.label ?? f.categoria, motivo: "Forçada pelo técnico", tipo: "forcada" })),
               ],
               troca_oleo_vencida: trocaOleoVencida,
               observacoes: observacoes || null,
