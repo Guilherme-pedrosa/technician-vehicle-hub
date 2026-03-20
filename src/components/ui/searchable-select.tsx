@@ -24,13 +24,15 @@ interface SearchableSelectProps {
   disabled?: boolean;
 }
 
-export function SearchableSelect(
-  {
+export function SearchableSelect({
     options,
     value,
     onValueChange,
     placeholder = "Selecione...",
     searchPlaceholder = "Buscar...",
+    className,
+    disabled = false,
+  }: SearchableSelectProps) {
     className,
     disabled = false,
   },
