@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      checklist_config: {
+        Row: {
+          config_key: string
+          id: string
+          inspection_fields: Json
+          photo_categories: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          config_key?: string
+          id?: string
+          inspection_fields?: Json
+          photo_categories?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          config_key?: string
+          id?: string
+          inspection_fields?: Json
+          photo_categories?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       driver_performance_records: {
         Row: {
           checklists_completos: number
