@@ -702,7 +702,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
               tecnico: selectedDriver?.full_name ?? "—",
               data: format(now, "dd/MM/yyyy HH:mm"),
               resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
-              itens_problema: nonConformeFields.map((f) => ({ label: f.label, valor: answers[f.key] })),
+              itens_problema: nonConformeFields.map((f) => ({ label: f.label, valor: answers[f.key], observacao: answers[`obs_${f.key}`]?.trim() || null })),
+              avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
               fotos_problema: [
                 ...photoValidationSummary.invalid.map((i) => ({ categoria: PHOTO_META[i.categoria as PhotoCategory]?.label ?? i.categoria, motivo: i.motivos?.[0] ?? "Fora do padrão", tipo: "reprovada" })),
                 ...photoValidationSummary.forced.map((f) => ({ categoria: PHOTO_META[f.categoria as PhotoCategory]?.label ?? f.categoria, motivo: "Forçada pelo técnico", tipo: "forcada" })),

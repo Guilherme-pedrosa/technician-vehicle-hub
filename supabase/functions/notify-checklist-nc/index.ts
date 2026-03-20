@@ -34,6 +34,7 @@ serve(async (req) => {
       fotos_problema,
       troca_oleo_vencida,
       observacoes,
+      avaria_descricao,
     } = body;
 
     // Get all user emails from auth.users via admin API
@@ -54,8 +55,21 @@ serve(async (req) => {
     }
 
     // Build email HTML
+    // Format readable values
+    const formatValor = (v: string) => {
+      const map: Record<string, string> = {
+        "nao_conforme": "NÃO CONFORME", "nao": "NÃO", "sim": "SIM",
+        "ruim": "RUIM", "desgastado": "DESGASTADO", "vazio": "VAZIO",
+        "baixo": "BAIXO", "sujo": "SUJO", "quebrado": "QUEBRADO",
+      };
+      return map[v] || v.toUpperCase();
+    };
+
     const itensHtml = (itens_problema || [])
-      .map((i: any) => `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${i.label}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${i.valor === "nao_conforme" ? "NÃO CONFORME" : i.valor === "nao" ? "NÃO" : i.valor === "sim" ? "SIM (problema)" : i.valor}</td></tr>`)
+      .map((i: any) => {
+        const obs = i.observacao ? `<br><span style="font-weight:400;color:#666;font-size:13px;">↳ ${i.observacao}</span>` : "";
+        return `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${i.label}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${formatValor(i.valor)}${obs}</td></tr>`;
+      })
       .join("");
 
     const fotosHtml = (fotos_problema || [])
@@ -92,6 +106,8 @@ serve(async (req) => {
         <thead><tr><th style="padding:10px;text-align:left;border-bottom:2px solid #fecaca;color:#991b1b;">Item</th><th style="padding:10px;text-align:left;border-bottom:2px solid #fecaca;color:#991b1b;">Status</th></tr></thead>
         <tbody>${itensHtml}${fotosHtml}${oleoHtml}</tbody>
       </table>` : ""}
+
+      ${avaria_descricao ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px;"><strong>🔍 Descrição da Avaria:</strong><br>${avaria_descricao}</div>` : ""}
 
       ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${observacoes}</div>` : ""}
       
