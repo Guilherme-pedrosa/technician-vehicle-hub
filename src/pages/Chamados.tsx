@@ -18,7 +18,12 @@ import {
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle, Package,
   GripVertical, Car, User, CalendarDays, ChevronRight, Eye, Filter,
+  Pencil, Trash2, Save, X,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
