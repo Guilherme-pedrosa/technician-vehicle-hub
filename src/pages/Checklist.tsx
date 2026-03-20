@@ -1168,6 +1168,28 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
             </div>
           )}
 
+          {/* Troca de óleo */}
+          {(cl.troca_oleo || (cl.detalhes as any)?.km_proxima_troca) && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Droplets className="w-3.5 h-3.5" /> Troca de Óleo
+              </h4>
+              <div className="flex items-center justify-between py-1">
+                <span className="text-sm">Status da troca de óleo</span>
+                <span className={`text-xs font-semibold ${cl.troca_oleo === "vencido" ? "text-destructive" : "text-success"}`}>
+                  {cl.troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
+                </span>
+              </div>
+              {(cl.detalhes as any)?.km_proxima_troca && (
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm">KM próxima troca</span>
+                  <span className="text-xs font-semibold tabular-nums">{Number((cl.detalhes as any).km_proxima_troca).toLocaleString("pt-BR")} km</span>
+                </div>
+              )}
+              <Separator />
+            </div>
+          )}
+
           {/* Inspection items */}
           {categories.map((cat) => {
             const fields = CHECKLIST_FIELDS.filter((f) => f.category === cat);
@@ -1180,13 +1202,22 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
                 {fields.map((f) => {
                   const nc = isNonConforme(f.key, cl[f.key]);
                   const opt = f.options.find((o) => o.value === cl[f.key]);
+                  const obsKey = `obs_${f.key}`;
+                  const obsValue = cl[obsKey] ?? (cl.detalhes as any)?.[obsKey];
                   return (
-                    <div key={f.key} className="flex items-center justify-between py-1">
-                      <span className="text-sm flex-1">{f.label}</span>
-                      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                        {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                        {opt?.label ?? cl[f.key] ?? "—"}
-                      </span>
+                    <div key={f.key}>
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-sm flex-1">{f.label}</span>
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                          {nc ? <XCircle className="w-3 h-3" /> : opt?.color === "warning" ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                          {opt?.label ?? cl[f.key] ?? "—"}
+                        </span>
+                      </div>
+                      {nc && obsValue && (
+                        <div className="ml-3 pl-2 border-l-2 border-destructive/30 mb-2">
+                          <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
