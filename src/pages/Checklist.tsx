@@ -265,14 +265,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
+    setKmProximaTroca("");
   };
+
+  // Troca de óleo: auto-detecta NC comparando KM próxima troca vs KM atual
+  const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
+  const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
 
   const nonConformeFields = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
-  const hasCritical = criticalCount > 0;
-  const hasAnyProblem = nonConformeFields.length > 0;
+  const hasCritical = criticalCount > 0 || trocaOleoVencida;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoVencida;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
