@@ -405,19 +405,39 @@ export default function ChecklistDetail() {
         const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fields.includes(f.category));
         if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
+        // Build a map of flagged categories from fotos_forcadas
+        const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
+        const flaggedMap: Record<string, string[]> = {};
+        fotosForcadas.forEach((ff: any) => {
+          flaggedMap[ff.categoria] = ff.motivos ?? ["Foto forçada pelo técnico"];
+        });
+
+        const hasFlaggedPhotos = sectionPhotos.some((cat) => !!flaggedMap[cat]);
+
         const Icon = section.icon;
         return (
-          <Card key={section.id}>
+          <Card key={section.id} className={hasFlaggedPhotos ? "border-destructive/40" : ""}>
             <CardContent className="p-4 sm:p-6 space-y-4">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <Icon className="w-4 h-4 text-primary" /> {section.title}
+                {hasFlaggedPhotos && (
+                  <Badge variant="destructive" className="text-[10px] gap-1 ml-auto">
+                    <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
+                  </Badge>
+                )}
               </h3>
 
               {/* Photos for this section */}
               {sectionPhotos.length > 0 && (
                 <div className="space-y-3">
                   {sectionPhotos.map((cat) => (
-                    <PhotoGallery key={cat} category={cat} urls={fotosData[cat]} />
+                    <PhotoGallery
+                      key={cat}
+                      category={cat}
+                      urls={fotosData[cat]}
+                      isFlagged={!!flaggedMap[cat]}
+                      flagReasons={flaggedMap[cat]}
+                    />
                   ))}
                 </div>
               )}
