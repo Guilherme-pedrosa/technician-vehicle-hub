@@ -18,7 +18,12 @@ import {
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle, Package,
   GripVertical, Car, User, CalendarDays, ChevronRight, Eye, Filter,
+  Pencil, Trash2, Save, X,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -171,58 +176,175 @@ function TicketDetailDialog({
   open,
   onOpenChange,
   onStatusChange,
+  onUpdate,
+  onDelete,
+  vehicles,
+  drivers,
 }: {
   ticket: Ticket | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onStatusChange: (id: string, status: TicketStatus) => void;
+  onUpdate: (id: string, data: any) => void;
+  onDelete: (id: string) => void;
+  vehicles: Tables<"vehicles">[];
+  drivers: Tables<"drivers">[];
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editTitulo, setEditTitulo] = useState("");
+  const [editDescricao, setEditDescricao] = useState("");
+  const [editTipo, setEditTipo] = useState("");
+  const [editPrioridade, setEditPrioridade] = useState("");
+  const [editVehicleId, setEditVehicleId] = useState("");
+  const [editDriverId, setEditDriverId] = useState("");
+
+  useEffect(() => {
+    if (ticket && open) {
+      setEditTitulo(ticket.titulo);
+      setEditDescricao(ticket.descricao || "");
+      setEditTipo(ticket.tipo);
+      setEditPrioridade(ticket.prioridade);
+      setEditVehicleId(ticket.vehicle_id);
+      setEditDriverId(ticket.driver_id || "");
+      setEditing(false);
+    }
+  }, [ticket, open]);
+
   if (!ticket) return null;
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
+
+  const handleSave = () => {
+    onUpdate(ticket.id, {
+      titulo: editTitulo,
+      descricao: editDescricao || null,
+      tipo: editTipo,
+      prioridade: editPrioridade,
+      vehicle_id: editVehicleId,
+      driver_id: editDriverId || null,
+    });
+    setEditing(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg leading-tight pr-6">{ticket.titulo}</DialogTitle>
+          <div className="flex items-start justify-between gap-2 pr-6">
+            <DialogTitle className="text-lg leading-tight flex-1">
+              {editing ? (
+                <Input value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="text-lg font-semibold" />
+              ) : ticket.titulo}
+            </DialogTitle>
+            <div className="flex gap-1 shrink-0">
+              {!editing ? (
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(true)}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              ) : (
+                <>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={handleSave}>
+                    <Save className="w-4 h-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={prio.className}>{prio.label}</Badge>
-            <Badge variant="outline" className={tipo.className}>{tipo.label}</Badge>
-          </div>
+          {!editing ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className={prio.className}>{prio.label}</Badge>
+                <Badge variant="outline" className={tipo.className}>{tipo.label}</Badge>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground">Veículo:</span>
-              <p className="font-medium">{ticket.vehicles ? `${ticket.vehicles.placa} — ${ticket.vehicles.modelo}` : "—"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Técnico:</span>
-              <p className="font-medium">{ticket.drivers?.full_name ?? "—"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Criado em:</span>
-              <p className="font-medium">{format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm")}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Atualizado:</span>
-              <p className="font-medium">{format(new Date(ticket.updated_at), "dd/MM/yyyy HH:mm")}</p>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Veículo:</span>
+                  <p className="font-medium">{ticket.vehicles ? `${ticket.vehicles.placa} — ${ticket.vehicles.modelo}` : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Técnico:</span>
+                  <p className="font-medium">{ticket.drivers?.full_name ?? "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Criado em:</span>
+                  <p className="font-medium">{format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Atualizado:</span>
+                  <p className="font-medium">{format(new Date(ticket.updated_at), "dd/MM/yyyy HH:mm")}</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Veículo</Label>
+                  <SearchableSelect
+                    value={editVehicleId} onValueChange={setEditVehicleId}
+                    placeholder="Selecione o veículo" searchPlaceholder="Buscar placa..."
+                    options={vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.modelo}` }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Técnico/Condutor</Label>
+                  <SearchableSelect
+                    value={editDriverId} onValueChange={setEditDriverId}
+                    placeholder="Selecione (opcional)" searchPlaceholder="Buscar..."
+                    options={drivers.map((d) => ({ value: d.id, label: d.full_name }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Select value={editTipo} onValueChange={setEditTipo}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="corretiva">Corretiva</SelectItem>
+                        <SelectItem value="preventiva">Preventiva</SelectItem>
+                        <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Prioridade</Label>
+                    <Select value={editPrioridade} onValueChange={setEditPrioridade}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="critica">Crítica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           <Separator />
 
-          {ticket.descricao && (
+          {editing ? (
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Textarea value={editDescricao} onChange={(e) => setEditDescricao(e.target.value)} rows={4} />
+            </div>
+          ) : ticket.descricao ? (
             <div>
               <Label className="text-sm font-semibold mb-1">Descrição</Label>
               <pre className="text-sm whitespace-pre-wrap bg-muted/50 rounded-lg p-3 mt-1 font-sans">{ticket.descricao}</pre>
             </div>
-          )}
+          ) : null}
 
-          {ticket.fotos && ticket.fotos.length > 0 && (
+          {!editing && ticket.fotos && ticket.fotos.length > 0 && (
             <div>
               <Label className="text-sm font-semibold mb-2">Fotos</Label>
               <div className="grid grid-cols-3 gap-2 mt-1">
@@ -266,6 +388,33 @@ function TicketDetailDialog({
               ))}
             </div>
           </div>
+
+          <Separator />
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="w-full">
+                <Trash2 className="w-4 h-4 mr-2" /> Apagar Chamado
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. O chamado "{ticket.titulo}" será excluído permanentemente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => { onDelete(ticket.id); onOpenChange(false); }}
+                >
+                  Apagar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </DialogContent>
     </Dialog>
@@ -472,6 +621,32 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
+  // Update ticket fields
+  const updateTicket = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const { error } = await supabase.from("maintenance_tickets").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado atualizado!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
+  // Delete ticket
+  const deleteTicket = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("maintenance_tickets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado excluído!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
   // Filter tickets
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
@@ -638,6 +813,10 @@ export default function Chamados() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onStatusChange={handleStatusChange}
+        onUpdate={(id, data) => updateTicket.mutate({ id, data })}
+        onDelete={(id) => deleteTicket.mutate(id)}
+        vehicles={vehicles}
+        drivers={drivers}
       />
     </div>
   );
