@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -124,6 +124,12 @@ type ValidationSummaryItem = {
   categoria: string;
   label: string;
   motivos: string[];
+};
+
+type PersistedPhotoValidationMetadata = {
+  fotos_forcadas: ValidationSummaryItem[];
+  fotos_invalidas: ValidationSummaryItem[];
+  fotos_erro_validacao: ValidationSummaryItem[];
 };
 
 function isNonConforme(key: string, val: string) {
@@ -259,6 +265,67 @@ function summarizePhotoValidations(photos: PhotosMap, photoValidations: Record<s
     errors,
     hasPending: pending.length > 0,
     hasBadPhotos: invalid.length > 0 || forced.length > 0 || errors.length > 0,
+  };
+}
+
+function hasPersistedPhotoValidationMetadata(detalhes: any) {
+  return Array.isArray(detalhes?.fotos_forcadas)
+    || Array.isArray(detalhes?.fotos_invalidas)
+    || Array.isArray(detalhes?.fotos_erro_validacao);
+}
+
+async function validatePhotoFromUrl(url: string, category: string): Promise<ValidationResult> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Não foi possível baixar a foto para revalidação");
+
+  const blob = await response.blob();
+  const extension = blob.type.split("/")[1] || "jpg";
+  const file = new File([blob], `${category}.${extension}`, { type: blob.type || "image/jpeg" });
+  return validatePhoto(file, category);
+}
+
+async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, string[]>): Promise<PersistedPhotoValidationMetadata> {
+  const invalidMap = new Map<string, ValidationSummaryItem>();
+  const errorMap = new Map<string, ValidationSummaryItem>();
+
+  const ensureItem = (map: Map<string, ValidationSummaryItem>, category: string) => {
+    if (!map.has(category)) {
+      map.set(category, {
+        categoria: category,
+        label: PHOTO_META[category as PhotoCategory]?.label ?? category,
+        motivos: [],
+      });
+    }
+
+    return map.get(category)!;
+  };
+
+  for (const [category, urls] of Object.entries(fotos)) {
+    for (const url of urls ?? []) {
+      try {
+        const result = await validatePhotoFromUrl(url, category);
+        if (result.valid) continue;
+
+        if (result.ai_error) {
+          const item = ensureItem(errorMap, category);
+          if (!item.motivos.includes(result.reason)) item.motivos.push(result.reason);
+          continue;
+        }
+
+        const item = ensureItem(invalidMap, category);
+        if (!item.motivos.includes(result.reason)) item.motivos.push(result.reason);
+      } catch (error) {
+        console.error("Legacy photo validation error:", error);
+        const item = ensureItem(errorMap, category);
+        if (!item.motivos.includes("Falha na revalidação automática")) item.motivos.push("Falha na revalidação automática");
+      }
+    }
+  }
+
+  return {
+    fotos_forcadas: [],
+    fotos_invalidas: Array.from(invalidMap.values()),
+    fotos_erro_validacao: Array.from(errorMap.values()),
   };
 }
 
@@ -1466,7 +1533,10 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 export default function Checklist() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
+  const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -1508,6 +1578,43 @@ export default function Checklist() {
     checklists.filter((cl: any) =>
       CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
     ).length, [checklists]);
+
+  useEffect(() => {
+    const legacyChecklists = checklists.filter((cl: any) => {
+      const fotos = cl.fotos as Record<string, string[]> | null;
+      return fotos
+        && Object.keys(fotos).length > 0
+        && !hasPersistedPhotoValidationMetadata(cl.detalhes)
+        && !repairingChecklistIdsRef.current.has(cl.id);
+    });
+
+    if (legacyChecklists.length === 0) return;
+
+    void Promise.all(legacyChecklists.map(async (cl: any) => {
+      repairingChecklistIdsRef.current.add(cl.id);
+
+      const metadata = await buildPersistedValidationMetadataFromUrls((cl.fotos as Record<string, string[]>) ?? {});
+      setRevalidatedChecklistMetadata((prev) => ({ ...prev, [cl.id]: metadata }));
+
+      try {
+        const { error } = await supabase
+          .from("vehicle_checklists")
+          .update({
+            detalhes: {
+              ...((cl.detalhes as Record<string, unknown> | null) ?? {}),
+              ...metadata,
+            },
+          } as any)
+          .eq("id", cl.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error("Checklist validation backfill error:", error);
+      }
+    })).finally(() => {
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists", filterDate] });
+    });
+  }, [checklists, filterDate, queryClient]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1585,7 +1692,7 @@ export default function Checklist() {
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                  const det = cl.detalhes as any;
+                  const det = { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
                   const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
                   const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
@@ -1652,7 +1759,7 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                      const det = cl.detalhes as any;
+                      const det = { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
                       const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
                       const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
                       const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
