@@ -215,17 +215,17 @@ export default function Relatorios() {
             {/* Driver filter */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Condutor</label>
-              <Select value={driverFilter} onValueChange={setDriverFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os condutores</SelectItem>
-                  {drivers.filter(d => d.status === "ativo").map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={driverFilter}
+                onValueChange={setDriverFilter}
+                placeholder="Todos"
+                searchPlaceholder="Buscar condutor..."
+                className="w-[200px]"
+                options={[
+                  { value: "todos", label: "Todos os condutores" },
+                  ...drivers.filter(d => d.status === "ativo").map(d => ({ value: d.id, label: d.full_name })),
+                ]}
+              />
             </div>
           </div>
         </CardContent>
