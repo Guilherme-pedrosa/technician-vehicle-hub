@@ -356,6 +356,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     return d;
   });
   const [photos, setPhotos] = useState<PhotosMap>({});
+  const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
   const [uploading, setUploading] = useState(false);
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
@@ -371,6 +372,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   }, []);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+  }, []);
+  const handleValidationUpdate = useCallback((cat: PhotoCategory, idx: number, validation: PhotoValidation) => {
+    setPhotoValidations((prev) => {
+      const arr = [...(prev[cat] ?? [])];
+      arr[idx] = validation;
+      return { ...prev, [cat]: arr };
+    });
   }, []);
 
   const resetForm = () => {
