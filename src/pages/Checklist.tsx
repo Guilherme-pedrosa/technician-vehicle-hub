@@ -1346,8 +1346,9 @@ export default function Checklist() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {fotoCount > 0 && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                              <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-warning font-semibold" : "text-muted-foreground"}`}>
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
+                                {hasForcedPhotos && <AlertCircle className="w-3 h-3" />}
                               </span>
                             )}
                             {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
