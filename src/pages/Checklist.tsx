@@ -877,7 +877,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
               value={answers["obs_danos_veiculo"] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
-            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} />
           </div>
         )}
       </div>
