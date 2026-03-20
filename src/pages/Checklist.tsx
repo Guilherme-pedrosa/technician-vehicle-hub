@@ -482,7 +482,8 @@ export default function Checklist() {
         {user && (
           <ChecklistFormDialog
             vehicles={vehicles}
-            drivers={drivers}
+            drivers={rotaExataDrivers}
+            localDrivers={localDrivers}
             userId={user.id}
           />
         )}
