@@ -493,7 +493,7 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
 // ═══════════════════════════════════════════
 
 function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
-  vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
+  vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string }[];
   userId: string;
 }) {
