@@ -169,10 +169,10 @@ export default function Relatorios() {
             {/* Period preset */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Período</label>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {(["hoje", "semana", "mes", "personalizado"] as const).map(p => (
-                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)}>
-                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Personalizado"}
+                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)} className="flex-1 sm:flex-none">
+                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Custom"}
                   </Button>
                 ))}
               </div>
