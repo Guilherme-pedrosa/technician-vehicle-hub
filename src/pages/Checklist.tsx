@@ -1638,7 +1638,7 @@ export default function Checklist() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("id, placa, modelo, km_atual").order("placa");
+      const { data, error } = await supabase.from("vehicles").select("id, placa, marca, modelo, km_atual").order("placa");
       if (error) throw error;
       return data;
     },
