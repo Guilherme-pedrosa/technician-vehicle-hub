@@ -1491,7 +1491,7 @@ export default function Checklist() {
                   return (
                     <button
                       key={cl.id}
-                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}
+                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos ? "bg-destructive/5" : ""}`}
                       onClick={() => navigate(`/checklist/${cl.id}`)}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -1501,9 +1501,9 @@ export default function Checklist() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {fotoCount > 0 && (
-                            <span className={`text-xs flex items-center gap-0.5 ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                            <span className={`text-xs flex items-center gap-0.5 ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
                               <ImageIcon className="w-3 h-3" /> {fotoCount}
-                              {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                              {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
                             </span>
                           )}
                           {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
@@ -1515,7 +1515,7 @@ export default function Checklist() {
                         </div>
                       </div>
 
-                      {hasForcedPhotos && (
+                      {hasBadPhotos && (
                         <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
                           <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
                             <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
@@ -1556,11 +1556,11 @@ export default function Checklist() {
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${hasForcedPhotos ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${hasBadPhotos ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"}</p>
-                              {hasForcedPhotos && (
+                              {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
                                 </div>
@@ -1570,11 +1570,11 @@ export default function Checklist() {
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
                             <div className="inline-flex flex-col items-center gap-1">
-                              <span className={`inline-flex items-center gap-1 text-xs ${hasForcedPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                              <span className={`inline-flex items-center gap-1 text-xs ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
-                                {hasForcedPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                                {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
                               </span>
-                              {hasForcedPhotos && (
+                              {hasBadPhotos && (
                                 <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
                                   {forcedPhotos.map((item) => item.label).join(", ")}
                                 </span>
