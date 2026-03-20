@@ -263,16 +263,16 @@ export default function Relatorios() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
-              <TableRow>
-                <TableHead>Placa</TableHead>
-                <TableHead>Veículo</TableHead>
-                <TableHead>Condutor</TableHead>
-                <TableHead>KM Período</TableHead>
-                <TableHead>KM Atual</TableHead>
-                <TableHead>Telemetria</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium">Placa</th>
+                <th className="text-left p-3 font-medium hidden md:table-cell">Veículo</th>
+                <th className="text-left p-3 font-medium">Condutor</th>
+                <th className="text-right p-3 font-medium">KM Período</th>
+                <th className="text-right p-3 font-medium hidden md:table-cell">KM Atual</th>
+                <th className="text-center p-3 font-medium hidden lg:table-cell">Telemetria</th>
+              </tr>
+            </thead>
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
