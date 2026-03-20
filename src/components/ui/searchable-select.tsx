@@ -24,7 +24,7 @@ interface SearchableSelectProps {
   disabled?: boolean;
 }
 
-export const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
+export function SearchableSelect(
   {
     options,
     value,
