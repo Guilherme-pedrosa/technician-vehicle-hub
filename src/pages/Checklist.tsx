@@ -1309,6 +1309,33 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
               </div>
             </>
           )}
+
+          {/* Photos gallery — after inspection items */}
+          {allPhotoEntries.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5" /> Fotos ({allPhotoEntries.reduce((s, [_, urls]) => s + (urls as any[]).length, 0)})
+                </h4>
+                {allPhotoEntries.map(([key, urls]: [string, any]) => (
+                  <div key={key} className="space-y-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      {PHOTO_META[key as PhotoCategory]?.label ?? key.replace(/_/g, " ")}
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                          className="w-16 h-16 rounded-lg overflow-hidden border border-border block hover:ring-2 hover:ring-primary transition-all">
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
     </DialogContent>
