@@ -13,7 +13,6 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -67,6 +66,8 @@ serve(async (req) => {
       ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;">🛢️ Troca de Óleo</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">VENCIDA</td></tr>`
       : "";
 
+    const subject = `⚠️ NC Checklist — ${placa} — ${data}`;
+
     const html = `
 <!DOCTYPE html>
 <html>
@@ -108,38 +109,85 @@ serve(async (req) => {
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       console.log(`[NOTIFY-NC] RESEND_API_KEY not configured. Skipping email for checklist ${checklist_id}`);
+      // Log as failed
+      for (const email of emails) {
+        await supabase.from("email_send_log").insert({
+          checklist_id,
+          recipient_email: email,
+          subject,
+          status: "failed",
+          error_message: "RESEND_API_KEY não configurada",
+          metadata: { placa, modelo, tecnico, resultado },
+        });
+      }
       return new Response(JSON.stringify({ success: true, message: "No email service configured" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Send via Resend
-    const sendPromises = emails.map((email: string) =>
-      fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "Tech Fleet Check <alertas@wedocorp.com>",
-          to: [email],
-          subject: `⚠️ NC Checklist — ${placa} — ${data}`,
-          html,
-        }),
-      }).then(async (r) => {
-        const body = await r.json();
-        if (!r.ok) throw new Error(`Resend error [${r.status}]: ${JSON.stringify(body)}`);
-        return body;
-      })
-    );
-    const results = await Promise.allSettled(sendPromises);
-    const sent = results.filter((r) => r.status === "fulfilled").length;
-    const failed = results.filter((r) => r.status === "rejected").length;
-    console.log(`[NOTIFY-NC] Emails sent: ${sent}, failed: ${failed}`);
+    // Send via Resend with logging
+    const results = [];
+    for (const email of emails) {
+      try {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Tech Fleet Check <alertas@wedocorp.com>",
+            to: [email],
+            subject,
+            html,
+          }),
+        });
+
+        const resBody = await res.json();
+
+        if (!res.ok) {
+          console.error(`[NOTIFY-NC] Failed to send to ${email}:`, resBody);
+          await supabase.from("email_send_log").insert({
+            checklist_id,
+            recipient_email: email,
+            subject,
+            status: "failed",
+            error_message: JSON.stringify(resBody),
+            metadata: { placa, modelo, tecnico, resultado },
+          });
+          results.push({ email, status: "failed", error: resBody });
+        } else {
+          console.log(`[NOTIFY-NC] Sent to ${email}:`, resBody);
+          await supabase.from("email_send_log").insert({
+            checklist_id,
+            recipient_email: email,
+            subject,
+            status: "sent",
+            resend_id: resBody.id || null,
+            metadata: { placa, modelo, tecnico, resultado },
+          });
+          results.push({ email, status: "sent", resend_id: resBody.id });
+        }
+      } catch (err) {
+        console.error(`[NOTIFY-NC] Error sending to ${email}:`, err);
+        await supabase.from("email_send_log").insert({
+          checklist_id,
+          recipient_email: email,
+          subject,
+          status: "failed",
+          error_message: err.message,
+          metadata: { placa, modelo, tecnico, resultado },
+        });
+        results.push({ email, status: "failed", error: err.message });
+      }
+    }
+
+    const sent = results.filter((r) => r.status === "sent").length;
+    const failed = results.filter((r) => r.status === "failed").length;
+    console.log(`[NOTIFY-NC] Total: ${results.length}, Sent: ${sent}, Failed: ${failed}`);
 
     return new Response(
-      JSON.stringify({ success: true, emails_sent: emails.length }),
+      JSON.stringify({ success: true, emails_sent: sent, emails_failed: failed, details: results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
