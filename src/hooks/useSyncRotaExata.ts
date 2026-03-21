@@ -25,11 +25,8 @@ async function fetchRotaExata(path: string, extraParams?: Record<string, string>
 }
 
 // ========== SYNC VEHICLES ==========
-async function syncVehicles() {
-  const rawItems = await fetchRotaExata("/ultima-posicao/todos");
-  if (!Array.isArray(rawItems)) return { created: 0, updated: 0 };
-
-  const vehiclesToSync = rawItems
+function parseVehiclesFromPositions(rawItems: any[]) {
+  return rawItems
     .filter((item: any) => item.posicao?.adesao)
     .map((item: any) => {
       const adesao = item.posicao.adesao;
@@ -46,7 +43,9 @@ async function syncVehicles() {
       };
     })
     .filter((v: any) => v.placa && v.adesao_id);
+}
 
+async function syncVehiclesFromData(vehiclesToSync: ReturnType<typeof parseVehiclesFromPositions>) {
   if (vehiclesToSync.length === 0) return { created: 0, updated: 0 };
 
   const { data: existing } = await supabase.from("vehicles").select("id, adesao_id, placa");
@@ -97,52 +96,26 @@ async function fetchAllRotaExataUsers(): Promise<RotaExataUser[]> {
     return added;
   };
 
+  // Try big batch first
   const directBatch = await fetchRotaExata("/usuarios", { quantidade: "1000" });
   addUsers(directBatch);
 
-  const paginationStrategies = [
-    { pageKey: "pagina", sizeKey: "quantidade" },
-    { pageKey: "page", sizeKey: "quantidade" },
-    { pageKey: "pagina", sizeKey: "limit" },
-    { pageKey: "page", sizeKey: "limit" },
-    { pageKey: "pagina", sizeKey: "per_page" },
-    { pageKey: "page", sizeKey: "per_page" },
-  ] as const;
-
-  for (const strategy of paginationStrategies) {
-    const page1 = await fetchRotaExata("/usuarios", {
-      [strategy.pageKey]: "1",
-      [strategy.sizeKey]: "100",
-    });
-    const page2 = await fetchRotaExata("/usuarios", {
-      [strategy.pageKey]: "2",
-      [strategy.sizeKey]: "100",
-    });
-
-    if (!Array.isArray(page1) || page1.length === 0) continue;
-    if (!Array.isArray(page2) || page2.length === 0) continue;
-
-    const page1Signature = page1.map(getUserUniqueKey).join("|");
-    const page2Signature = page2.map(getUserUniqueKey).join("|");
-
-    if (page1Signature === page2Signature) continue;
-
-    addUsers(page1);
-    addUsers(page2);
-
-    for (let page = 3; page <= 50; page++) {
-      const currentPage = await fetchRotaExata("/usuarios", {
-        [strategy.pageKey]: String(page),
-        [strategy.sizeKey]: "100",
-      });
-
-      if (!Array.isArray(currentPage) || currentPage.length === 0) break;
-
-      const added = addUsers(currentPage);
-      if (added === 0) break;
+  // Only try pagination if we got exactly 10 (default limit) — means API is paginating
+  if (Array.isArray(directBatch) && directBatch.length === 10) {
+    const strategy = { pageKey: "pagina", sizeKey: "quantidade" };
+    for (let page = 1; page <= 20; page++) {
+      try {
+        const pageData = await fetchRotaExata("/usuarios", {
+          [strategy.pageKey]: String(page),
+          [strategy.sizeKey]: "100",
+        });
+        if (!Array.isArray(pageData) || pageData.length === 0) break;
+        const added = addUsers(pageData);
+        if (added === 0) break;
+      } catch {
+        break;
+      }
     }
-
-    break;
   }
 
   return Array.from(collected.values());
@@ -191,13 +164,9 @@ async function syncDrivers() {
   return { created, updated };
 }
 
-// ========== SYNC DRIVER-VEHICLE ASSIGNMENTS ==========
-async function syncAssignments() {
-  const rawItems = await fetchRotaExata("/ultima-posicao/todos");
-  if (!Array.isArray(rawItems)) return { created: 0 };
-
-  // Get current vehicles and drivers for cross-referencing
-  const { data: vehicles } = await supabase.from("vehicles").select("id, adesao_id");
+// ========== SYNC ASSIGNMENTS + KM (reuses positions data) ==========
+async function syncAssignmentsAndKm(rawItems: any[]) {
+  const { data: vehicles } = await supabase.from("vehicles").select("id, adesao_id, km_atual");
   const { data: drivers } = await supabase.from("drivers").select("id, full_name");
   const { data: existingAssignments } = await supabase
     .from("driver_vehicle_assignments")
@@ -207,48 +176,12 @@ async function syncAssignments() {
   const vehicleByAdesao = new Map((vehicles ?? []).filter(v => v.adesao_id).map(v => [v.adesao_id!, v]));
   const activeAssignmentByVehicle = new Map((existingAssignments ?? []).map(a => [a.vehicle_id, a]));
 
-  let created = 0;
-  for (const item of rawItems) {
-    const pos = (item as any).posicao;
-    if (!pos?.motorista_id || !pos?.adesao_id) continue;
+  const session = await supabase.auth.getSession();
+  const userId = session.data.session?.user?.id;
 
-    const vehicle = vehicleByAdesao.get(String(pos.adesao_id));
-    if (!vehicle) continue;
+  let assignmentsCreated = 0;
+  let kmUpdated = 0;
 
-    // Already has active assignment?
-    if (activeAssignmentByVehicle.has(vehicle.id)) continue;
-
-    // Try to find driver by motorista info
-    const motoristaName = pos.motorista_nome ?? pos.motorista_key ?? null;
-    if (!motoristaName || !drivers?.length) continue;
-
-    const driver = drivers.find(d => d.full_name.toLowerCase().includes(motoristaName.toLowerCase()));
-    if (!driver) continue;
-
-    const session = await supabase.auth.getSession();
-    const userId = session.data.session?.user?.id;
-    if (!userId) continue;
-
-    const { error } = await supabase.from("driver_vehicle_assignments").insert({
-      driver_id: driver.id,
-      vehicle_id: vehicle.id,
-      km_inicio: pos.odometro_original ? Math.round(pos.odometro_original / 1000) : 0,
-      created_by: userId,
-    });
-    if (!error) created++;
-  }
-  return { created };
-}
-
-// ========== SYNC KM FROM POSITIONS ==========
-async function syncKmFromPositions() {
-  const rawItems = await fetchRotaExata("/ultima-posicao/todos");
-  if (!Array.isArray(rawItems)) return 0;
-
-  const { data: vehicles } = await supabase.from("vehicles").select("id, adesao_id, km_atual");
-  const vehicleByAdesao = new Map((vehicles ?? []).filter(v => v.adesao_id).map(v => [v.adesao_id!, v]));
-
-  let updated = 0;
   for (const item of rawItems) {
     const pos = (item as any).posicao;
     if (!pos?.adesao_id) continue;
@@ -256,13 +189,33 @@ async function syncKmFromPositions() {
     const vehicle = vehicleByAdesao.get(String(pos.adesao_id));
     if (!vehicle) continue;
 
+    // Update KM
     const newKm = Math.round(Number(pos.odometro_original ?? pos.odometro_gps ?? 0) / 1000);
     if (newKm > vehicle.km_atual) {
       await supabase.from("vehicles").update({ km_atual: newKm }).eq("id", vehicle.id);
-      updated++;
+      kmUpdated++;
     }
+
+    // Create assignment if needed
+    if (!pos.motorista_id || !userId || !drivers?.length) continue;
+    if (activeAssignmentByVehicle.has(vehicle.id)) continue;
+
+    const motoristaName = pos.motorista_nome ?? pos.motorista_key ?? null;
+    if (!motoristaName) continue;
+
+    const driver = drivers.find(d => d.full_name.toLowerCase().includes(motoristaName.toLowerCase()));
+    if (!driver) continue;
+
+    const { error } = await supabase.from("driver_vehicle_assignments").insert({
+      driver_id: driver.id,
+      vehicle_id: vehicle.id,
+      km_inicio: newKm,
+      created_by: userId,
+    });
+    if (!error) assignmentsCreated++;
   }
-  return updated;
+
+  return { assignmentsCreated, kmUpdated };
 }
 
 // ========== HOOKS ==========
@@ -270,7 +223,11 @@ async function syncKmFromPositions() {
 export function useSyncVehiclesFromRotaExata() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: syncVehicles,
+    mutationFn: async () => {
+      const rawItems = await fetchRotaExata("/ultima-posicao/todos");
+      if (!Array.isArray(rawItems)) return { created: 0, updated: 0 };
+      return syncVehiclesFromData(parseVehiclesFromPositions(rawItems));
+    },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       toast.success(`Veículos: ${r.created} criados, ${r.updated} atualizados`);
@@ -295,11 +252,22 @@ export function useSyncAllFromRotaExata() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const vehicleResult = await syncVehicles();
-      const driverResult = await syncDrivers();
-      const assignmentResult = await syncAssignments();
-      const kmUpdated = await syncKmFromPositions();
-      return { vehicleResult, driverResult, assignmentResult, kmUpdated };
+      // Fetch positions ONCE and reuse for vehicles, assignments, and KM
+      const rawItems = await fetchRotaExata("/ultima-posicao/todos");
+      const positionsArray = Array.isArray(rawItems) ? rawItems : [];
+
+      // Run vehicles + drivers in parallel (independent data)
+      const [vehicleResult, driverResult] = await Promise.all([
+        syncVehiclesFromData(parseVehiclesFromPositions(positionsArray)),
+        syncDrivers(),
+      ]);
+
+      // Assignments + KM depend on vehicles being synced first
+      const { assignmentsCreated, kmUpdated } = positionsArray.length > 0
+        ? await syncAssignmentsAndKm(positionsArray)
+        : { assignmentsCreated: 0, kmUpdated: 0 };
+
+      return { vehicleResult, driverResult, assignmentsCreated, kmUpdated };
     },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
@@ -310,7 +278,7 @@ export function useSyncAllFromRotaExata() {
       if (r.vehicleResult.updated > 0) msgs.push(`${r.vehicleResult.updated} veículos atualizados`);
       if (r.driverResult.created > 0) msgs.push(`${r.driverResult.created} condutores criados`);
       if (r.driverResult.updated > 0) msgs.push(`${r.driverResult.updated} condutores atualizados`);
-      if (r.assignmentResult.created > 0) msgs.push(`${r.assignmentResult.created} vínculos criados`);
+      if (r.assignmentsCreated > 0) msgs.push(`${r.assignmentsCreated} vínculos criados`);
       if (r.kmUpdated > 0) msgs.push(`${r.kmUpdated} KMs atualizados`);
       toast.success(msgs.length > 0 ? `Sincronização: ${msgs.join(", ")}` : "Tudo já está sincronizado!");
     },
