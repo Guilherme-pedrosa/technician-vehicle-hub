@@ -17,6 +17,7 @@ import Relatorios from "./pages/Relatorios";
 import Perfil from "./pages/Perfil";
 import Configuracoes from "./pages/Configuracoes";
 import EmailLogs from "./pages/EmailLogs";
+import ManutencaoPreventiva from "./pages/ManutencaoPreventiva";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/checklist" element={<Checklist />} />
               <Route path="/checklist/:id" element={<ChecklistDetail />} />
               <Route path="/chamados" element={<Chamados />} />
+              <Route path="/manutencao-preventiva" element={<ManutencaoPreventiva />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/emails" element={<EmailLogs />} />

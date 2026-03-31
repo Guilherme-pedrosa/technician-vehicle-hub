@@ -223,6 +223,118 @@ export type Database = {
         }
         Relationships: []
       }
+      maintenance_executions: {
+        Row: {
+          cost: number | null
+          created_at: string | null
+          executed_at: string | null
+          executed_by: string | null
+          id: string
+          km_at_execution: number
+          maintenance_plan_id: string
+          next_date_due: string | null
+          next_km_due: number | null
+          notes: string | null
+          ticket_id: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          cost?: number | null
+          created_at?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          km_at_execution: number
+          maintenance_plan_id: string
+          next_date_due?: string | null
+          next_km_due?: number | null
+          notes?: string | null
+          ticket_id?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          cost?: number | null
+          created_at?: string | null
+          executed_at?: string | null
+          executed_by?: string | null
+          id?: string
+          km_at_execution?: number
+          maintenance_plan_id?: string
+          next_date_due?: string | null
+          next_km_due?: number | null
+          notes?: string | null
+          ticket_id?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_executions_maintenance_plan_id_fkey"
+            columns: ["maintenance_plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_executions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_executions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_plans: {
+        Row: {
+          active: boolean | null
+          alert_threshold_pct: number | null
+          applies_to_all: boolean | null
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          item_type: string
+          km_interval: number | null
+          name: string
+          time_interval_days: number
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          alert_threshold_pct?: number | null
+          applies_to_all?: boolean | null
+          category: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          item_type: string
+          km_interval?: number | null
+          name: string
+          time_interval_days: number
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          alert_threshold_pct?: number | null
+          applies_to_all?: boolean | null
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          item_type?: string
+          km_interval?: number | null
+          name?: string
+          time_interval_days?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       maintenance_tickets: {
         Row: {
           assigned_to: string | null
@@ -506,6 +618,48 @@ export type Database = {
           },
           {
             foreignKeyName: "vehicle_checklists_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_maintenance_overrides: {
+        Row: {
+          active: boolean | null
+          custom_km_interval: number | null
+          custom_time_interval_days: number | null
+          id: string
+          maintenance_plan_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          active?: boolean | null
+          custom_km_interval?: number | null
+          custom_time_interval_days?: number | null
+          id?: string
+          maintenance_plan_id: string
+          vehicle_id: string
+        }
+        Update: {
+          active?: boolean | null
+          custom_km_interval?: number | null
+          custom_time_interval_days?: number | null
+          id?: string
+          maintenance_plan_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_maintenance_overrides_maintenance_plan_id_fkey"
+            columns: ["maintenance_plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_maintenance_overrides_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"

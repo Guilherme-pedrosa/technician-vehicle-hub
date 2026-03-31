@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull,
 } from "lucide-react";
 import { isPast, format, startOfDay, startOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,6 +18,7 @@ import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
 import { useNavigate } from "react-router-dom";
+import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
 
 type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
 
@@ -117,6 +118,31 @@ export default function Dashboard() {
   const vehiclesMaintenance = telemetryVehicles.filter((v) => v.status === "manutencao").length;
   const openTickets = tickets.length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
+
+  // Preventive maintenance
+  const { data: mPlans = [] } = useMaintenancePlans();
+  const { data: mExecs = [] } = useMaintenanceExecutions();
+  const { data: allVehicles = [] } = useQuery({
+    queryKey: ["vehicles-dash-prev"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicles").select("id, placa, km_atual");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const prevSummary = useMemo(() => {
+    const counts = { yellow: 0, red: 0, black: 0 };
+    for (const v of allVehicles) {
+      const statuses = computeVehiclePlanStatuses(mPlans, mExecs, v.id, v.km_atual);
+      for (const s of statuses) {
+        if (s.alert === "yellow") counts.yellow++;
+        if (s.alert === "red") counts.red++;
+        if (s.alert === "black") counts.black++;
+      }
+    }
+    return counts;
+  }, [mPlans, mExecs, allVehicles]);
 
   const periodLabel = useMemo(() => {
     if (preset === "hoje") return "KM Hoje";
@@ -379,6 +405,51 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* === PREVENTIVA === */}
+      {(prevSummary.yellow + prevSummary.red + prevSummary.black) > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" /> Preventivas Vencendo
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => navigate("/manutencao-preventiva")}>
+              Ver tudo <ChevronRight className="w-3 h-3" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="flex items-center gap-6">
+              {prevSummary.yellow > 0 && (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-warning" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.yellow}</p>
+                    <p className="text-xs text-muted-foreground">Pré-alerta</p>
+                  </div>
+                </div>
+              )}
+              {prevSummary.red > 0 && (
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-destructive" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.red}</p>
+                    <p className="text-xs text-muted-foreground">Vencidos</p>
+                  </div>
+                </div>
+              )}
+              {prevSummary.black > 0 && (
+                <div className="flex items-center gap-2">
+                  <Skull className="w-5 h-5 text-foreground" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.black}</p>
+                    <p className="text-xs text-muted-foreground">Críticos</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* === TELEMETRIA POR VEÍCULO === */}
       <Card>
