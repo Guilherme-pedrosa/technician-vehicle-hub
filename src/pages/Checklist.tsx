@@ -570,8 +570,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const handleCapture = useCallback((cat: PhotoCategory, files: FileList) => {
-    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...Array.from(files)] }));
+  const handleCapture = useCallback(async (cat: PhotoCategory, files: FileList) => {
+    const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f)));
+    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...compressed] }));
   }, []);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
