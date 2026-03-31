@@ -176,11 +176,15 @@ export default function ManutencaoPreventiva() {
     const allVehicles = selectedVehicle === "all" ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
     for (const vehicle of allVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+      statuses = statuses.filter((s) => {
+        const ov = overrides.find((o) => o.vehicle_id === vehicle.id && o.maintenance_plan_id === s.plan.id);
+        return !ov || ov.active !== false;
+      });
       if (selectedCategory !== "all") statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       for (const s of statuses) counts[s.alert]++;
     }
     return counts;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory]);
+  }, [plans, executions, vehicles, overrides, selectedVehicle, selectedCategory]);
 
   // ── Selection helpers ──
   const toggleItem = (vehicleId: string, planId: string) => {
