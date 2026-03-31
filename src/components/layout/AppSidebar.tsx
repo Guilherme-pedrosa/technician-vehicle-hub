@@ -59,6 +59,7 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
       { title: "Veículos", icon: Truck, href: "/veiculos" },
       { title: "Checklist", icon: ClipboardCheck, href: "/checklist" },
       { title: "Chamados", icon: Wrench, href: "/chamados" },
+      { title: "Preventiva", icon: Shield, href: "/manutencao-preventiva" },
     ],
     defaultOpen: true,
   },
