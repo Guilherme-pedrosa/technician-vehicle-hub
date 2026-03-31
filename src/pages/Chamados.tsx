@@ -263,6 +263,51 @@ function TicketDetailDialog({
                 <Badge variant="outline" className={tipo.className}>{tipo.label}</Badge>
               </div>
 
+              {/* Ações rápidas - sempre visíveis no topo */}
+              <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                <Label className="text-sm font-semibold">Ações</Label>
+                <div className="flex flex-wrap gap-2">
+                  {COLUMNS.map((col) => (
+                    <Button
+                      key={col.id}
+                      size="sm"
+                      variant={ticket.status === col.id ? "default" : "outline"}
+                      onClick={() => { onStatusChange(ticket.id, col.id); onOpenChange(false); }}
+                      className="text-xs"
+                    >
+                      {col.icon}
+                      <span className="ml-1">{col.label}</span>
+                    </Button>
+                  ))}
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="w-full mt-1">
+                      <Trash2 className="w-4 h-4 mr-2" /> Apagar Chamado
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. O chamado "{ticket.titulo}" será excluído permanentemente.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => { onDelete(ticket.id); onOpenChange(false); }}
+                      >
+                        Apagar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
+              <Separator />
+
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Veículo:</span>
@@ -281,6 +326,44 @@ function TicketDetailDialog({
                   <p className="font-medium">{format(new Date(ticket.updated_at), "dd/MM/yyyy HH:mm")}</p>
                 </div>
               </div>
+
+              {ticket.descricao && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-semibold mb-1">Descrição</Label>
+                    <pre className="text-sm whitespace-pre-wrap bg-muted/50 rounded-lg p-3 mt-1 font-sans">{ticket.descricao}</pre>
+                  </div>
+                </>
+              )}
+
+              {ticket.fotos && ticket.fotos.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-semibold mb-2">Fotos</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {ticket.fotos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={url}
+                            alt={`Foto ${i + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = "none";
+                              const placeholder = document.createElement("div");
+                              placeholder.className = "w-full h-24 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 flex items-center justify-center text-xs text-muted-foreground";
+                              placeholder.textContent = "Foto indisponível";
+                              target.parentElement?.appendChild(placeholder);
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -327,94 +410,15 @@ function TicketDetailDialog({
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea value={editDescricao} onChange={(e) => setEditDescricao(e.target.value)} rows={4} />
+              </div>
             </>
           )}
-
-          <Separator />
-
-          {editing ? (
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Textarea value={editDescricao} onChange={(e) => setEditDescricao(e.target.value)} rows={4} />
-            </div>
-          ) : ticket.descricao ? (
-            <div>
-              <Label className="text-sm font-semibold mb-1">Descrição</Label>
-              <pre className="text-sm whitespace-pre-wrap bg-muted/50 rounded-lg p-3 mt-1 font-sans">{ticket.descricao}</pre>
-            </div>
-          ) : null}
-
-          {!editing && ticket.fotos && ticket.fotos.length > 0 && (
-            <div>
-              <Label className="text-sm font-semibold mb-2">Fotos</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {ticket.fotos.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img
-                      src={url}
-                      alt={`Foto ${i + 1}`}
-                      className="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = "none";
-                        const placeholder = document.createElement("div");
-                        placeholder.className = "w-full h-24 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 flex items-center justify-center text-xs text-muted-foreground";
-                        placeholder.textContent = "Foto indisponível";
-                        target.parentElement?.appendChild(placeholder);
-                      }}
-                    />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Separator />
-
-          <div>
-            <Label className="text-sm font-semibold mb-2">Alterar Status</Label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {COLUMNS.map((col) => (
-                <Button
-                  key={col.id}
-                  size="sm"
-                  variant={ticket.status === col.id ? "default" : "outline"}
-                  onClick={() => { onStatusChange(ticket.id, col.id); onOpenChange(false); }}
-                  className="text-xs"
-                >
-                  {col.icon}
-                  <span className="ml-1">{col.label}</span>
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="w-full">
-                <Trash2 className="w-4 h-4 mr-2" /> Apagar Chamado
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação não pode ser desfeita. O chamado "{ticket.titulo}" será excluído permanentemente.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => { onDelete(ticket.id); onOpenChange(false); }}
-                >
-                  Apagar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </DialogContent>
     </Dialog>
