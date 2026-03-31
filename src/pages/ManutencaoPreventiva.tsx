@@ -65,6 +65,12 @@ const ALERT_FILTER_OPTIONS = [
   { value: "ok", label: "✅ Em dia" },
 ];
 
+const EXECUTOR_FILTER_OPTIONS = [
+  { value: "all", label: "Todos os executores" },
+  { value: "tecnico", label: "Técnico" },
+  { value: "oficina", label: "Oficina" },
+];
+
 interface Vehicle {
   id: string;
   placa: string;
@@ -87,6 +93,7 @@ export default function ManutencaoPreventiva() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
+  const [selectedExecutor, setSelectedExecutor] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
 
   // ── Data queries ──
