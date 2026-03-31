@@ -1,0 +1,1 @@
+ALTER TABLE maintenance_plans ADD COLUMN executor_type text NOT NULL DEFAULT 'oficina';

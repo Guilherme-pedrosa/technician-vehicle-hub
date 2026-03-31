@@ -298,6 +298,7 @@ export type Database = {
           category: string
           created_at: string | null
           description: string | null
+          executor_type: string
           id: string
           item_type: string
           km_interval: number | null
@@ -312,6 +313,7 @@ export type Database = {
           category: string
           created_at?: string | null
           description?: string | null
+          executor_type?: string
           id?: string
           item_type: string
           km_interval?: number | null
@@ -326,6 +328,7 @@ export type Database = {
           category?: string
           created_at?: string | null
           description?: string | null
+          executor_type?: string
           id?: string
           item_type?: string
           km_interval?: number | null
