@@ -292,18 +292,133 @@ function TicketDetailDialog({
                       <AlertDialogDescription>
                         Esta ação não pode ser desfeita. O chamado "{ticket.titulo}" será excluído permanentemente.
                       </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => { onDelete(ticket.id); onOpenChange(false); }}
-                >
-                  Apagar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => { onDelete(ticket.id); onOpenChange(false); }}
+                      >
+                        Apagar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Veículo:</span>
+                  <p className="font-medium">{ticket.vehicles ? `${ticket.vehicles.placa} — ${ticket.vehicles.modelo}` : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Técnico:</span>
+                  <p className="font-medium">{ticket.drivers?.full_name ?? "—"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Criado em:</span>
+                  <p className="font-medium">{format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Atualizado:</span>
+                  <p className="font-medium">{format(new Date(ticket.updated_at), "dd/MM/yyyy HH:mm")}</p>
+                </div>
+              </div>
+
+              {ticket.descricao && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-semibold mb-1">Descrição</Label>
+                    <pre className="text-sm whitespace-pre-wrap bg-muted/50 rounded-lg p-3 mt-1 font-sans">{ticket.descricao}</pre>
+                  </div>
+                </>
+              )}
+
+              {ticket.fotos && ticket.fotos.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-semibold mb-2">Fotos</Label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {ticket.fotos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={url}
+                            alt={`Foto ${i + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition-opacity"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = "none";
+                              const placeholder = document.createElement("div");
+                              placeholder.className = "w-full h-24 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/50 flex items-center justify-center text-xs text-muted-foreground";
+                              placeholder.textContent = "Foto indisponível";
+                              target.parentElement?.appendChild(placeholder);
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Veículo</Label>
+                  <SearchableSelect
+                    value={editVehicleId} onValueChange={setEditVehicleId}
+                    placeholder="Selecione o veículo" searchPlaceholder="Buscar placa..."
+                    options={vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.modelo}` }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Técnico/Condutor</Label>
+                  <SearchableSelect
+                    value={editDriverId} onValueChange={setEditDriverId}
+                    placeholder="Selecione (opcional)" searchPlaceholder="Buscar..."
+                    options={drivers.map((d) => ({ value: d.id, label: d.full_name }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Select value={editTipo} onValueChange={setEditTipo}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="corretiva">Corretiva</SelectItem>
+                        <SelectItem value="preventiva">Preventiva</SelectItem>
+                        <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Prioridade</Label>
+                    <Select value={editPrioridade} onValueChange={setEditPrioridade}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="critica">Crítica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea value={editDescricao} onChange={(e) => setEditDescricao(e.target.value)} rows={4} />
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
