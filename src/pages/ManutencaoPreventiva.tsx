@@ -140,7 +140,9 @@ export default function ManutencaoPreventiva() {
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
-      // Alert filter
+      if (selectedExecutor !== "all") {
+        statuses = statuses.filter((s) => ((s.plan as any).executor_type ?? "oficina") === selectedExecutor);
+      }
       if (selectedAlert === "atrasados") {
         statuses = statuses.filter((s) => s.alert !== "ok");
       } else if (selectedAlert !== "all") {
@@ -149,7 +151,7 @@ export default function ManutencaoPreventiva() {
       if (statuses.length > 0) result.push({ vehicle, statuses });
     }
     return result;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert]);
+  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
 
   // Summary counts (unfiltered by alert)
   const summary = useMemo(() => {
