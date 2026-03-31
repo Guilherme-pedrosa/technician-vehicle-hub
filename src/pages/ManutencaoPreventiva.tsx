@@ -112,6 +112,17 @@ export default function ManutencaoPreventiva() {
   const { data: plans = [], isLoading: loadingPlans } = useMaintenancePlans();
   const { data: executions = [], isLoading: loadingExecs } = useMaintenanceExecutions();
 
+  const { data: overrides = [] } = useQuery({
+    queryKey: ["maintenance-overrides"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_maintenance_overrides")
+        .select("vehicle_id, maintenance_plan_id, active, custom_km_interval, custom_time_interval_days");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: openTickets = [] } = useQuery({
     queryKey: ["open-preventiva-tickets"],
     queryFn: async () => {
@@ -137,6 +148,11 @@ export default function ManutencaoPreventiva() {
 
     for (const vehicle of filteredVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+      // Filter out plans disabled via overrides
+      statuses = statuses.filter((s) => {
+        const ov = overrides.find((o) => o.vehicle_id === vehicle.id && o.maintenance_plan_id === s.plan.id);
+        return !ov || ov.active !== false;
+      });
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
@@ -151,7 +167,7 @@ export default function ManutencaoPreventiva() {
       if (statuses.length > 0) result.push({ vehicle, statuses });
     }
     return result;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
+  }, [plans, executions, vehicles, overrides, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
 
   // Summary counts (unfiltered by alert)
   const summary = useMemo(() => {
@@ -160,11 +176,15 @@ export default function ManutencaoPreventiva() {
     const allVehicles = selectedVehicle === "all" ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
     for (const vehicle of allVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+      statuses = statuses.filter((s) => {
+        const ov = overrides.find((o) => o.vehicle_id === vehicle.id && o.maintenance_plan_id === s.plan.id);
+        return !ov || ov.active !== false;
+      });
       if (selectedCategory !== "all") statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       for (const s of statuses) counts[s.alert]++;
     }
     return counts;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory]);
+  }, [plans, executions, vehicles, overrides, selectedVehicle, selectedCategory]);
 
   // ── Selection helpers ──
   const toggleItem = (vehicleId: string, planId: string) => {
