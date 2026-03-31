@@ -17,13 +17,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Skull, Loader2, Wrench,
-  Filter, User, Building2, FileText,
+  Filter, User, Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { BatchTicketBar } from "@/components/manutencao/BatchTicketBar";
 import { generatePreventivaPdf } from "@/components/manutencao/PreventivaPdfExport";
+
+// ═══════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════
 
 const CATEGORY_LABELS: Record<string, string> = {
   faixa_m: "🔵 Faixa M — Mensal",
@@ -33,16 +37,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_SHORT: Record<string, string> = {
-  faixa_m: "M",
-  faixa_a: "A",
-  faixa_b: "B",
-  faixa_c: "C",
+  faixa_m: "M", faixa_a: "A", faixa_b: "B", faixa_c: "C",
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  troca: "Troca",
-  servico: "Serviço",
-  inspecao: "Inspeção",
+  troca: "Troca", servico: "Serviço", inspecao: "Inspeção",
 };
 
 const EXECUTOR_BADGE: Record<string, { icon: typeof User; label: string; className: string }> = {
@@ -57,6 +56,15 @@ const ALERT_CONFIG: Record<AlertLevel, { icon: typeof CheckCircle; color: string
   black: { icon: Skull, color: "text-foreground", label: "Crítico" },
 };
 
+const ALERT_FILTER_OPTIONS = [
+  { value: "all", label: "Todos os status" },
+  { value: "atrasados", label: "⚠️ Todos atrasados (amarelo + vermelho + crítico)" },
+  { value: "yellow", label: "🟡 Pré-alerta" },
+  { value: "red", label: "🔴 Vencido" },
+  { value: "black", label: "💀 Crítico" },
+  { value: "ok", label: "✅ Em dia" },
+];
+
 interface Vehicle {
   id: string;
   placa: string;
@@ -66,7 +74,11 @@ interface Vehicle {
   status: string;
 }
 
-type SelectionKey = `${string}::${string}`; // vehicleId::planId
+type SelectionKey = `${string}::${string}`;
+
+// ═══════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════
 
 export default function ManutencaoPreventiva() {
   const { user } = useAuth();
@@ -77,6 +89,7 @@ export default function ManutencaoPreventiva() {
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
 
+  // ── Data queries ──
   const { data: vehicles = [], isLoading: loadingVehicles } = useQuery<Vehicle[]>({
     queryKey: ["vehicles-preventiva"],
     queryFn: async () => {
@@ -108,56 +121,57 @@ export default function ManutencaoPreventiva() {
 
   const isLoading = loadingVehicles || loadingPlans || loadingExecs;
 
+  // ── Computed statuses ──
   const allStatuses = useMemo(() => {
     if (!plans.length || !vehicles.length) return [];
     const result: { vehicle: Vehicle; statuses: VehiclePlanStatus[] }[] = [];
     const filteredVehicles = selectedVehicle === "all"
-      ? vehicles
-      : vehicles.filter((v) => v.id === selectedVehicle);
+      ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
 
     for (const vehicle of filteredVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
-      if (selectedAlert !== "all") {
+      // Alert filter
+      if (selectedAlert === "atrasados") {
+        statuses = statuses.filter((s) => s.alert !== "ok");
+      } else if (selectedAlert !== "all") {
         statuses = statuses.filter((s) => s.alert === selectedAlert);
       }
-      if (statuses.length > 0) {
-        result.push({ vehicle, statuses });
-      }
+      if (statuses.length > 0) result.push({ vehicle, statuses });
     }
     return result;
   }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert]);
 
+  // Summary counts (unfiltered by alert)
   const summary = useMemo(() => {
     const counts = { ok: 0, yellow: 0, red: 0, black: 0 };
-    // Count from ALL vehicles (unfiltered by alert)
-    if (plans.length && vehicles.length) {
-      const allVehicles = selectedVehicle === "all" ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
-      for (const vehicle of allVehicles) {
-        let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
-        if (selectedCategory !== "all") {
-          statuses = statuses.filter((s) => s.plan.category === selectedCategory);
-        }
-        for (const s of statuses) counts[s.alert]++;
-      }
+    if (!plans.length || !vehicles.length) return counts;
+    const allVehicles = selectedVehicle === "all" ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
+    for (const vehicle of allVehicles) {
+      let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+      if (selectedCategory !== "all") statuses = statuses.filter((s) => s.plan.category === selectedCategory);
+      for (const s of statuses) counts[s.alert]++;
     }
     return counts;
   }, [plans, executions, vehicles, selectedVehicle, selectedCategory]);
 
-  // Toggle selection
+  // ── Selection helpers ──
   const toggleItem = (vehicleId: string, planId: string) => {
     const key: SelectionKey = `${vehicleId}::${planId}`;
     setSelectedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   };
 
-  // Select all visible non-ok items
-  const selectAllOverdue = () => {
+  const hasOpenTicket = (vehicleId: string, planId: string) =>
+    openTickets.some((t) => t.vehicle_id === vehicleId && t.maintenance_plan_id === planId);
+
+  // Select all visible non-ok items without open tickets
+  const selectAllVisible = () => {
     const keys: SelectionKey[] = [];
     for (const { vehicle, statuses } of allStatuses) {
       for (const s of statuses) {
@@ -171,13 +185,21 @@ export default function ManutencaoPreventiva() {
 
   const clearSelection = () => setSelectedItems(new Set());
 
-  const hasOpenTicket = (vehicleId: string, planId: string) => {
-    return openTickets.some(
-      (t) => t.vehicle_id === vehicleId && t.maintenance_plan_id === planId
-    );
-  };
+  // Are all visible selectable items selected?
+  const allVisibleSelected = useMemo(() => {
+    let count = 0;
+    for (const { vehicle, statuses } of allStatuses) {
+      for (const s of statuses) {
+        if (s.alert !== "ok" && !hasOpenTicket(vehicle.id, s.plan.id)) {
+          count++;
+          if (!selectedItems.has(`${vehicle.id}::${s.plan.id}`)) return false;
+        }
+      }
+    }
+    return count > 0;
+  }, [allStatuses, selectedItems, openTickets]);
 
-  // Build selected items data for batch creation
+  // ── Build selected data for batch ──
   const getSelectedItemsData = () => {
     const grouped = new Map<string, { vehicle: Vehicle; items: VehiclePlanStatus[] }>();
     for (const key of selectedItems) {
@@ -186,15 +208,13 @@ export default function ManutencaoPreventiva() {
       if (!vehicleGroup) continue;
       const status = vehicleGroup.statuses.find((s) => s.plan.id === planId);
       if (!status) continue;
-      if (!grouped.has(vehicleId)) {
-        grouped.set(vehicleId, { vehicle: vehicleGroup.vehicle, items: [] });
-      }
+      if (!grouped.has(vehicleId)) grouped.set(vehicleId, { vehicle: vehicleGroup.vehicle, items: [] });
       grouped.get(vehicleId)!.items.push(status);
     }
     return grouped;
   };
 
-  // Create batch ticket mutation
+  // ── Mutations ──
   const createBatchTicketMutation = useMutation({
     mutationFn: async () => {
       const grouped = getSelectedItemsData();
@@ -205,9 +225,7 @@ export default function ManutencaoPreventiva() {
           const order: AlertLevel[] = ["ok", "yellow", "red", "black"];
           return order.indexOf(s.alert) > order.indexOf(worst) ? s.alert : worst;
         }, "ok");
-
         const prioridade = worstAlert === "black" ? "critica" : worstAlert === "red" ? "alta" : "media";
-        const itemNames = items.map((i) => i.plan.name).join(", ");
         const descricao = items.map((i) =>
           `• ${i.plan.name} (${Math.round(i.pctMax)}% consumido) — ${(i.plan as any).executor_type === "tecnico" ? "Técnico" : "Oficina"}`
         ).join("\n");
@@ -219,27 +237,17 @@ export default function ManutencaoPreventiva() {
           tipo: "preventiva",
           prioridade,
           created_by: user?.id,
-          maintenance_plan_id: items[0].plan.id, // link to first plan
+          maintenance_plan_id: items[0].plan.id,
         } as any);
         if (error) throw error;
-
-        createdTickets.push({
-          vehiclePlaca: vehicle.placa,
-          vehicleModelo: vehicle.modelo,
-          vehicleKm: vehicle.km_atual,
-          items,
-          createdAt: new Date().toISOString(),
-        });
+        createdTickets.push({ vehiclePlaca: vehicle.placa, vehicleModelo: vehicle.modelo, vehicleKm: vehicle.km_atual, items, createdAt: new Date().toISOString() });
       }
-
       return createdTickets;
     },
     onSuccess: (createdTickets) => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
       clearSelection();
-
-      // Auto-generate PDFs
       for (const ticket of createdTickets) {
         generatePreventivaPdf({
           titulo: `Preventiva — ${ticket.vehiclePlaca}`,
@@ -249,17 +257,12 @@ export default function ManutencaoPreventiva() {
           vehicleKm: ticket.vehicleKm,
           createdAt: ticket.createdAt,
           items: ticket.items.map((i) => ({
-            name: i.plan.name,
-            category: i.plan.category,
-            itemType: i.plan.item_type,
+            name: i.plan.name, category: i.plan.category, itemType: i.plan.item_type,
             executorType: (i.plan as any).executor_type ?? "oficina",
-            pctMax: i.pctMax,
-            kmSince: i.kmSince,
-            daysSince: i.daysSince,
+            pctMax: i.pctMax, kmSince: i.kmSince, daysSince: i.daysSince,
           })),
         });
       }
-
       toast.success(`${createdTickets.length} chamado(s) criado(s) e PDF(s) gerado(s)!`, {
         action: { label: "Ver Chamados", onClick: () => navigate("/chamados") },
       });
@@ -267,49 +270,37 @@ export default function ManutencaoPreventiva() {
     onError: (err: any) => toast.error(err.message || "Erro ao criar chamados"),
   });
 
-  // Single ticket creation
   const createTicketMutation = useMutation({
     mutationFn: async (data: { vehicleId: string; planId: string; planName: string; vehiclePlaca: string; vehicleModelo: string; alert: AlertLevel; pctMax: number; executorType: string }) => {
       const prioridade = data.alert === "black" ? "critica" : data.alert === "red" ? "alta" : "media";
       const descricao = `Manutenção preventiva: ${data.planName}\nVeículo: ${data.vehiclePlaca} — ${data.vehicleModelo}\nUrgência: ${Math.round(data.pctMax)}% do intervalo consumido\nExecutor: ${data.executorType === "tecnico" ? "Técnico (autogestão)" : "Oficina mecânica"}`;
-
       const { error } = await supabase.from("maintenance_tickets").insert({
         titulo: `[Preventiva] ${data.planName} — ${data.vehiclePlaca}`,
-        descricao,
-        vehicle_id: data.vehicleId,
-        tipo: "preventiva",
-        prioridade,
-        created_by: user?.id,
-        maintenance_plan_id: data.planId,
+        descricao, vehicle_id: data.vehicleId, tipo: "preventiva", prioridade,
+        created_by: user?.id, maintenance_plan_id: data.planId,
       } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
-      toast.success("Chamado criado!", {
-        action: { label: "Ver Chamados", onClick: () => navigate("/chamados") },
-      });
+      toast.success("Chamado criado!", { action: { label: "Ver Chamados", onClick: () => navigate("/chamados") } });
     },
     onError: (err: any) => toast.error(err.message || "Erro ao criar chamado"),
   });
 
+  // ═══════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary" />
-            Manutenção Preventiva
-          </h1>
-          <p className="text-sm text-muted-foreground">Controle de planos e execuções por veículo</p>
-        </div>
-        {allStatuses.some(({ statuses }) => statuses.some((s) => s.alert !== "ok")) && (
-          <Button variant="outline" size="sm" onClick={selectAllOverdue} className="text-xs">
-            <CheckCircle className="w-3.5 h-3.5 mr-1" />
-            Selecionar todos atrasados
-          </Button>
-        )}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Shield className="w-6 h-6 text-primary" />
+          Manutenção Preventiva
+        </h1>
+        <p className="text-sm text-muted-foreground">Controle de planos e execuções por veículo</p>
       </div>
 
       {/* Summary cards */}
@@ -336,7 +327,7 @@ export default function ManutencaoPreventiva() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-3 sm:p-4 flex flex-wrap gap-3">
+        <CardContent className="p-3 sm:p-4 flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">Filtros:</span>
@@ -348,9 +339,7 @@ export default function ManutencaoPreventiva() {
             <SelectContent>
               <SelectItem value="all">Todos os veículos</SelectItem>
               {vehicles.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.placa} — {v.modelo}
-                </SelectItem>
+                <SelectItem key={v.id} value={v.id}>{v.placa} — {v.modelo}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -362,6 +351,16 @@ export default function ManutencaoPreventiva() {
               <SelectItem value="all">Todas as faixas</SelectItem>
               {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedAlert} onValueChange={(v) => { setSelectedAlert(v); clearSelection(); }}>
+            <SelectTrigger className="w-64 h-9">
+              <SelectValue placeholder="Todos os status" />
+            </SelectTrigger>
+            <SelectContent>
+              {ALERT_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -401,55 +400,42 @@ export default function ManutencaoPreventiva() {
                   const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
                   const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
                   const isSelected = selectedItems.has(`${vehicle.id}::${s.plan.id}`);
+                  const canSelect = s.alert !== "ok" && !ticketExists;
                   return (
                     <div key={s.plan.id} className={`px-4 py-3 ${isSelected ? "bg-primary/5" : ""}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {s.alert !== "ok" && !ticketExists && (
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => toggleItem(vehicle.id, s.plan.id)}
-                            />
-                          )}
+                          <Checkbox
+                            checked={isSelected}
+                            disabled={!canSelect}
+                            onCheckedChange={() => canSelect && toggleItem(vehicle.id, s.plan.id)}
+                            className={!canSelect ? "opacity-30" : ""}
+                          />
                           <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
-                          <span className="text-sm font-medium truncate max-w-[160px]">{s.plan.name}</span>
+                          <span className="text-sm font-medium truncate max-w-[140px]">{s.plan.name}</span>
                         </div>
                         <div className="flex gap-1">
-                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${executor.className}`}>
-                            {executor.label}
-                          </Badge>
-                          <Badge variant="outline" className="text-[10px]">
-                            {CATEGORY_SHORT[s.plan.category]}
-                          </Badge>
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${executor.className}`}>{executor.label}</Badge>
+                          <Badge variant="outline" className="text-[10px]">{CATEGORY_SHORT[s.plan.category]}</Badge>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center justify-between mt-1 ml-8">
                         <span className="text-xs text-muted-foreground">
                           {Math.round(s.pctMax)}% · {s.daysSince}d
                           {s.plan.km_interval ? ` · ${s.kmSince.toLocaleString("pt-BR")}km` : ""}
                         </span>
                         {ticketExists ? (
-                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                            Chamado aberto
-                          </Badge>
-                        ) : (s.alert !== "ok") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs"
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">Chamado aberto</Badge>
+                        ) : s.alert !== "ok" && (
+                          <Button size="sm" variant="ghost" className="h-6 text-xs"
                             disabled={createTicketMutation.isPending}
                             onClick={() => createTicketMutation.mutate({
-                              vehicleId: vehicle.id,
-                              planId: s.plan.id,
-                              planName: s.plan.name,
-                              vehiclePlaca: vehicle.placa,
-                              vehicleModelo: vehicle.modelo,
-                              alert: s.alert,
-                              pctMax: s.pctMax,
-                              executorType: (s.plan as any).executor_type ?? "oficina",
+                              vehicleId: vehicle.id, planId: s.plan.id, planName: s.plan.name,
+                              vehiclePlaca: vehicle.placa, vehicleModelo: vehicle.modelo,
+                              alert: s.alert, pctMax: s.pctMax, executorType: (s.plan as any).executor_type ?? "oficina",
                             })}
                           >
-                            <Wrench className="w-3 h-3 mr-1" /> Abrir Chamado
+                            <Wrench className="w-3 h-3 mr-1" /> Abrir
                           </Button>
                         )}
                       </div>
@@ -462,7 +448,12 @@ export default function ManutencaoPreventiva() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allVisibleSelected}
+                          onCheckedChange={(checked) => checked ? selectAllVisible() : clearSelection()}
+                        />
+                      </TableHead>
                       <TableHead className="w-10">Status</TableHead>
                       <TableHead>Item</TableHead>
                       <TableHead>Faixa</TableHead>
@@ -481,32 +472,28 @@ export default function ManutencaoPreventiva() {
                       const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
                       const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
                       const isSelected = selectedItems.has(`${vehicle.id}::${s.plan.id}`);
+                      const canSelect = s.alert !== "ok" && !ticketExists;
                       return (
                         <TableRow key={s.plan.id} className={isSelected ? "bg-primary/5" : ""}>
                           <TableCell>
-                            {s.alert !== "ok" && !ticketExists ? (
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleItem(vehicle.id, s.plan.id)}
-                              />
-                            ) : null}
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
+                              onCheckedChange={() => canSelect && toggleItem(vehicle.id, s.plan.id)}
+                              className={!canSelect ? "opacity-30" : ""}
+                            />
                           </TableCell>
-                          <TableCell>
-                            <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
-                          </TableCell>
+                          <TableCell><cfg.icon className={`w-4 h-4 ${cfg.color}`} /></TableCell>
                           <TableCell className="font-medium text-sm">{s.plan.name}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {CATEGORY_SHORT[s.plan.category]}
-                            </Badge>
+                            <Badge variant="outline" className="text-xs">{CATEGORY_SHORT[s.plan.category]}</Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {TYPE_LABELS[s.plan.item_type] ?? s.plan.item_type}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-[10px] ${executor.className}`}>
-                              <executor.icon className="w-3 h-3 mr-1" />
-                              {executor.label}
+                              <executor.icon className="w-3 h-3 mr-1" />{executor.label}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
@@ -523,24 +510,14 @@ export default function ManutencaoPreventiva() {
                           </TableCell>
                           <TableCell>
                             {ticketExists ? (
-                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                                Chamado aberto
-                              </Badge>
-                            ) : (s.alert !== "ok") && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">Chamado aberto</Badge>
+                            ) : s.alert !== "ok" && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs"
                                 disabled={createTicketMutation.isPending}
                                 onClick={() => createTicketMutation.mutate({
-                                  vehicleId: vehicle.id,
-                                  planId: s.plan.id,
-                                  planName: s.plan.name,
-                                  vehiclePlaca: vehicle.placa,
-                                  vehicleModelo: vehicle.modelo,
-                                  alert: s.alert,
-                                  pctMax: s.pctMax,
-                                  executorType: (s.plan as any).executor_type ?? "oficina",
+                                  vehicleId: vehicle.id, planId: s.plan.id, planName: s.plan.name,
+                                  vehiclePlaca: vehicle.placa, vehicleModelo: vehicle.modelo,
+                                  alert: s.alert, pctMax: s.pctMax, executorType: (s.plan as any).executor_type ?? "oficina",
                                 })}
                               >
                                 <Wrench className="w-3 h-3 mr-1" /> Abrir Chamado
@@ -558,7 +535,7 @@ export default function ManutencaoPreventiva() {
         ))
       )}
 
-      {/* Floating batch action bar */}
+      {/* Floating batch bar */}
       <BatchTicketBar
         count={selectedItems.size}
         onCreateTicket={() => createBatchTicketMutation.mutate()}
