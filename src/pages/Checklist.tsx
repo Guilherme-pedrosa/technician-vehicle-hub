@@ -168,6 +168,37 @@ type PhotoValidation = {
   result?: ValidationResult;
 };
 
+async function compressImage(file: File, maxDim = 1280, quality = 0.75): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Falha ao comprimir imagem"));
+          resolve(new File([blob], file.name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Falha ao carregar imagem")); };
+    img.src = url;
+  });
+}
+
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -415,7 +446,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
-                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
                   {v?.status === "validating" && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -539,8 +570,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const handleCapture = useCallback((cat: PhotoCategory, files: FileList) => {
-    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...Array.from(files)] }));
+  const handleCapture = useCallback(async (cat: PhotoCategory, files: FileList) => {
+    const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f)));
+    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...compressed] }));
   }, []);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
@@ -1152,7 +1184,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       value={answers[`obs_${field.key}`] ?? ""} rows={2}
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                      onCapture={(_, files) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...Array.from(files)] }))}
+                      onCapture={async (_, files) => { const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f))); setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] })); }}
                       onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
                   </div>
                 )}
