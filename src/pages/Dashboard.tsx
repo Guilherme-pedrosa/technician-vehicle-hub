@@ -18,6 +18,7 @@ import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
 import { useNavigate } from "react-router-dom";
+import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
 
 type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
 
