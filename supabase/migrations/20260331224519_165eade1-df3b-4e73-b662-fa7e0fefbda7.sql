@@ -1,0 +1,1 @@
+ALTER TABLE maintenance_tickets ADD COLUMN maintenance_plan_id uuid REFERENCES maintenance_plans(id) ON DELETE SET NULL;

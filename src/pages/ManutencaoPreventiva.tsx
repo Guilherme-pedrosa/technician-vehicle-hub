@@ -13,16 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Shield,
   AlertTriangle,
@@ -30,11 +21,14 @@ import {
   XCircle,
   Skull,
   Loader2,
-  Plus,
+  Wrench,
   Filter,
+  User,
+  Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const CATEGORY_LABELS: Record<string, string> = {
   faixa_m: "🔵 Faixa M — Mensal",
@@ -56,6 +50,11 @@ const TYPE_LABELS: Record<string, string> = {
   inspecao: "Inspeção",
 };
 
+const EXECUTOR_BADGE: Record<string, { icon: typeof User; label: string; className: string }> = {
+  tecnico: { icon: User, label: "Técnico", className: "bg-blue-100 text-blue-800 border-blue-200" },
+  oficina: { icon: Building2, label: "Oficina", className: "bg-orange-100 text-orange-800 border-orange-200" },
+};
+
 const ALERT_CONFIG: Record<AlertLevel, { icon: typeof CheckCircle; color: string; label: string }> = {
   ok: { icon: CheckCircle, color: "text-success", label: "Em dia" },
   yellow: { icon: AlertTriangle, color: "text-warning", label: "Pré-alerta" },
@@ -75,13 +74,10 @@ interface Vehicle {
 export default function ManutencaoPreventiva() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
-  const [execDialog, setExecDialog] = useState<{ open: boolean; vehicleId: string; planId: string; vehicleKm: number } | null>(null);
-  const [execKm, setExecKm] = useState("");
-  const [execNotes, setExecNotes] = useState("");
-  const [execCost, setExecCost] = useState("");
 
   const { data: vehicles = [], isLoading: loadingVehicles } = useQuery<Vehicle[]>({
     queryKey: ["vehicles-preventiva"],
@@ -98,9 +94,23 @@ export default function ManutencaoPreventiva() {
   const { data: plans = [], isLoading: loadingPlans } = useMaintenancePlans();
   const { data: executions = [], isLoading: loadingExecs } = useMaintenanceExecutions();
 
+  // Check for existing open preventiva tickets to avoid duplicates
+  const { data: openTickets = [] } = useQuery({
+    queryKey: ["open-preventiva-tickets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("maintenance_tickets")
+        .select("id, vehicle_id, maintenance_plan_id")
+        .eq("tipo", "preventiva")
+        .in("status", ["aberto", "em_andamento", "aguardando_peca"])
+        .not("maintenance_plan_id", "is", null);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const isLoading = loadingVehicles || loadingPlans || loadingExecs;
 
-  // Compute statuses for all vehicles
   const allStatuses = useMemo(() => {
     if (!plans.length || !vehicles.length) return [];
 
@@ -128,7 +138,6 @@ export default function ManutencaoPreventiva() {
     return result;
   }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert]);
 
-  // Summary counts
   const summary = useMemo(() => {
     const counts = { ok: 0, yellow: 0, red: 0, black: 0 };
     for (const { statuses } of allStatuses) {
@@ -139,50 +148,37 @@ export default function ManutencaoPreventiva() {
     return counts;
   }, [allStatuses]);
 
-  // Register execution mutation
-  const registerMutation = useMutation({
-    mutationFn: async (data: { vehicleId: string; planId: string; km: number; notes: string; cost: number | null }) => {
-      const plan = plans.find((p) => p.id === data.planId);
-      const nextKm = plan?.km_interval ? data.km + plan.km_interval : null;
-      const nextDate = plan ? new Date(Date.now() + plan.time_interval_days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null;
+  // Create ticket mutation
+  const createTicketMutation = useMutation({
+    mutationFn: async (data: { vehicleId: string; planId: string; planName: string; vehiclePlaca: string; vehicleModelo: string; alert: AlertLevel; pctMax: number; executorType: string }) => {
+      const prioridade = data.alert === "black" ? "critica" : data.alert === "red" ? "alta" : "media";
+      const descricao = `Manutenção preventiva: ${data.planName}\nVeículo: ${data.vehiclePlaca} — ${data.vehicleModelo}\nUrgência: ${Math.round(data.pctMax)}% do intervalo consumido\nExecutor: ${data.executorType === "tecnico" ? "Técnico (autogestão)" : "Oficina mecânica"}`;
 
-      const { error } = await supabase.from("maintenance_executions").insert({
+      const { error } = await supabase.from("maintenance_tickets").insert({
+        titulo: `[Preventiva] ${data.planName} — ${data.vehiclePlaca}`,
+        descricao,
         vehicle_id: data.vehicleId,
+        tipo: "preventiva",
+        prioridade,
+        created_by: user?.id,
         maintenance_plan_id: data.planId,
-        km_at_execution: data.km,
-        next_km_due: nextKm,
-        next_date_due: nextDate,
-        executed_by: user?.id,
-        notes: data.notes || null,
-        cost: data.cost,
       } as any);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["maintenance-executions"] });
-      toast.success("Execução registrada com sucesso");
-      setExecDialog(null);
-      setExecKm("");
-      setExecNotes("");
-      setExecCost("");
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
+      toast.success("Chamado criado! Acesse os Chamados para acompanhar.", {
+        action: { label: "Ver Chamados", onClick: () => navigate("/chamados") },
+      });
     },
-    onError: (err: any) => toast.error(err.message || "Erro ao registrar"),
+    onError: (err: any) => toast.error(err.message || "Erro ao criar chamado"),
   });
 
-  const handleRegister = () => {
-    if (!execDialog) return;
-    const km = parseInt(execKm);
-    if (isNaN(km) || km <= 0) {
-      toast.error("Informe o KM válido");
-      return;
-    }
-    registerMutation.mutate({
-      vehicleId: execDialog.vehicleId,
-      planId: execDialog.planId,
-      km,
-      notes: execNotes,
-      cost: execCost ? parseFloat(execCost) : null,
-    });
+  const hasOpenTicket = (vehicleId: string, planId: string) => {
+    return openTickets.some(
+      (t) => t.vehicle_id === vehicleId && t.maintenance_plan_id === planId
+    );
   };
 
   return (
@@ -281,30 +277,53 @@ export default function ManutencaoPreventiva() {
               <div className="sm:hidden divide-y divide-border">
                 {statuses.map((s) => {
                   const cfg = ALERT_CONFIG[s.alert];
+                  const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
+                  const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
                   return (
                     <div key={s.plan.id} className="px-4 py-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
-                          <span className="text-sm font-medium truncate max-w-[200px]">{s.plan.name}</span>
+                          <span className="text-sm font-medium truncate max-w-[180px]">{s.plan.name}</span>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">
-                          {CATEGORY_SHORT[s.plan.category]}
-                        </Badge>
+                        <div className="flex gap-1">
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${executor.className}`}>
+                            {executor.label}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {CATEGORY_SHORT[s.plan.category]}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between mt-1">
                         <span className="text-xs text-muted-foreground">
                           {Math.round(s.pctMax)}% · {s.daysSince}d
                           {s.plan.km_interval ? ` · ${s.kmSince.toLocaleString("pt-BR")}km` : ""}
                         </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 text-xs"
-                          onClick={() => setExecDialog({ open: true, vehicleId: vehicle.id, planId: s.plan.id, vehicleKm: vehicle.km_atual })}
-                        >
-                          <Plus className="w-3 h-3 mr-1" /> Registrar
-                        </Button>
+                        {ticketExists ? (
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                            Chamado aberto
+                          </Badge>
+                        ) : (s.alert !== "ok") && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs"
+                            disabled={createTicketMutation.isPending}
+                            onClick={() => createTicketMutation.mutate({
+                              vehicleId: vehicle.id,
+                              planId: s.plan.id,
+                              planName: s.plan.name,
+                              vehiclePlaca: vehicle.placa,
+                              vehicleModelo: vehicle.modelo,
+                              alert: s.alert,
+                              pctMax: s.pctMax,
+                              executorType: (s.plan as any).executor_type ?? "oficina",
+                            })}
+                          >
+                            <Wrench className="w-3 h-3 mr-1" /> Abrir Chamado
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -319,16 +338,19 @@ export default function ManutencaoPreventiva() {
                       <TableHead>Item</TableHead>
                       <TableHead>Faixa</TableHead>
                       <TableHead>Tipo</TableHead>
+                      <TableHead>Executor</TableHead>
                       <TableHead className="text-right">% Consumido</TableHead>
                       <TableHead className="text-right">KM desde</TableHead>
                       <TableHead className="text-right">Dias desde</TableHead>
                       <TableHead className="text-right">Última execução</TableHead>
-                      <TableHead className="w-24"></TableHead>
+                      <TableHead className="w-32"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {statuses.map((s) => {
                       const cfg = ALERT_CONFIG[s.alert];
+                      const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
+                      const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
                       return (
                         <TableRow key={s.plan.id}>
                           <TableCell>
@@ -343,6 +365,12 @@ export default function ManutencaoPreventiva() {
                           <TableCell className="text-xs text-muted-foreground">
                             {TYPE_LABELS[s.plan.item_type] ?? s.plan.item_type}
                           </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] ${executor.className}`}>
+                              <executor.icon className="w-3 h-3 mr-1" />
+                              {executor.label}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             <span className={cfg.color}>{Math.round(s.pctMax)}%</span>
                           </TableCell>
@@ -356,14 +384,30 @@ export default function ManutencaoPreventiva() {
                             {s.lastExecution ? format(new Date(s.lastExecution.executed_at), "dd/MM/yy") : "—"}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => setExecDialog({ open: true, vehicleId: vehicle.id, planId: s.plan.id, vehicleKm: vehicle.km_atual })}
-                            >
-                              <Plus className="w-3 h-3 mr-1" /> Registrar
-                            </Button>
+                            {ticketExists ? (
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                                Chamado aberto
+                              </Badge>
+                            ) : (s.alert !== "ok") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                disabled={createTicketMutation.isPending}
+                                onClick={() => createTicketMutation.mutate({
+                                  vehicleId: vehicle.id,
+                                  planId: s.plan.id,
+                                  planName: s.plan.name,
+                                  vehiclePlaca: vehicle.placa,
+                                  vehicleModelo: vehicle.modelo,
+                                  alert: s.alert,
+                                  pctMax: s.pctMax,
+                                  executorType: (s.plan as any).executor_type ?? "oficina",
+                                })}
+                              >
+                                <Wrench className="w-3 h-3 mr-1" /> Abrir Chamado
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -375,52 +419,6 @@ export default function ManutencaoPreventiva() {
           </Card>
         ))
       )}
-
-      {/* Register Execution Dialog */}
-      <Dialog open={!!execDialog?.open} onOpenChange={(open) => !open && setExecDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Execução</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm font-medium">KM no momento da execução</label>
-              <Input
-                type="number"
-                value={execKm}
-                onChange={(e) => setExecKm(e.target.value)}
-                placeholder={execDialog ? `KM atual: ${execDialog.vehicleKm.toLocaleString("pt-BR")}` : ""}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Custo (R$)</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={execCost}
-                onChange={(e) => setExecCost(e.target.value)}
-                placeholder="Opcional"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Observações</label>
-              <Textarea
-                value={execNotes}
-                onChange={(e) => setExecNotes(e.target.value)}
-                placeholder="Detalhes da execução..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setExecDialog(null)}>Cancelar</Button>
-            <Button onClick={handleRegister} disabled={registerMutation.isPending}>
-              {registerMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Registrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
