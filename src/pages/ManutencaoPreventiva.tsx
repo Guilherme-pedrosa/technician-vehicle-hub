@@ -112,6 +112,17 @@ export default function ManutencaoPreventiva() {
   const { data: plans = [], isLoading: loadingPlans } = useMaintenancePlans();
   const { data: executions = [], isLoading: loadingExecs } = useMaintenanceExecutions();
 
+  const { data: overrides = [] } = useQuery({
+    queryKey: ["maintenance-overrides"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_maintenance_overrides")
+        .select("vehicle_id, maintenance_plan_id, active, custom_km_interval, custom_time_interval_days");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: openTickets = [] } = useQuery({
     queryKey: ["open-preventiva-tickets"],
     queryFn: async () => {
