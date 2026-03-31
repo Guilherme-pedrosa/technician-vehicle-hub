@@ -148,6 +148,11 @@ export default function ManutencaoPreventiva() {
 
     for (const vehicle of filteredVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+      // Filter out plans disabled via overrides
+      statuses = statuses.filter((s) => {
+        const ov = overrides.find((o) => o.vehicle_id === vehicle.id && o.maintenance_plan_id === s.plan.id);
+        return !ov || ov.active !== false;
+      });
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
@@ -162,7 +167,7 @@ export default function ManutencaoPreventiva() {
       if (statuses.length > 0) result.push({ vehicle, statuses });
     }
     return result;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
+  }, [plans, executions, vehicles, overrides, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
 
   // Summary counts (unfiltered by alert)
   const summary = useMemo(() => {
