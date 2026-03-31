@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,25 +8,85 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight,
 } from "lucide-react";
-import { isPast, format } from "date-fns";
+import { isPast, format, startOfDay, startOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
+import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
+import { useNavigate } from "react-router-dom";
+
+type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
+
+function getPresetDates(preset: PeriodPreset) {
+  const now = new Date();
+  switch (preset) {
+    case "hoje": return { inicio: startOfDay(now), fim: now };
+    case "semana": return { inicio: startOfWeek(now, { weekStartsOn: 1, locale: ptBR }), fim: now };
+    case "mes": return { inicio: startOfMonth(now), fim: now };
+    default: return { inicio: startOfDay(now), fim: now };
+  }
+}
+
+const PRIORITY_COLORS: Record<string, string> = {
+  critica: "bg-destructive text-destructive-foreground",
+  alta: "bg-warning text-warning-foreground",
+  media: "bg-accent text-accent-foreground",
+  baixa: "bg-secondary text-secondary-foreground",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  aberto: "Aberto",
+  em_andamento: "Em Andamento",
+  aguardando_peca: "Aguardando Peça",
+  concluido: "Concluído",
+};
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
+  const [preset, setPreset] = useState<PeriodPreset>("hoje");
+  const [customDate, setCustomDate] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  const dates = useMemo(() => {
+    if (preset === "personalizado") {
+      const d = new Date(customDate + "T12:00:00");
+      return { inicio: startOfDay(d), fim: d };
+    }
+    return getPresetDates(preset);
+  }, [preset, customDate]);
+
+  const isSingleDay = preset === "hoje" || preset === "personalizado";
+
+  // For single day, use the existing efficient hook
   const {
-    driverRows: driverTelemetryRows,
-    totalKmHoje,
-    totalTelemetrias,
-    isLoading: loadingResumo,
-  } = useResumoDiaFrota(selectedDate);
+    driverRows: singleDayRows,
+    totalKmHoje: singleDayKm,
+    totalTelemetrias: singleDayTel,
+    isLoading: loadingSingleDay,
+  } = useResumoDiaFrota(isSingleDay ? format(dates.inicio, "yyyy-MM-dd") : undefined);
+
+  // For ranges, use the period hook
+  const {
+    driverRows: periodRows,
+    totalKm: periodKm,
+    totalTelemetrias: periodTel,
+    isLoading: loadingPeriod,
+  } = useKmPorTecnicoPeriodo(
+    isSingleDay ? new Date(0) : dates.inicio,
+    isSingleDay ? new Date(0) : dates.fim
+  );
+
+  const driverTelemetryRows = isSingleDay ? singleDayRows : periodRows;
+  const totalKm = isSingleDay ? singleDayKm : periodKm;
+  const totalTelemetrias = isSingleDay ? singleDayTel : periodTel;
+  const loadingResumo = isSingleDay ? loadingSingleDay : loadingPeriod;
+
+  const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -38,9 +98,13 @@ export default function Dashboard() {
   });
 
   const { data: tickets = [] } = useQuery({
-    queryKey: ["tickets"],
+    queryKey: ["tickets-dashboard"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("maintenance_tickets").select("id, status, tipo");
+      const { data, error } = await supabase
+        .from("maintenance_tickets")
+        .select("id, titulo, status, tipo, prioridade, vehicle_id, created_at, vehicles(placa)")
+        .neq("status", "concluido")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -51,8 +115,15 @@ export default function Dashboard() {
   const vehiclesInUse = telemetryVehicles.filter((v) => v.status === "em_uso").length;
   const vehiclesAvailable = telemetryVehicles.filter((v) => v.status === "disponivel").length;
   const vehiclesMaintenance = telemetryVehicles.filter((v) => v.status === "manutencao").length;
-  const openTickets = tickets.filter((t) => t.status === "aberto" || t.status === "em_andamento").length;
+  const openTickets = tickets.length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
+
+  const periodLabel = useMemo(() => {
+    if (preset === "hoje") return "KM Hoje";
+    if (preset === "semana") return "KM Semana";
+    if (preset === "mes") return "KM Mês";
+    return `KM ${new Date(customDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
+  }, [preset, customDate]);
 
   const stats = [
     {
@@ -64,8 +135,8 @@ export default function Dashboard() {
       subtitleColor: "text-muted-foreground",
     },
     {
-      label: selectedDate === format(new Date(), "yyyy-MM-dd") ? "KM Hoje" : `KM ${new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`,
-      value: loadingResumo ? "..." : totalKmHoje.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      label: periodLabel,
+      value: loadingResumo ? "..." : totalKm.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
       icon: CalendarDays,
       color: "text-success",
       subtitle: `${totalTelemetrias} telemetrias · ${summary.emMovimento} em movimento`,
@@ -124,15 +195,30 @@ export default function Dashboard() {
         <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-primary" /> KM por Técnico
-            {(loadingMetrics || loadingResumo) && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            {loadingResumo && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full sm:w-40 h-8 text-xs"
-            max={format(new Date(), "yyyy-MM-dd")}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["hoje", "semana", "mes", "personalizado"] as const).map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={preset === p ? "default" : "outline"}
+                onClick={() => setPreset(p)}
+                className="h-7 text-xs px-3"
+              >
+                {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
+              </Button>
+            ))}
+            {preset === "personalizado" && (
+              <Input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="w-36 h-7 text-xs"
+                max={format(new Date(), "yyyy-MM-dd")}
+              />
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {/* Mobile cards */}
@@ -199,9 +285,9 @@ export default function Dashboard() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {(() => {
-                        const totalKm = driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0);
+                        const totalKmR = driverTelemetryRows.reduce((s, r) => s + r.kmRodado, 0);
                         const totalTel = driverTelemetryRows.reduce((s, r) => s + r.telemetrias, 0);
-                        const val = totalTel > 0 ? totalKm / totalTel : totalKm;
+                        const val = totalTel > 0 ? totalKmR / totalTel : totalKmR;
                         return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       })()}
                     </TableCell>
@@ -211,6 +297,86 @@ export default function Dashboard() {
             </TableBody>
           </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* === CHAMADOS ABERTOS === */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6">
+          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-warning" /> Chamados Abertos ({openTickets})
+          </CardTitle>
+          <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => navigate("/chamados")}>
+            Ver todos <ChevronRight className="w-3 h-3" />
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {tickets.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">Nenhum chamado aberto</p>
+          ) : (
+            <>
+              {/* Mobile */}
+              <div className="sm:hidden divide-y divide-border">
+                {tickets.slice(0, 5).map((t) => (
+                  <div key={t.id} className="px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm truncate max-w-[70%]">{t.titulo}</p>
+                      <Badge variant="outline" className="text-[10px]">
+                        {STATUS_LABELS[t.status] ?? t.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        {(t.vehicles as any)?.placa ?? "—"} · {t.tipo === "nao_conformidade" ? "NC" : t.tipo}
+                      </p>
+                      <Badge className={`text-[10px] ${PRIORITY_COLORS[t.prioridade] ?? ""}`}>
+                        {t.prioridade}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Placa</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Prioridade</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Data</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tickets.slice(0, 10).map((t) => (
+                      <TableRow key={t.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate("/chamados")}>
+                        <TableCell className="font-medium max-w-[200px] truncate">{t.titulo}</TableCell>
+                        <TableCell className="text-xs font-mono">{(t.vehicles as any)?.placa ?? "—"}</TableCell>
+                        <TableCell className="text-xs">
+                          {t.tipo === "nao_conformidade" ? "Não Conformidade" : t.tipo === "preventiva" ? "Preventiva" : "Corretiva"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs ${PRIORITY_COLORS[t.prioridade] ?? ""}`}>
+                            {t.prioridade}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {STATUS_LABELS[t.status] ?? t.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {format(new Date(t.created_at), "dd/MM/yy")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
