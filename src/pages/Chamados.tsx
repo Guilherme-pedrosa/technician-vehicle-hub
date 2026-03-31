@@ -27,6 +27,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { TicketActions } from "@/components/chamados/TicketActions";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -336,6 +337,9 @@ function TicketDetailDialog({
                   </div>
                 </>
               )}
+
+              <Separator />
+              <TicketActions ticketId={ticket.id} />
 
               {ticket.fotos && ticket.fotos.length > 0 && (
                 <>
