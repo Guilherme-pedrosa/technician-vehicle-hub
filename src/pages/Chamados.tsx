@@ -338,6 +338,9 @@ function TicketDetailDialog({
                 </>
               )}
 
+              <Separator />
+              <TicketActions ticketId={ticket.id} />
+
               {ticket.fotos && ticket.fotos.length > 0 && (
                 <>
                   <Separator />
