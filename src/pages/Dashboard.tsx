@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
-  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight,
+  Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull,
 } from "lucide-react";
 import { isPast, format, startOfDay, startOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
