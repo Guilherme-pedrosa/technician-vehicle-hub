@@ -319,6 +319,47 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_actions: {
+        Row: {
+          completed_at: string | null
+          concluida: boolean
+          created_at: string
+          created_by: string
+          descricao: string
+          id: string
+          sort_order: number
+          ticket_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          concluida?: boolean
+          created_at?: string
+          created_by: string
+          descricao: string
+          id?: string
+          sort_order?: number
+          ticket_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          concluida?: boolean
+          created_at?: string
+          created_by?: string
+          descricao?: string
+          id?: string
+          sort_order?: number
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_actions_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
