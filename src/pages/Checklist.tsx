@@ -199,6 +199,10 @@ async function compressImage(file: File, maxDim = 1280, quality = 0.75): Promise
   });
 }
 
+async function prepareCapturedImages(files: File[], maxDim = 1280, quality = 0.75): Promise<File[]> {
+  return Promise.all(files.map((file) => compressImage(file, maxDim, quality).catch(() => file)));
+}
+
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -384,7 +388,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo }: {
   category: PhotoCategory;
   photos: File[];
-  onCapture: (cat: PhotoCategory, files: FileList) => void;
+  onCapture: (cat: PhotoCategory, files: File[]) => Promise<File[]>;
   onRemove: (cat: PhotoCategory, idx: number) => void;
   required?: boolean;
   validations?: PhotoValidation[];
@@ -396,18 +400,21 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   const meta = PHOTO_META[category];
   const hasEnough = photos.length >= meta.min;
 
-  const handleCapture = async (files: FileList) => {
-    onCapture(category, files);
+  const handleCapture = async (files: File[]) => {
+    const preparedFiles = await onCapture(category, files);
+
     // Trigger validation for new photo
-    if (onValidationUpdate) {
-      const newIdx = photos.length;
-      const file = files[0];
+    if (!onValidationUpdate || preparedFiles.length === 0) return;
+
+    await Promise.all(preparedFiles.map(async (file, offset) => {
+      const newIdx = photos.length + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
       const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo);
       onValidationUpdate(category, newIdx, {
         status: result.valid ? "valid" : "invalid",
         result,
       });
+
       if (!result.valid) {
         const details: string[] = [];
         if (result.vehicle_match === false) details.push("veículo errado");
@@ -417,7 +424,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
       }
-    }
+    }));
   };
 
   return (
@@ -489,7 +496,11 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       )}
 
       <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
-        onChange={(e) => { if (e.target.files?.length) { handleCapture(e.target.files); e.target.value = ""; } }} />
+        onChange={(e) => {
+          const selectedFiles = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (selectedFiles.length > 0) void handleCapture(selectedFiles);
+        }} />
       <Button type="button" variant={hasEnough ? "outline" : "default"} className="w-full gap-2 h-12 text-base active:scale-[0.97]"
         onClick={() => inputRef.current?.click()}>
         <Camera className="w-5 h-5" /> {hasEnough ? "Tirar Outra" : "Tirar Foto"}
@@ -570,9 +581,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const handleCapture = useCallback(async (cat: PhotoCategory, files: FileList) => {
-    const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f)));
+  const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
+    const compressed = await prepareCapturedImages(files);
     setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...compressed] }));
+    return compressed;
   }, []);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
@@ -1184,7 +1196,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       value={answers[`obs_${field.key}`] ?? ""} rows={2}
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                      onCapture={async (_, files) => { const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f))); setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] })); }}
+                      onCapture={async (_, files) => {
+                        const compressed = await prepareCapturedImages(files);
+                        setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
+                        return compressed;
+                      }}
                       onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
                   </div>
                 )}
