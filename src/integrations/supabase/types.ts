@@ -347,6 +347,7 @@ export type Database = {
           driver_id: string | null
           fotos: string[] | null
           id: string
+          maintenance_plan_id: string | null
           prioridade: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
           tipo: Database["public"]["Enums"]["ticket_type"]
@@ -362,6 +363,7 @@ export type Database = {
           driver_id?: string | null
           fotos?: string[] | null
           id?: string
+          maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           tipo?: Database["public"]["Enums"]["ticket_type"]
@@ -377,6 +379,7 @@ export type Database = {
           driver_id?: string | null
           fotos?: string[] | null
           id?: string
+          maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
           tipo?: Database["public"]["Enums"]["ticket_type"]
@@ -390,6 +393,13 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_maintenance_plan_id_fkey"
+            columns: ["maintenance_plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_plans"
             referencedColumns: ["id"]
           },
           {
