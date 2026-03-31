@@ -498,6 +498,8 @@ export default function ManutencaoPreventiva() {
                       <TableHead>Faixa</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Executor</TableHead>
+                      <TableHead className="text-right">KM troca</TableHead>
+                      <TableHead className="text-right">Periodicidade</TableHead>
                       <TableHead className="text-right">% Consumido</TableHead>
                       <TableHead className="text-right">KM desde</TableHead>
                       <TableHead className="text-right">Dias desde</TableHead>
