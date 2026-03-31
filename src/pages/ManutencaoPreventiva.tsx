@@ -13,22 +13,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Shield,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Skull,
-  Loader2,
-  Wrench,
-  Filter,
-  User,
-  Building2,
+  Shield, AlertTriangle, CheckCircle, XCircle, Skull, Loader2, Wrench,
+  Filter, User, Building2, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { BatchTicketBar } from "@/components/manutencao/BatchTicketBar";
+import { generatePreventivaPdf } from "@/components/manutencao/PreventivaPdfExport";
 
 const CATEGORY_LABELS: Record<string, string> = {
   faixa_m: "🔵 Faixa M — Mensal",
@@ -71,6 +66,8 @@ interface Vehicle {
   status: string;
 }
 
+type SelectionKey = `${string}::${string}`; // vehicleId::planId
+
 export default function ManutencaoPreventiva() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -78,6 +75,7 @@ export default function ManutencaoPreventiva() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
+  const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
 
   const { data: vehicles = [], isLoading: loadingVehicles } = useQuery<Vehicle[]>({
     queryKey: ["vehicles-preventiva"],
@@ -94,7 +92,6 @@ export default function ManutencaoPreventiva() {
   const { data: plans = [], isLoading: loadingPlans } = useMaintenancePlans();
   const { data: executions = [], isLoading: loadingExecs } = useMaintenanceExecutions();
 
-  // Check for existing open preventiva tickets to avoid duplicates
   const { data: openTickets = [] } = useQuery({
     queryKey: ["open-preventiva-tickets"],
     queryFn: async () => {
@@ -113,42 +110,164 @@ export default function ManutencaoPreventiva() {
 
   const allStatuses = useMemo(() => {
     if (!plans.length || !vehicles.length) return [];
-
     const result: { vehicle: Vehicle; statuses: VehiclePlanStatus[] }[] = [];
-
     const filteredVehicles = selectedVehicle === "all"
       ? vehicles
       : vehicles.filter((v) => v.id === selectedVehicle);
 
     for (const vehicle of filteredVehicles) {
       let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
-
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
       if (selectedAlert !== "all") {
         statuses = statuses.filter((s) => s.alert === selectedAlert);
       }
-
       if (statuses.length > 0) {
         result.push({ vehicle, statuses });
       }
     }
-
     return result;
   }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert]);
 
   const summary = useMemo(() => {
     const counts = { ok: 0, yellow: 0, red: 0, black: 0 };
-    for (const { statuses } of allStatuses) {
-      for (const s of statuses) {
-        counts[s.alert]++;
+    // Count from ALL vehicles (unfiltered by alert)
+    if (plans.length && vehicles.length) {
+      const allVehicles = selectedVehicle === "all" ? vehicles : vehicles.filter((v) => v.id === selectedVehicle);
+      for (const vehicle of allVehicles) {
+        let statuses = computeVehiclePlanStatuses(plans, executions, vehicle.id, vehicle.km_atual);
+        if (selectedCategory !== "all") {
+          statuses = statuses.filter((s) => s.plan.category === selectedCategory);
+        }
+        for (const s of statuses) counts[s.alert]++;
       }
     }
     return counts;
-  }, [allStatuses]);
+  }, [plans, executions, vehicles, selectedVehicle, selectedCategory]);
 
-  // Create ticket mutation
+  // Toggle selection
+  const toggleItem = (vehicleId: string, planId: string) => {
+    const key: SelectionKey = `${vehicleId}::${planId}`;
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  // Select all visible non-ok items
+  const selectAllOverdue = () => {
+    const keys: SelectionKey[] = [];
+    for (const { vehicle, statuses } of allStatuses) {
+      for (const s of statuses) {
+        if (s.alert !== "ok" && !hasOpenTicket(vehicle.id, s.plan.id)) {
+          keys.push(`${vehicle.id}::${s.plan.id}`);
+        }
+      }
+    }
+    setSelectedItems(new Set(keys));
+  };
+
+  const clearSelection = () => setSelectedItems(new Set());
+
+  const hasOpenTicket = (vehicleId: string, planId: string) => {
+    return openTickets.some(
+      (t) => t.vehicle_id === vehicleId && t.maintenance_plan_id === planId
+    );
+  };
+
+  // Build selected items data for batch creation
+  const getSelectedItemsData = () => {
+    const grouped = new Map<string, { vehicle: Vehicle; items: VehiclePlanStatus[] }>();
+    for (const key of selectedItems) {
+      const [vehicleId, planId] = key.split("::");
+      const vehicleGroup = allStatuses.find((g) => g.vehicle.id === vehicleId);
+      if (!vehicleGroup) continue;
+      const status = vehicleGroup.statuses.find((s) => s.plan.id === planId);
+      if (!status) continue;
+      if (!grouped.has(vehicleId)) {
+        grouped.set(vehicleId, { vehicle: vehicleGroup.vehicle, items: [] });
+      }
+      grouped.get(vehicleId)!.items.push(status);
+    }
+    return grouped;
+  };
+
+  // Create batch ticket mutation
+  const createBatchTicketMutation = useMutation({
+    mutationFn: async () => {
+      const grouped = getSelectedItemsData();
+      const createdTickets: { vehiclePlaca: string; vehicleModelo: string; vehicleKm: number; items: VehiclePlanStatus[]; createdAt: string }[] = [];
+
+      for (const [vehicleId, { vehicle, items }] of grouped) {
+        const worstAlert = items.reduce<AlertLevel>((worst, s) => {
+          const order: AlertLevel[] = ["ok", "yellow", "red", "black"];
+          return order.indexOf(s.alert) > order.indexOf(worst) ? s.alert : worst;
+        }, "ok");
+
+        const prioridade = worstAlert === "black" ? "critica" : worstAlert === "red" ? "alta" : "media";
+        const itemNames = items.map((i) => i.plan.name).join(", ");
+        const descricao = items.map((i) =>
+          `• ${i.plan.name} (${Math.round(i.pctMax)}% consumido) — ${(i.plan as any).executor_type === "tecnico" ? "Técnico" : "Oficina"}`
+        ).join("\n");
+
+        const { error } = await supabase.from("maintenance_tickets").insert({
+          titulo: `[Preventiva] ${vehicle.placa} — ${items.length} ${items.length === 1 ? "item" : "itens"}`,
+          descricao: `Manutenção preventiva consolidada\nVeículo: ${vehicle.placa} — ${vehicle.modelo}\nKM: ${vehicle.km_atual.toLocaleString("pt-BR")}\n\nItens:\n${descricao}`,
+          vehicle_id: vehicleId,
+          tipo: "preventiva",
+          prioridade,
+          created_by: user?.id,
+          maintenance_plan_id: items[0].plan.id, // link to first plan
+        } as any);
+        if (error) throw error;
+
+        createdTickets.push({
+          vehiclePlaca: vehicle.placa,
+          vehicleModelo: vehicle.modelo,
+          vehicleKm: vehicle.km_atual,
+          items,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      return createdTickets;
+    },
+    onSuccess: (createdTickets) => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
+      clearSelection();
+
+      // Auto-generate PDFs
+      for (const ticket of createdTickets) {
+        generatePreventivaPdf({
+          titulo: `Preventiva — ${ticket.vehiclePlaca}`,
+          descricao: null,
+          vehiclePlaca: ticket.vehiclePlaca,
+          vehicleModelo: ticket.vehicleModelo,
+          vehicleKm: ticket.vehicleKm,
+          createdAt: ticket.createdAt,
+          items: ticket.items.map((i) => ({
+            name: i.plan.name,
+            category: i.plan.category,
+            itemType: i.plan.item_type,
+            executorType: (i.plan as any).executor_type ?? "oficina",
+            pctMax: i.pctMax,
+            kmSince: i.kmSince,
+            daysSince: i.daysSince,
+          })),
+        });
+      }
+
+      toast.success(`${createdTickets.length} chamado(s) criado(s) e PDF(s) gerado(s)!`, {
+        action: { label: "Ver Chamados", onClick: () => navigate("/chamados") },
+      });
+    },
+    onError: (err: any) => toast.error(err.message || "Erro ao criar chamados"),
+  });
+
+  // Single ticket creation
   const createTicketMutation = useMutation({
     mutationFn: async (data: { vehicleId: string; planId: string; planName: string; vehiclePlaca: string; vehicleModelo: string; alert: AlertLevel; pctMax: number; executorType: string }) => {
       const prioridade = data.alert === "black" ? "critica" : data.alert === "red" ? "alta" : "media";
@@ -168,27 +287,29 @@ export default function ManutencaoPreventiva() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
       queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
-      toast.success("Chamado criado! Acesse os Chamados para acompanhar.", {
+      toast.success("Chamado criado!", {
         action: { label: "Ver Chamados", onClick: () => navigate("/chamados") },
       });
     },
     onError: (err: any) => toast.error(err.message || "Erro ao criar chamado"),
   });
 
-  const hasOpenTicket = (vehicleId: string, planId: string) => {
-    return openTickets.some(
-      (t) => t.vehicle_id === vehicleId && t.maintenance_plan_id === planId
-    );
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Shield className="w-6 h-6 text-primary" />
-          Manutenção Preventiva
-        </h1>
-        <p className="text-sm text-muted-foreground">Controle de planos e execuções por veículo</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Shield className="w-6 h-6 text-primary" />
+            Manutenção Preventiva
+          </h1>
+          <p className="text-sm text-muted-foreground">Controle de planos e execuções por veículo</p>
+        </div>
+        {allStatuses.some(({ statuses }) => statuses.some((s) => s.alert !== "ok")) && (
+          <Button variant="outline" size="sm" onClick={selectAllOverdue} className="text-xs">
+            <CheckCircle className="w-3.5 h-3.5 mr-1" />
+            Selecionar todos atrasados
+          </Button>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -279,12 +400,19 @@ export default function ManutencaoPreventiva() {
                   const cfg = ALERT_CONFIG[s.alert];
                   const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
                   const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
+                  const isSelected = selectedItems.has(`${vehicle.id}::${s.plan.id}`);
                   return (
-                    <div key={s.plan.id} className="px-4 py-3">
+                    <div key={s.plan.id} className={`px-4 py-3 ${isSelected ? "bg-primary/5" : ""}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          {s.alert !== "ok" && !ticketExists && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleItem(vehicle.id, s.plan.id)}
+                            />
+                          )}
                           <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
-                          <span className="text-sm font-medium truncate max-w-[180px]">{s.plan.name}</span>
+                          <span className="text-sm font-medium truncate max-w-[160px]">{s.plan.name}</span>
                         </div>
                         <div className="flex gap-1">
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${executor.className}`}>
@@ -334,6 +462,7 @@ export default function ManutencaoPreventiva() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10"></TableHead>
                       <TableHead className="w-10">Status</TableHead>
                       <TableHead>Item</TableHead>
                       <TableHead>Faixa</TableHead>
@@ -351,8 +480,17 @@ export default function ManutencaoPreventiva() {
                       const cfg = ALERT_CONFIG[s.alert];
                       const executor = EXECUTOR_BADGE[(s.plan as any).executor_type] ?? EXECUTOR_BADGE.oficina;
                       const ticketExists = hasOpenTicket(vehicle.id, s.plan.id);
+                      const isSelected = selectedItems.has(`${vehicle.id}::${s.plan.id}`);
                       return (
-                        <TableRow key={s.plan.id}>
+                        <TableRow key={s.plan.id} className={isSelected ? "bg-primary/5" : ""}>
+                          <TableCell>
+                            {s.alert !== "ok" && !ticketExists ? (
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleItem(vehicle.id, s.plan.id)}
+                              />
+                            ) : null}
+                          </TableCell>
                           <TableCell>
                             <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
                           </TableCell>
@@ -419,6 +557,14 @@ export default function ManutencaoPreventiva() {
           </Card>
         ))
       )}
+
+      {/* Floating batch action bar */}
+      <BatchTicketBar
+        count={selectedItems.size}
+        onCreateTicket={() => createBatchTicketMutation.mutate()}
+        onClear={clearSelection}
+        isPending={createBatchTicketMutation.isPending}
+      />
     </div>
   );
 }
