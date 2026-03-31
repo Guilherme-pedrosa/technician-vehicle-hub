@@ -5,6 +5,7 @@ import {
   Truck,
   ClipboardCheck,
   Wrench,
+  Shield,
   BarChart3,
   Settings,
   User,
