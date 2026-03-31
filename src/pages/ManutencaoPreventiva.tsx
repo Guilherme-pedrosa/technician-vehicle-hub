@@ -498,6 +498,8 @@ export default function ManutencaoPreventiva() {
                       <TableHead>Faixa</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Executor</TableHead>
+                      <TableHead className="text-right">KM troca</TableHead>
+                      <TableHead className="text-right">Periodicidade</TableHead>
                       <TableHead className="text-right">% Consumido</TableHead>
                       <TableHead className="text-right">KM desde</TableHead>
                       <TableHead className="text-right">Dias desde</TableHead>
@@ -534,6 +536,14 @@ export default function ManutencaoPreventiva() {
                             <Badge variant="outline" className={`text-[10px] ${executor.className}`}>
                               <executor.icon className="w-3 h-3 mr-1" />{executor.label}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                            {s.plan.km_interval ? `${s.plan.km_interval.toLocaleString("pt-BR")} km` : "—"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                            {s.plan.time_interval_days >= 30
+                              ? `${Math.round(s.plan.time_interval_days / 30)} meses`
+                              : `${s.plan.time_interval_days} dias`}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             <span className={cfg.color}>{Math.round(s.pctMax)}%</span>
