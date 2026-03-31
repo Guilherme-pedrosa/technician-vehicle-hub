@@ -578,14 +578,45 @@ export default function Chamados() {
     },
   });
 
-  // Update ticket status
+  // Update ticket status — auto-register execution when preventiva ticket is completed
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TicketStatus }) => {
+      const ticket = tickets.find((t) => t.id === id);
       const { error } = await supabase.from("maintenance_tickets").update({ status } as any).eq("id", id);
       if (error) throw error;
+
+      // Auto-register maintenance execution when preventiva ticket is completed
+      if (status === "concluido" && ticket?.tipo === "preventiva" && (ticket as any).maintenance_plan_id) {
+        const planId = (ticket as any).maintenance_plan_id;
+        const vehicle = vehicles.find((v) => v.id === ticket.vehicle_id);
+        const currentKm = vehicle?.km_atual ?? 0;
+
+        // Fetch the plan to calculate next due
+        const { data: plan } = await supabase
+          .from("maintenance_plans")
+          .select("km_interval, time_interval_days")
+          .eq("id", planId)
+          .single();
+
+        const nextKm = plan?.km_interval ? currentKm + plan.km_interval : null;
+        const nextDate = plan ? new Date(Date.now() + plan.time_interval_days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null;
+
+        await supabase.from("maintenance_executions").insert({
+          vehicle_id: ticket.vehicle_id,
+          maintenance_plan_id: planId,
+          km_at_execution: currentKm,
+          next_km_due: nextKm,
+          next_date_due: nextDate,
+          executed_by: user?.id,
+          ticket_id: id,
+          notes: `Execução registrada automaticamente via chamado: ${ticket.titulo}`,
+        } as any);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["maintenance-executions"] });
+      queryClient.invalidateQueries({ queryKey: ["open-preventiva-tickets"] });
       toast.success("Status atualizado!");
     },
     onError: (err: any) => toast.error("Erro: " + err.message),
