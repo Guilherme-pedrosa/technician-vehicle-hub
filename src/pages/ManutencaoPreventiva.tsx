@@ -341,7 +341,7 @@ export default function ManutencaoPreventiva() {
             <Filter className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">Filtros:</span>
           </div>
-          <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+          <Select value={selectedVehicle} onValueChange={(value) => { setSelectedVehicle(value); clearSelection(); }}>
             <SelectTrigger className="w-48 h-9">
               <SelectValue placeholder="Todos os veículos" />
             </SelectTrigger>
@@ -352,7 +352,7 @@ export default function ManutencaoPreventiva() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <Select value={selectedCategory} onValueChange={(value) => { setSelectedCategory(value); clearSelection(); }}>
             <SelectTrigger className="w-56 h-9">
               <SelectValue placeholder="Todas as faixas" />
             </SelectTrigger>
@@ -363,12 +363,22 @@ export default function ManutencaoPreventiva() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedAlert} onValueChange={(v) => { setSelectedAlert(v); clearSelection(); }}>
+          <Select value={selectedAlert} onValueChange={(value) => { setSelectedAlert(value); clearSelection(); }}>
             <SelectTrigger className="w-64 h-9">
               <SelectValue placeholder="Todos os status" />
             </SelectTrigger>
             <SelectContent>
               {ALERT_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedExecutor} onValueChange={(value) => { setSelectedExecutor(value); clearSelection(); }}>
+            <SelectTrigger className="w-48 h-9">
+              <SelectValue placeholder="Todos os executores" />
+            </SelectTrigger>
+            <SelectContent>
+              {EXECUTOR_FILTER_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
