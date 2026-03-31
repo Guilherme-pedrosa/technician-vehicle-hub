@@ -119,6 +119,31 @@ export default function Dashboard() {
   const openTickets = tickets.length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
 
+  // Preventive maintenance
+  const { data: mPlans = [] } = useMaintenancePlans();
+  const { data: mExecs = [] } = useMaintenanceExecutions();
+  const { data: allVehicles = [] } = useQuery({
+    queryKey: ["vehicles-dash-prev"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vehicles").select("id, placa, km_atual");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const prevSummary = useMemo(() => {
+    const counts = { yellow: 0, red: 0, black: 0 };
+    for (const v of allVehicles) {
+      const statuses = computeVehiclePlanStatuses(mPlans, mExecs, v.id, v.km_atual);
+      for (const s of statuses) {
+        if (s.alert === "yellow") counts.yellow++;
+        if (s.alert === "red") counts.red++;
+        if (s.alert === "black") counts.black++;
+      }
+    }
+    return counts;
+  }, [mPlans, mExecs, allVehicles]);
+
   const periodLabel = useMemo(() => {
     if (preset === "hoje") return "KM Hoje";
     if (preset === "semana") return "KM Semana";
