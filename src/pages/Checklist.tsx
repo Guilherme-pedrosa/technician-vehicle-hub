@@ -446,7 +446,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
-                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
                   {v?.status === "validating" && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
