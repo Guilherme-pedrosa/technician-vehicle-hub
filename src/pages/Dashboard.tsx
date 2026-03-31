@@ -406,6 +406,51 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* === PREVENTIVA === */}
+      {(prevSummary.yellow + prevSummary.red + prevSummary.black) > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" /> Preventivas Vencendo
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => navigate("/manutencao-preventiva")}>
+              Ver tudo <ChevronRight className="w-3 h-3" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="flex items-center gap-6">
+              {prevSummary.yellow > 0 && (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-warning" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.yellow}</p>
+                    <p className="text-xs text-muted-foreground">Pré-alerta</p>
+                  </div>
+                </div>
+              )}
+              {prevSummary.red > 0 && (
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-destructive" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.red}</p>
+                    <p className="text-xs text-muted-foreground">Vencidos</p>
+                  </div>
+                </div>
+              )}
+              {prevSummary.black > 0 && (
+                <div className="flex items-center gap-2">
+                  <Skull className="w-5 h-5 text-foreground" />
+                  <div>
+                    <p className="text-xl font-bold">{prevSummary.black}</p>
+                    <p className="text-xs text-muted-foreground">Críticos</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* === TELEMETRIA POR VEÍCULO === */}
       <Card>
         <CardHeader>
