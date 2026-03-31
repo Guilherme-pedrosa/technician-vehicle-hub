@@ -65,6 +65,12 @@ const ALERT_FILTER_OPTIONS = [
   { value: "ok", label: "✅ Em dia" },
 ];
 
+const EXECUTOR_FILTER_OPTIONS = [
+  { value: "all", label: "Todos os executores" },
+  { value: "tecnico", label: "Técnico" },
+  { value: "oficina", label: "Oficina" },
+];
+
 interface Vehicle {
   id: string;
   placa: string;
@@ -87,6 +93,7 @@ export default function ManutencaoPreventiva() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
+  const [selectedExecutor, setSelectedExecutor] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
 
   // ── Data queries ──
@@ -133,7 +140,9 @@ export default function ManutencaoPreventiva() {
       if (selectedCategory !== "all") {
         statuses = statuses.filter((s) => s.plan.category === selectedCategory);
       }
-      // Alert filter
+      if (selectedExecutor !== "all") {
+        statuses = statuses.filter((s) => ((s.plan as any).executor_type ?? "oficina") === selectedExecutor);
+      }
       if (selectedAlert === "atrasados") {
         statuses = statuses.filter((s) => s.alert !== "ok");
       } else if (selectedAlert !== "all") {
@@ -142,7 +151,7 @@ export default function ManutencaoPreventiva() {
       if (statuses.length > 0) result.push({ vehicle, statuses });
     }
     return result;
-  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert]);
+  }, [plans, executions, vehicles, selectedVehicle, selectedCategory, selectedAlert, selectedExecutor]);
 
   // Summary counts (unfiltered by alert)
   const summary = useMemo(() => {
@@ -332,7 +341,7 @@ export default function ManutencaoPreventiva() {
             <Filter className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">Filtros:</span>
           </div>
-          <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+          <Select value={selectedVehicle} onValueChange={(value) => { setSelectedVehicle(value); clearSelection(); }}>
             <SelectTrigger className="w-48 h-9">
               <SelectValue placeholder="Todos os veículos" />
             </SelectTrigger>
@@ -343,7 +352,7 @@ export default function ManutencaoPreventiva() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <Select value={selectedCategory} onValueChange={(value) => { setSelectedCategory(value); clearSelection(); }}>
             <SelectTrigger className="w-56 h-9">
               <SelectValue placeholder="Todas as faixas" />
             </SelectTrigger>
@@ -354,12 +363,22 @@ export default function ManutencaoPreventiva() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedAlert} onValueChange={(v) => { setSelectedAlert(v); clearSelection(); }}>
+          <Select value={selectedAlert} onValueChange={(value) => { setSelectedAlert(value); clearSelection(); }}>
             <SelectTrigger className="w-64 h-9">
               <SelectValue placeholder="Todos os status" />
             </SelectTrigger>
             <SelectContent>
               {ALERT_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedExecutor} onValueChange={(value) => { setSelectedExecutor(value); clearSelection(); }}>
+            <SelectTrigger className="w-48 h-9">
+              <SelectValue placeholder="Todos os executores" />
+            </SelectTrigger>
+            <SelectContent>
+              {EXECUTOR_FILTER_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
