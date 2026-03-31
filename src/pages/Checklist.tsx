@@ -1184,7 +1184,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       value={answers[`obs_${field.key}`] ?? ""} rows={2}
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                      onCapture={(_, files) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...Array.from(files)] }))}
+                      onCapture={async (_, files) => { const compressed = await Promise.all(Array.from(files).map((f) => compressImage(f).catch(() => f))); setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] })); }}
                       onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
                   </div>
                 )}
