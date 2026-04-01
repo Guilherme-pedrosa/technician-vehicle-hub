@@ -413,15 +413,18 @@ export default function Dashboard() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => syncMutationKm.mutate({
-                    startDate: format(dates.inicio, "yyyy-MM-dd"),
-                    endDate: format(dates.fim, "yyyy-MM-dd"),
-                  })}
-                  disabled={syncMutationKm.isPending}
+                  onClick={() => isSyncingKm
+                    ? cancelSyncKm()
+                    : syncKm(format(dates.inicio, "yyyy-MM-dd"), format(dates.fim, "yyyy-MM-dd"))
+                  }
                   className="h-7 text-xs"
                   title="Sincronizar dados do período"
                 >
-                  {syncMutationKm.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  {isSyncingKm ? (
+                    <><Loader2 className="w-3 h-3 animate-spin mr-1" />Cancelar</>
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
                 </Button>
               )}
             </div>
