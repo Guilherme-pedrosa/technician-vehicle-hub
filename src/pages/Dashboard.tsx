@@ -16,6 +16,7 @@ import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
+import { useCachedKmPorTecnico, useSyncDailyKm } from "@/hooks/useCachedKmPorTecnico";
 import { useNavigate } from "react-router-dom";
 import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
 
