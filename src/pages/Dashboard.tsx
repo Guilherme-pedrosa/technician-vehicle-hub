@@ -58,7 +58,10 @@ function SyncKmHistoricoDialog() {
   const [open, setOpen] = useState(false);
   const [startDate, setStartDate] = useState("2026-01-01");
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const syncMutation = useSyncDailyKm();
+  const [syncing, setSyncing] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [syncedCount, setSyncedCount] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   const dayCount = useMemo(() => {
     const s = new Date(startDate);
@@ -66,15 +69,68 @@ function SyncKmHistoricoDialog() {
     return Math.max(0, Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   }, [startDate, endDate]);
 
-  const handleSync = () => {
-    syncMutation.mutate(
-      { startDate, endDate },
-      { onSuccess: () => setOpen(false) }
+  // Split range into chunks of 7 days and call the edge function for each chunk sequentially
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setProgress("Iniciando...");
+    setSyncedCount(null);
+
+    const chunkSize = 7;
+    const chunks: { start: string; end: string }[] = [];
+    const d = new Date(startDate + "T00:00:00");
+    const endD = new Date(endDate + "T00:00:00");
+
+    while (d <= endD) {
+      const chunkEnd = new Date(d);
+      chunkEnd.setDate(chunkEnd.getDate() + chunkSize - 1);
+      if (chunkEnd > endD) chunkEnd.setTime(endD.getTime());
+
+      chunks.push({
+        start: d.toISOString().split("T")[0],
+        end: chunkEnd.toISOString().split("T")[0],
+      });
+
+      d.setDate(d.getDate() + chunkSize);
+    }
+
+    let totalSynced = 0;
+    let totalErrors = 0;
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      setProgress(`Sincronizando ${chunk.start} a ${chunk.end} (${i + 1}/${chunks.length})...`);
+
+      try {
+        const { data, error } = await supabase.functions.invoke("sync-daily-km", {
+          body: { start_date: chunk.start, end_date: chunk.end },
+        });
+
+        if (error) {
+          console.warn(`Chunk ${i + 1} error:`, error);
+          totalErrors++;
+        } else {
+          totalSynced += data?.synced ?? 0;
+          totalErrors += data?.errors ?? 0;
+        }
+      } catch (err) {
+        console.warn(`Chunk ${i + 1} exception:`, err);
+        totalErrors++;
+      }
+    }
+
+    setSyncedCount(totalSynced);
+    setProgress(
+      totalErrors > 0
+        ? `Concluído: ${totalSynced} registros sincronizados (${totalErrors} erros)`
+        : `Concluído: ${totalSynced} registros sincronizados!`
     );
-  };
+    setSyncing(false);
+    queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
+    toast.success(`Sincronização histórica: ${totalSynced} registros atualizados`);
+  }, [startDate, endDate, queryClient]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (!syncing) setOpen(v); }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="icon" title="Sincronizar KM Histórico">
           <Download className="w-4 h-4" />
@@ -86,41 +142,66 @@ function SyncKmHistoricoDialog() {
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Baixa os dados de KM do Rota Exata para o período selecionado e grava no banco de dados local.
+          O processo é feito em lotes de 7 dias.
         </p>
         <div className="grid grid-cols-2 gap-4 mt-4">
           <div>
             <label className="text-sm font-medium mb-1 block">Data Inicial</label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={syncing} />
           </div>
           <div>
             <label className="text-sm font-medium mb-1 block">Data Final</label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} disabled={syncing} />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          {dayCount} dias · máximo 365 dias por sincronização
-        </p>
+
+        {syncing && (
+          <div className="mt-3 p-3 rounded-lg bg-muted/50 border">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm font-medium">{progress}</span>
+            </div>
+          </div>
+        )}
+
+        {!syncing && syncedCount !== null && (
+          <div className="mt-3 p-3 rounded-lg bg-muted/50 border">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm">{progress}</span>
+            </div>
+          </div>
+        )}
+
+        {!syncing && syncedCount === null && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {dayCount} dias · processado em lotes de 7 dias
+          </p>
+        )}
+
         {dayCount > 365 && (
           <p className="text-xs text-destructive">Reduza o período para no máximo 365 dias.</p>
         )}
+
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button
-            onClick={handleSync}
-            disabled={syncMutation.isPending || dayCount <= 0 || dayCount > 365}
-          >
-            {syncMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sincronizando...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Sincronizar {dayCount} dias
-              </>
-            )}
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={syncing}>
+            {syncedCount !== null ? "Fechar" : "Cancelar"}
           </Button>
+          {syncedCount === null && (
+            <Button onClick={handleSync} disabled={syncing || dayCount <= 0 || dayCount > 365}>
+              {syncing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Sincronizar {dayCount} dias
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
