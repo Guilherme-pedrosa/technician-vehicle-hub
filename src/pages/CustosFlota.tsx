@@ -11,7 +11,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
 import { cn } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
 
