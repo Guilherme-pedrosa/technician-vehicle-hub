@@ -277,9 +277,9 @@ Deno.serve(async (req) => {
                 totalErrors++;
               }
             }
-          } else if (eventos.length > 0) {
-            // Vehicle had telemetry events but no driver sessions — aggregate all
-            const totalTel = eventos.length;
+          } else if (posicoes.length > 0) {
+            // Vehicle had positions but no driver sessions — aggregate all
+            const totalPos = posicoes.length;
             let totalExc = 0;
             let maxVel = 0;
             for (const [, dt] of driverTelemetry) {
@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
               motorista_id: null,
               km_percorrido: 0,
               hr_vinculo: "00:00:00",
-              telemetrias: totalTel,
+              telemetrias: totalPos,
               velocidade_maxima: maxVel,
               excessos_velocidade: totalExc,
               synced_at: new Date().toISOString(),
