@@ -251,7 +251,7 @@ export default function Dashboard() {
     !isSingleDay ? dates.fim : new Date(0)
   );
 
-  const syncMutationKm = useSyncDailyKm();
+  const { sync: syncKm, cancel: cancelSyncKm, isSyncing: isSyncingKm, progress: syncProgress } = useSyncDailyKm();
 
   const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
   const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
