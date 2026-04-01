@@ -553,27 +553,7 @@ export default function Dashboard() {
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    {!isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
-                      <div>
-                        <p className="mb-3">Dados do período não sincronizados ainda.</p>
-                        <Button
-                          size="sm"
-                          onClick={() => syncMutationKm.mutate({
-                            startDate: format(dates.inicio, "yyyy-MM-dd"),
-                            endDate: format(dates.fim, "yyyy-MM-dd"),
-                          })}
-                          disabled={syncMutationKm.isPending}
-                        >
-                          {syncMutationKm.isPending ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
-                          ) : (
-                            <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      "Nenhum dado de telemetria encontrado"
-                    )}
+                    Nenhum dado de telemetria encontrado
                   </TableCell>
                 </TableRow>
               ) : (
