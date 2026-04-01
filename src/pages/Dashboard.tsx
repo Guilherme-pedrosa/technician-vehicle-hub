@@ -127,7 +127,7 @@ function SyncKmHistoricoDialog() {
   );
 }
 
-
+export default function Dashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
