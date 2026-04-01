@@ -557,6 +557,7 @@ export default function Chamados() {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
   const dragIdRef = useRef<string | null>(null);
 
   // Fetch tickets
