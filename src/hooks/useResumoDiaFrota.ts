@@ -24,6 +24,26 @@ type LogMotoristaEntry = {
   tempo_deslocamento?: string;
 };
 
+/** Robust km extraction: tries multiple fields, handles comma decimals */
+function extractKmFromEntry(entry: Record<string, unknown>): number {
+  const candidates = [
+    entry.km_percorrido,
+    entry.kmPercorrido,
+    entry.km,
+    entry.distancia,
+    entry.distance,
+    entry.km_rodado,
+    entry.km_total,
+  ];
+  for (const val of candidates) {
+    if (val == null) continue;
+    const str = String(val).replace(",", ".");
+    const num = parseFloat(str);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return 0;
+}
+
 export type ResumoDiaRow = {
   adesaoId: string;
   placa: string;
@@ -138,7 +158,7 @@ export function useResumoDiaFrota(dateStr?: string) {
             adesaoId: v.adesaoId,
             placa: v.placa,
             kmHoje: Math.round(v.kmHoje * 100) / 100,
-            telemetrias: 0, // log_motorista doesn't provide telemetry count
+            telemetrias: 0,
             motoristaId: v.motoristaId,
             motoristaNome: v.motoristaNome,
           }) satisfies ResumoDiaRow
@@ -150,10 +170,7 @@ export function useResumoDiaFrota(dateStr?: string) {
   });
 
   const driverRows = useMemo(() => {
-    // Re-aggregate raw segments by driver (not by vehicle)
     const data = query.data ?? [];
-    // We need the raw segments, but we only have vehicleRows.
-    // Better approach: group driverRows from vehicleRows
     const groups = new Map<
       string,
       { nome: string; kmHoje: number; telemetrias: number; placas: string[] }
@@ -180,7 +197,7 @@ export function useResumoDiaFrota(dateStr?: string) {
     return Array.from(groups.entries())
       .map(([id, group]) => {
         const kmRodado = Math.round(group.kmHoje * 100) / 100;
-        const kmPorTelemetria = kmRodado; // No telemetry data from log_motorista
+        const kmPorTelemetria = kmRodado;
 
         return {
           id,
