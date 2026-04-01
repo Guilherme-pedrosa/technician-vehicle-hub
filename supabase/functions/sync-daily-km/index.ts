@@ -92,13 +92,15 @@ Deno.serve(async (req) => {
     // Service role client for writes
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { start_date, end_date } = await req.json();
+    const body = await req.json();
+    const { start_date, end_date, force } = body;
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const forceSync = force === true;
 
     // Get all vehicles
     const { data: vehicles } = await supabase
@@ -129,18 +131,20 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // Check if already synced recently
-          const { data: existing } = await supabase
-            .from("daily_vehicle_km")
-            .select("id, synced_at")
-            .eq("adesao_id", vehicle.adesao_id!)
-            .eq("data", day)
-            .limit(1);
+          // Skip if already synced recently (unless force mode)
+          if (!forceSync) {
+            const { data: existing } = await supabase
+              .from("daily_vehicle_km")
+              .select("id, synced_at")
+              .eq("adesao_id", vehicle.adesao_id!)
+              .eq("data", day)
+              .limit(1);
 
-          if (existing?.length) {
-            const syncedAt = new Date(existing[0].synced_at).getTime();
-            const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
-            if (syncedAt > sixHoursAgo) continue;
+            if (existing?.length) {
+              const syncedAt = new Date(existing[0].synced_at).getTime();
+              const oneHourAgo = Date.now() - 60 * 60 * 1000;
+              if (syncedAt > oneHourAgo) continue;
+            }
           }
 
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
