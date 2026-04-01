@@ -151,25 +151,17 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // Skip if synced in the last 30 minutes (unless force mode)
-          if (!forceSync) {
-            const { data: existing } = await supabase
-              .from("daily_vehicle_km")
-              .select("id, synced_at")
-              .eq("adesao_id", vehicle.adesao_id!)
-              .eq("data", day)
-              .limit(1);
-
-            if (existing?.length) {
-              const syncedAt = new Date(existing[0].synced_at).getTime();
-              const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
-              if (syncedAt > thirtyMinutesAgo) continue;
-            }
-          }
-
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
           if (entries.length === 0) continue;
 
+          // DELETE all existing records for this vehicle+day (clean slate)
+          await supabase
+            .from("daily_vehicle_km")
+            .delete()
+            .eq("adesao_id", vehicle.adesao_id!)
+            .eq("data", day);
+
+          // INSERT each session individually (preserves all km)
           for (const entry of entries as Record<string, unknown>[]) {
             const km = extractKm(entry);
             if (km <= 0) continue;
@@ -182,26 +174,34 @@ Deno.serve(async (req) => {
             const motoristaId = motorista?.id ? String(motorista.id) : null;
             const placa = (entry.placa as string) ?? vehicle.placa;
 
-            const { error } = await supabase.from("daily_vehicle_km").upsert(
-              {
-                adesao_id: vehicle.adesao_id!,
-                placa,
-                data: day,
-                motorista_nome: motoristaNome,
-                motorista_id: motoristaId,
-                km_percorrido: km,
-                tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
-                tipo_vinculo:
-                  (entry.tipo_vinculo as string) ??
-                  (motorista as Record<string, unknown>)?.tipo_vinculo as string ??
-                  null,
-                synced_at: new Date().toISOString(),
-              },
-              { onConflict: "adesao_id,data,motorista_nome" }
-            );
+            // Extract session identifier to distinguish multiple sessions
+            const hrVinculo = (entry.hr_vinculo as string)
+              ?? (entry.horario_vinculo as string)
+              ?? (entry.dt_inicio as string)
+              ?? (entry.hora_inicio as string)
+              ?? new Date().toISOString();
+
+            const { error } = await supabase.from("daily_vehicle_km").insert({
+              adesao_id: vehicle.adesao_id!,
+              placa,
+              data: day,
+              motorista_nome: motoristaNome,
+              motorista_id: motoristaId,
+              km_percorrido: km,
+              tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
+              tipo_vinculo:
+                (entry.tipo_vinculo as string) ??
+                ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
+                null,
+              hr_vinculo: hrVinculo,
+              synced_at: new Date().toISOString(),
+            });
 
             if (!error) totalSynced++;
-            else totalErrors++;
+            else {
+              console.warn(`[sync-daily-km] Insert failed:`, error.message);
+              totalErrors++;
+            }
           }
 
           await new Promise((r) => setTimeout(r, 200));
