@@ -188,17 +188,28 @@ Deno.serve(async (req) => {
           let excessosVelocidade = 0;
 
           for (const evento of eventos as Record<string, unknown>[]) {
+            // Check evento name for speed violations
+            const eventoNome = String(evento.evento ?? evento.event ?? evento.descricao_evento ?? "").toLowerCase();
+            const isSpeedEvent = eventoNome.includes("velocidade") || eventoNome.includes("speed");
+            
+            // Try to extract speed from multiple possible fields
             const vel = parseFloat(String(
               evento.velocidade ?? evento.speed ?? evento.vel ??
-              evento.velocidade_momento ?? evento.velocidadeMomento ?? 0
+              evento.velocidade_momento ?? evento.velocidadeMomento ??
+              evento.velocidade_maxima ?? evento.max_speed ?? 0
             ));
             if (vel > velMaxima) velMaxima = vel;
             if (vel > limiteVelocidade) excessosVelocidade++;
+            
+            // If event name indicates speed violation, count it even without velocity value
+            if (isSpeedEvent && vel <= 0) excessosVelocidade++;
           }
 
           if (eventos.length > 0) {
-            console.log(`[sync] dirigibilidade sample for ${vehicle.adesao_id} ${day}:`,
-              JSON.stringify(eventos[0]).substring(0, 500));
+            // Log first event AND all unique event types for debugging
+            const eventTypes = [...new Set((eventos as Record<string, unknown>[]).map(e => String(e.evento ?? e.event ?? "unknown")))];
+            console.log(`[sync] ${vehicle.adesao_id} ${day}: ${eventos.length} events, types: ${eventTypes.join(", ")}`);
+            console.log(`[sync] sample keys: ${Object.keys(eventos[0] as Record<string, unknown>).join(", ")}`);
           }
 
           if (entries.length === 0 && totalTelemetrias === 0) continue;
