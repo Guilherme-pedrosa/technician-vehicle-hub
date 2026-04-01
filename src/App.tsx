@@ -18,6 +18,7 @@ import Perfil from "./pages/Perfil";
 import Configuracoes from "./pages/Configuracoes";
 import EmailLogs from "./pages/EmailLogs";
 import ManutencaoPreventiva from "./pages/ManutencaoPreventiva";
+import CustosFlota from "./pages/CustosFlota";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
