@@ -742,13 +742,22 @@ export default function Chamados() {
     dragIdRef.current = null;
     const ticket = tickets.find((t) => t.id === id);
     if (ticket && ticket.status !== status) {
-      updateStatus.mutate({ id, status });
+      if (status === "concluido" && ticket.tipo === "preventiva") {
+        setConcluirTicket(ticket);
+      } else {
+        updateStatus.mutate({ id, status });
+      }
     }
   }, [tickets, updateStatus]);
 
   const handleStatusChange = useCallback((id: string, status: TicketStatus) => {
-    updateStatus.mutate({ id, status });
-  }, [updateStatus]);
+    const ticket = tickets.find((t) => t.id === id);
+    if (status === "concluido" && ticket?.tipo === "preventiva") {
+      setConcluirTicket(ticket);
+    } else {
+      updateStatus.mutate({ id, status });
+    }
+  }, [tickets, updateStatus]);
 
   // Stats
   const stats = useMemo(() => ({
