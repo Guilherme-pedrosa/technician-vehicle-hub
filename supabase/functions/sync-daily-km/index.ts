@@ -266,9 +266,9 @@ Deno.serve(async (req) => {
                   ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                   null,
                 hr_vinculo: hrVinculo,
-                telemetrias: sessionTelemetrias,
-                velocidade_maxima: velMaxima,
-                excessos_velocidade: sessionExcessos,
+                telemetrias: dt.telemetrias,
+                velocidade_maxima: dt.velMax,
+                excessos_velocidade: dt.excessos,
                 synced_at: new Date().toISOString(),
               });
 
@@ -278,8 +278,15 @@ Deno.serve(async (req) => {
                 totalErrors++;
               }
             }
-          } else if (totalTelemetrias > 0) {
-            // Vehicle had telemetry events but no driver sessions
+          } else if (eventos.length > 0) {
+            // Vehicle had telemetry events but no driver sessions — aggregate all
+            const totalTel = eventos.length;
+            let totalExc = 0;
+            let maxVel = 0;
+            for (const [, dt] of driverTelemetry) {
+              totalExc += dt.excessos;
+              if (dt.velMax > maxVel) maxVel = dt.velMax;
+            }
             const { error } = await supabase.from("daily_vehicle_km").insert({
               adesao_id: vehicle.adesao_id!,
               placa: vehicle.placa,
@@ -288,9 +295,9 @@ Deno.serve(async (req) => {
               motorista_id: null,
               km_percorrido: 0,
               hr_vinculo: "00:00:00",
-              telemetrias: totalTelemetrias,
-              velocidade_maxima: velMaxima,
-              excessos_velocidade: excessosVelocidade,
+              telemetrias: totalTel,
+              velocidade_maxima: maxVel,
+              excessos_velocidade: totalExc,
               synced_at: new Date().toISOString(),
             });
             if (!error) totalSynced++;
