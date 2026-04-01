@@ -69,17 +69,13 @@ export function useResumoDiaFrota(dateStr?: string) {
 
       const results = await Promise.allSettled(
         adesaoIds.map(async ({ adesaoId, placa }) => {
-          let raw: unknown;
-          try {
-            raw = await getRelatorioLogMotorista({
-              adesao_id: adesaoId,
-              data: hoje,
-            });
-          } catch (err) {
-            // 404 = no data for this vehicle today, 5xx = transient — skip silently
+          const raw = await getRelatorioLogMotorista({
+            adesao_id: adesaoId,
+            data: hoje,
+          }).catch((err) => {
             console.warn(`[log_motorista] adesao=${adesaoId} placa=${placa} skipped:`, (err as Error).message);
             return [];
-          }
+          });
 
           // DEBUG: log raw API response to identify real structure
           console.log(`[log_motorista] adesao=${adesaoId} placa=${placa} raw=`, JSON.stringify(raw, null, 2));
