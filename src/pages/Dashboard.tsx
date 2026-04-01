@@ -194,23 +194,21 @@ function SyncKmHistoricoDialog() {
 
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={() => setOpen(false)} disabled={syncing}>
-            {syncedCount !== null ? "Fechar" : "Cancelar"}
+            Fechar
           </Button>
-          {syncedCount === null && (
-            <Button onClick={handleSync} disabled={syncing || dayCount <= 0 || dayCount > 365}>
-              {syncing ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sincronizando...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-2" />
-                  Sincronizar {dayCount} dias
-                </>
-              )}
-            </Button>
-          )}
+          <Button onClick={handleSync} disabled={syncing || dayCount <= 0 || dayCount > 365}>
+            {syncing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Sincronizar {dayCount} dias
+              </>
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
