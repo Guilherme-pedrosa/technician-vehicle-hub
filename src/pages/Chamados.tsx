@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { TicketActions } from "@/components/chamados/TicketActions";
+import { ConcluirPreventivaDialog } from "@/components/chamados/ConcluirPreventivaDialog";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -179,6 +180,7 @@ function TicketDetailDialog({
   onStatusChange,
   onUpdate,
   onDelete,
+  onConcluirPreventiva,
   vehicles,
   drivers,
 }: {
@@ -188,6 +190,7 @@ function TicketDetailDialog({
   onStatusChange: (id: string, status: TicketStatus) => void;
   onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
+  onConcluirPreventiva: (ticket: Ticket) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
 }) {
@@ -273,7 +276,15 @@ function TicketDetailDialog({
                       key={col.id}
                       size="sm"
                       variant={ticket.status === col.id ? "default" : "outline"}
-                      onClick={() => { onStatusChange(ticket.id, col.id); onOpenChange(false); }}
+                      onClick={() => {
+                        if (col.id === "concluido" && ticket.tipo === "preventiva") {
+                          onConcluirPreventiva(ticket);
+                          onOpenChange(false);
+                        } else {
+                          onStatusChange(ticket.id, col.id);
+                          onOpenChange(false);
+                        }
+                      }}
                       className="text-xs"
                     >
                       {col.icon}
@@ -546,6 +557,7 @@ export default function Chamados() {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
   const dragIdRef = useRef<string | null>(null);
 
   // Fetch tickets
@@ -578,40 +590,11 @@ export default function Chamados() {
     },
   });
 
-  // Update ticket status — auto-register execution when preventiva ticket is completed
+  // Update ticket status (preventiva → concluído is handled by ConcluirPreventivaDialog)
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TicketStatus }) => {
-      const ticket = tickets.find((t) => t.id === id);
       const { error } = await supabase.from("maintenance_tickets").update({ status } as any).eq("id", id);
       if (error) throw error;
-
-      // Auto-register maintenance execution when preventiva ticket is completed
-      if (status === "concluido" && ticket?.tipo === "preventiva" && (ticket as any).maintenance_plan_id) {
-        const planId = (ticket as any).maintenance_plan_id;
-        const vehicle = vehicles.find((v) => v.id === ticket.vehicle_id);
-        const currentKm = vehicle?.km_atual ?? 0;
-
-        // Fetch the plan to calculate next due
-        const { data: plan } = await supabase
-          .from("maintenance_plans")
-          .select("km_interval, time_interval_days")
-          .eq("id", planId)
-          .single();
-
-        const nextKm = plan?.km_interval ? currentKm + plan.km_interval : null;
-        const nextDate = plan ? new Date(Date.now() + plan.time_interval_days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null;
-
-        await supabase.from("maintenance_executions").insert({
-          vehicle_id: ticket.vehicle_id,
-          maintenance_plan_id: planId,
-          km_at_execution: currentKm,
-          next_km_due: nextKm,
-          next_date_due: nextDate,
-          executed_by: user?.id,
-          ticket_id: id,
-          notes: `Execução registrada automaticamente via chamado: ${ticket.titulo}`,
-        } as any);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
@@ -730,13 +713,22 @@ export default function Chamados() {
     dragIdRef.current = null;
     const ticket = tickets.find((t) => t.id === id);
     if (ticket && ticket.status !== status) {
-      updateStatus.mutate({ id, status });
+      if (status === "concluido" && ticket.tipo === "preventiva") {
+        setConcluirTicket(ticket);
+      } else {
+        updateStatus.mutate({ id, status });
+      }
     }
   }, [tickets, updateStatus]);
 
   const handleStatusChange = useCallback((id: string, status: TicketStatus) => {
-    updateStatus.mutate({ id, status });
-  }, [updateStatus]);
+    const ticket = tickets.find((t) => t.id === id);
+    if (status === "concluido" && ticket?.tipo === "preventiva") {
+      setConcluirTicket(ticket);
+    } else {
+      updateStatus.mutate({ id, status });
+    }
+  }, [tickets, updateStatus]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -854,9 +846,19 @@ export default function Chamados() {
         onStatusChange={handleStatusChange}
         onUpdate={(id, data) => updateTicket.mutate({ id, data })}
         onDelete={(id) => deleteTicket.mutate(id)}
+        onConcluirPreventiva={(t) => { setDetailOpen(false); setConcluirTicket(t); }}
         vehicles={vehicles}
         drivers={drivers}
       />
+      {concluirTicket && (
+        <ConcluirPreventivaDialog
+          open={!!concluirTicket}
+          onOpenChange={(o) => { if (!o) setConcluirTicket(null); }}
+          ticket={concluirTicket}
+          vehicles={vehicles}
+          onDone={() => setConcluirTicket(null)}
+        />
+      )}
     </div>
   );
 }
