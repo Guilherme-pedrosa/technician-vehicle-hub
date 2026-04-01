@@ -69,26 +69,32 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
   return [];
 }
 
-async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<unknown[]> {
-  // Event types: 1=Aceleração, 2=Freada, 3=Curva, 4-10=outros (inclui Excesso Velocidade)
-  const where = JSON.stringify({
-    adesao_id: Number(adesaoId),
-    data,
-    eventos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-  });
-  const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+async function fetchPosicoes(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
+  const allPositions: Record<string, unknown>[] = [];
+  let page = 1;
+  const limit = 1000;
 
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", Authorization: token },
-  });
+  while (true) {
+    const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
+    const url = `${ROTAEXATA_API}/relatorios/rastreamento/posicoes?where=${encodeURIComponent(where)}&limit=${limit}&page=${page}`;
 
-  if (res.status === 404) return [];
-  if (!res.ok) return [];
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json", Authorization: token },
+    });
 
-  const json = await res.json();
-  if (Array.isArray(json)) return json;
-  if (json?.data && Array.isArray(json.data)) return json.data;
-  return [];
+    if (res.status === 404) break;
+    if (!res.ok) break;
+
+    const json = await res.json();
+    const items = Array.isArray(json) ? json : (json?.data && Array.isArray(json.data) ? json.data : []);
+    if (items.length === 0) break;
+
+    allPositions.push(...items);
+    if (items.length < limit) break;
+    page++;
+  }
+
+  return allPositions;
 }
 
 function extractKm(entry: Record<string, unknown>): number {
