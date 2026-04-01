@@ -273,7 +273,15 @@ function TicketDetailDialog({
                       key={col.id}
                       size="sm"
                       variant={ticket.status === col.id ? "default" : "outline"}
-                      onClick={() => { onStatusChange(ticket.id, col.id); onOpenChange(false); }}
+                      onClick={() => {
+                        if (col.id === "concluido" && ticket.tipo === "preventiva") {
+                          onConcluirPreventiva(ticket);
+                          onOpenChange(false);
+                        } else {
+                          onStatusChange(ticket.id, col.id);
+                          onOpenChange(false);
+                        }
+                      }}
                       className="text-xs"
                     >
                       {col.icon}
