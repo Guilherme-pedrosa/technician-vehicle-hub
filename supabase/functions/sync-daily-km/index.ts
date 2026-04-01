@@ -18,18 +18,39 @@ async function getToken(): Promise<string> {
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
   if (!email || !password) throw new Error("ROTAEXATA credentials not configured");
 
-  const res = await fetch(`${ROTAEXATA_API}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  // Retry login up to 3 times with backoff (Rota Exata returns 502 sometimes)
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${ROTAEXATA_API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-  if (!res.ok) throw new Error(`Login failed: ${res.status}`);
-  const data = await res.json();
-  cachedToken = data.token || data.access_token || data.authorization;
-  if (!cachedToken) throw new Error("No token in response");
-  tokenExpiry = Date.now() + 50 * 60 * 1000;
-  return cachedToken;
+      if (res.status === 502 || res.status === 503 || res.status === 429) {
+        lastError = new Error(`Login returned ${res.status}`);
+        console.warn(`[sync-daily-km] Login attempt ${attempt}/3 failed with ${res.status}, retrying...`);
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+        continue;
+      }
+
+      if (!res.ok) throw new Error(`Login failed: ${res.status}`);
+      const data = await res.json();
+      cachedToken = data.token || data.access_token || data.authorization;
+      if (!cachedToken) throw new Error("No token in response");
+      tokenExpiry = Date.now() + 50 * 60 * 1000;
+      return cachedToken;
+    } catch (err) {
+      lastError = err as Error;
+      if (attempt < 3) {
+        console.warn(`[sync-daily-km] Login attempt ${attempt}/3 error: ${(err as Error).message}, retrying...`);
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Login failed after 3 attempts");
 }
 
 async function fetchLogMotorista(token: string, adesaoId: string, data: string): Promise<unknown[]> {
@@ -114,7 +135,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate days (cap at 60)
+    // Generate days — no cap, frontend handles chunking (sends max 5 days)
     const days: string[] = [];
     const d = new Date(start_date + "T00:00:00Z");
     const endD = new Date(end_date + "T00:00:00Z");
@@ -122,7 +143,6 @@ Deno.serve(async (req) => {
       days.push(d.toISOString().split("T")[0]);
       d.setUTCDate(d.getUTCDate() + 1);
     }
-    if (days.length > 365) days.length = 365;
 
     const rotaToken = await getToken();
     let totalSynced = 0;
@@ -131,7 +151,7 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // Skip if already synced recently (unless force mode)
+          // Skip if synced in the last 30 minutes (unless force mode)
           if (!forceSync) {
             const { data: existing } = await supabase
               .from("daily_vehicle_km")
@@ -142,8 +162,8 @@ Deno.serve(async (req) => {
 
             if (existing?.length) {
               const syncedAt = new Date(existing[0].synced_at).getTime();
-              const oneHourAgo = Date.now() - 60 * 60 * 1000;
-              if (syncedAt > oneHourAgo) continue;
+              const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
+              if (syncedAt > thirtyMinutesAgo) continue;
             }
           }
 
