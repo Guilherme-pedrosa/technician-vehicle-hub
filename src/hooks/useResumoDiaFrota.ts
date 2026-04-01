@@ -89,15 +89,13 @@ export function useResumoDiaFrota(dateStr?: string) {
       for (const result of results) {
         if (result.status !== "fulfilled") continue;
         for (const { adesaoId, placa, entry } of result.value) {
-          const km = parseFloat(String(entry.km_percorrido ?? "0")) || 0;
+          const km = extractKmFromEntry(entry as unknown as Record<string, unknown>);
           if (km <= 0) continue;
 
           const motoristaId =
             typeof entry.motorista?.id === "number" ? entry.motorista.id : undefined;
-          const motoristaNome =
-            entry.motorista?.nome && entry.motorista.nome !== "Desconhecido"
-              ? entry.motorista.nome
-              : undefined;
+          const isDesconhecido = !entry.motorista?.nome || entry.motorista.nome === "Desconhecido";
+          const motoristaNome = isDesconhecido ? "Sem condutor vinculado" : entry.motorista!.nome;
 
           allSegments.push({
             adesaoId,
