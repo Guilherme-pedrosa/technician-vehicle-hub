@@ -336,7 +336,7 @@ export async function getDestinosProximos(lat: number, long: number, raio: numbe
 // ===========================
 
 export async function getUsuariosRotaExata(where?: string): Promise<RotaExataUsuarioResponse[]> {
-  const params: Record<string, string> = { quantidade: "1000" };
+  const params: Record<string, string> = { limit: "1000" };
   if (where) params.where = where;
   const response = await rotaExataFetch<RotaExataEnvelope<RotaExataUsuarioResponse[]>>("/usuarios", "GET", params);
   return unwrapRotaExataResponse(response);

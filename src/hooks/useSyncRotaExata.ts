@@ -97,17 +97,16 @@ async function fetchAllRotaExataUsers(): Promise<RotaExataUser[]> {
   };
 
   // Try big batch first
-  const directBatch = await fetchRotaExata("/usuarios", { quantidade: "1000" });
+  const directBatch = await fetchRotaExata("/usuarios", { limit: "1000" });
   addUsers(directBatch);
 
   // Only try pagination if we got exactly 10 (default limit) — means API is paginating
   if (Array.isArray(directBatch) && directBatch.length === 10) {
-    const strategy = { pageKey: "pagina", sizeKey: "quantidade" };
     for (let page = 1; page <= 20; page++) {
       try {
         const pageData = await fetchRotaExata("/usuarios", {
-          [strategy.pageKey]: String(page),
-          [strategy.sizeKey]: "100",
+          page: String(page),
+          limit: "100",
         });
         if (!Array.isArray(pageData) || pageData.length === 0) break;
         const added = addUsers(pageData);
