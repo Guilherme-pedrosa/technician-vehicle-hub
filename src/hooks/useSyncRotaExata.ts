@@ -269,6 +269,22 @@ export function useSyncAllFromRotaExata() {
         ? await syncAssignmentsAndKm(positionsArray)
         : { assignmentsCreated: 0, kmUpdated: 0 };
 
+      // Sync last 7 days of KM data into cache
+      try {
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
+
+        await supabase.functions.invoke("sync-daily-km", {
+          body: {
+            start_date: sevenDaysAgo.toISOString().split("T")[0],
+            end_date: today.toISOString().split("T")[0],
+          },
+        });
+      } catch (e) {
+        console.warn("[sync-all] KM daily sync failed:", e);
+      }
+
       return { vehicleResult, driverResult, assignmentsCreated, kmUpdated };
     },
     onSuccess: (r) => {
