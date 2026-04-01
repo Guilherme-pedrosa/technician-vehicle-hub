@@ -45,6 +45,7 @@ export type Database = {
         Row: {
           adesao_id: string
           data: string
+          hr_vinculo: string | null
           id: string
           km_percorrido: number
           motorista_id: string | null
@@ -57,6 +58,7 @@ export type Database = {
         Insert: {
           adesao_id: string
           data: string
+          hr_vinculo?: string | null
           id?: string
           km_percorrido?: number
           motorista_id?: string | null
@@ -69,6 +71,7 @@ export type Database = {
         Update: {
           adesao_id?: string
           data?: string
+          hr_vinculo?: string | null
           id?: string
           km_percorrido?: number
           motorista_id?: string | null
