@@ -271,11 +271,15 @@ export default function CustosFlota() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
+                    <TableHead>Data Lançamento</TableHead>
+                    <TableHead>Criado em</TableHead>
                     <TableHead>Placa</TableHead>
-                    <TableHead>Tipo</TableHead>
                     <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Hodômetro</TableHead>
+                    <TableHead>Tipo de Custo</TableHead>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Criado por</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
                     <TableHead className="text-center">Parcelado</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -287,16 +291,30 @@ export default function CustosFlota() {
                           ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
                           : "—"}
                       </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {custo.dt_criacao
+                          ? format(new Date(custo.dt_criacao), "dd/MM/yyyy")
+                          : "—"}
+                      </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {placaMap.get(String(custo.adesao_id)) ?? `ID ${custo.adesao_id}`}
+                        {custo.placa ?? `ID ${custo.adesao_id}`}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                        {custo.descricao ?? custo.veiculo_descricao ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {custo.hodometro ? custo.hodometro.toLocaleString("pt-BR") : "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
                           {custo.tipo_custo_nome ?? "—"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                        {custo.descricao ?? "—"}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {custo.fornecedor_nome ?? "Não informado"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {custo.criado_por_nome ?? "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium text-sm">
                         {formatCurrency(custo.valor ?? 0)}
