@@ -75,17 +75,16 @@ export function useRotaExataChecklists() {
   });
 }
 
-/** KM rodado por veículo em um período */
-export function useKmRodado(adesaoId: string | null, dataInicio: string, dataFim: string) {
+/** KM rodado por veículo em uma data específica */
+export function useKmRodado(adesaoId: string | null, data: string) {
   return useQuery({
-    queryKey: ["rotaexata", "km-rodado", adesaoId, dataInicio, dataFim],
+    queryKey: ["rotaexata", "km-rodado", adesaoId, data],
     queryFn: () =>
       getRelatorioKmRodado({
         adesao_id: adesaoId!,
-        data_inicio: dataInicio,
-        data_fim: dataFim,
+        data,
       }),
-    enabled: !!adesaoId && !!dataInicio && !!dataFim,
+    enabled: !!adesaoId && !!data,
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
