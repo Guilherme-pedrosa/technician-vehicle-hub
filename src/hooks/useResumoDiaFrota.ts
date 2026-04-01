@@ -62,9 +62,13 @@ export function useResumoDiaFrota(dateStr?: string) {
           const kmTotal = raw?.basico?.km?.total ?? 0;
           const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
 
-          // basico.km.total and basico.tempo.movimento are always for the requested day
-          // Only filter by actual movement, not by posicao.dt_posicao (which may be stale)
-          const isRealMovement = tempoMovimento > 60 && kmTotal > 50;
+          // Validate that posicao.dt_posicao matches the requested date.
+          // The API returns stale basico.km data for vehicles inactive for months.
+          const dtPosicao = raw?.posicao?.dt_posicao ?? "";
+          const posicaoDate = dtPosicao ? dtPosicao.substring(0, 10) : "";
+          const isCurrentDay = posicaoDate === hoje;
+
+          const isRealMovement = isCurrentDay && tempoMovimento > 60 && kmTotal > 50;
 
           const kmReal = isRealMovement ? kmTotal / 1000 : 0;
           const telemetriasReal = isRealMovement ? telemetrias : 0;

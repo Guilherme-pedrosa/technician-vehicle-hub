@@ -85,13 +85,19 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
 
       for (const result of results) {
         if (result.status !== "fulfilled") continue;
-        const { placa, data } = result.value;
+        const { placa, day, data } = result.value;
 
         const tempoMovimento = data?.basico?.tempo?.movimento ?? 0;
         const kmTotal = data?.basico?.km?.total ?? 0;
         const telemetrias = data?.basico?.telemetria?.quantidade ?? 0;
 
-        // Skip no real movement (basico.km.total is always for the requested day)
+        // Validate that posicao.dt_posicao matches the requested day.
+        // The API returns stale basico.km data for vehicles inactive for months.
+        const dtPosicao = data?.posicao?.dt_posicao ?? "";
+        const posicaoDate = dtPosicao ? dtPosicao.substring(0, 10) : "";
+        if (posicaoDate !== day) continue;
+
+        // Skip no real movement
         if (tempoMovimento <= 60 || kmTotal <= 50) continue;
 
         const kmKm = kmTotal / 1000;
