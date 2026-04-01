@@ -117,6 +117,28 @@ async function proxyRequest(
 
   const responseBody = await res.text();
 
+  // Rota Exata returns 404 for "no movement/no positions found"; normalize to empty success
+  if (res.status === 404) {
+    let parsed: unknown = null;
+    try {
+      parsed = responseBody ? JSON.parse(responseBody) : null;
+    } catch {
+      parsed = null;
+    }
+
+    const message =
+      parsed && typeof parsed === "object" && "message" in parsed
+        ? String((parsed as { message?: unknown }).message ?? "")
+        : "";
+
+    if (message === "Nenhuma posição encontrada.") {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   return new Response(responseBody, {
     status: res.status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
