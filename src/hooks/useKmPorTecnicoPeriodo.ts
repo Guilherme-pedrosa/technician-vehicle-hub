@@ -10,6 +10,8 @@ export type DriverPeriodRow = {
   kmRodado: number;
   telemetrias: number;
   kmPorTelemetria: number;
+  excessosVelocidade: number;
+  velocidadeMaxima: number;
   placas: string[];
 };
 
