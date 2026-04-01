@@ -7,6 +7,7 @@ import {
   Wrench,
   Shield,
   BarChart3,
+  DollarSign,
   Settings,
   User,
   LogOut,
