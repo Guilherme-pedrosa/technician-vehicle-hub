@@ -209,10 +209,13 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">KM rodado e telemetria da frota</p>
         </div>
         {isAdmin && (
-          <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="w-full sm:w-auto">
-            {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Sincronizar Rota Exata
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="flex-1 sm:flex-none">
+              {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Sincronizar Rota Exata
+            </Button>
+            <SyncKmHistoricoDialog />
+          </div>
         )}
       </div>
 
