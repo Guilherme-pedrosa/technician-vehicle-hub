@@ -291,6 +291,7 @@ export function useSyncAllFromRotaExata() {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
       const msgs: string[] = [];
       if (r.vehicleResult.created > 0) msgs.push(`${r.vehicleResult.created} veículos criados`);
       if (r.vehicleResult.updated > 0) msgs.push(`${r.vehicleResult.updated} veículos atualizados`);
