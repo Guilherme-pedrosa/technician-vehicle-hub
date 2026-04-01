@@ -209,13 +209,6 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // DELETE existing records for this vehicle+day
-          await supabase
-            .from("daily_vehicle_km")
-            .delete()
-            .eq("adesao_id", vehicle.adesao_id!)
-            .eq("data", day);
-
           // Determine excessos: if max speed exceeded the limit
           const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
 
@@ -246,46 +239,59 @@ Deno.serve(async (req) => {
               const kmShare = totalKmDay > 0 ? km / totalKmDay : 1 / entries.length;
               const telemetriasSession = Math.round(resumo.telemetrias * kmShare);
 
-              const { error } = await supabase.from("daily_vehicle_km").insert({
-                adesao_id: vehicle.adesao_id!,
-                placa,
-                data: day,
-                motorista_nome: motoristaNome,
-                motorista_id: motoristaId,
-                km_percorrido: km,
-                tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
-                tipo_vinculo:
-                  (entry.tipo_vinculo as string) ??
-                  ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
-                  null,
-                hr_vinculo: hrVinculo,
-                telemetrias: telemetriasSession,
-                velocidade_maxima: resumo.velocidadeMaxima,
-                excessos_velocidade: excessos,
-                synced_at: new Date().toISOString(),
-              });
+              // UPSERT: atomic insert-or-update, never deletes existing data
+              const { error } = await supabase.from("daily_vehicle_km").upsert(
+                {
+                  adesao_id: vehicle.adesao_id!,
+                  placa,
+                  data: day,
+                  motorista_nome: motoristaNome,
+                  motorista_id: motoristaId,
+                  km_percorrido: km,
+                  tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
+                  tipo_vinculo:
+                    (entry.tipo_vinculo as string) ??
+                    ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
+                    null,
+                  hr_vinculo: hrVinculo,
+                  telemetrias: telemetriasSession,
+                  velocidade_maxima: resumo.velocidadeMaxima,
+                  excessos_velocidade: excessos,
+                  synced_at: new Date().toISOString(),
+                },
+                {
+                  onConflict: "adesao_id,data,motorista_nome,hr_vinculo",
+                  ignoreDuplicates: false,
+                }
+              );
 
               if (!error) totalSynced++;
               else {
-                console.warn(`[sync] Insert failed:`, error.message);
+                console.warn(`[sync] Upsert failed:`, error.message);
                 totalErrors++;
               }
             }
           } else if (resumo.telemetrias > 0) {
-            // Vehicle had movement but no driver sessions
-            const { error } = await supabase.from("daily_vehicle_km").insert({
-              adesao_id: vehicle.adesao_id!,
-              placa: vehicle.placa,
-              data: day,
-              motorista_nome: "Sem condutor vinculado",
-              motorista_id: null,
-              km_percorrido: 0,
-              hr_vinculo: "00:00:00",
-              telemetrias: resumo.telemetrias,
-              velocidade_maxima: resumo.velocidadeMaxima,
-              excessos_velocidade: excessos,
-              synced_at: new Date().toISOString(),
-            });
+            // Vehicle had movement but no driver sessions — UPSERT too
+            const { error } = await supabase.from("daily_vehicle_km").upsert(
+              {
+                adesao_id: vehicle.adesao_id!,
+                placa: vehicle.placa,
+                data: day,
+                motorista_nome: "Sem condutor vinculado",
+                motorista_id: null,
+                km_percorrido: 0,
+                hr_vinculo: "00:00:00",
+                telemetrias: resumo.telemetrias,
+                velocidade_maxima: resumo.velocidadeMaxima,
+                excessos_velocidade: excessos,
+                synced_at: new Date().toISOString(),
+              },
+              {
+                onConflict: "adesao_id,data,motorista_nome,hr_vinculo",
+                ignoreDuplicates: false,
+              }
+            );
             if (!error) totalSynced++;
             else totalErrors++;
           }
