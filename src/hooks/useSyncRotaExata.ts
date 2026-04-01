@@ -75,6 +75,7 @@ type RotaExataUser = {
   telefone?: string | null;
   phone?: string | null;
   celular?: string | null;
+  email?: string | null;
 };
 
 function getUserUniqueKey(user: RotaExataUser) {
