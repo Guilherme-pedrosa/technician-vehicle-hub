@@ -179,6 +179,7 @@ function TicketDetailDialog({
   onStatusChange,
   onUpdate,
   onDelete,
+  onConcluirPreventiva,
   vehicles,
   drivers,
 }: {
@@ -188,6 +189,7 @@ function TicketDetailDialog({
   onStatusChange: (id: string, status: TicketStatus) => void;
   onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
+  onConcluirPreventiva: (ticket: Ticket) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
 }) {
