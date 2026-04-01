@@ -250,6 +250,21 @@ export default function Dashboard() {
                   {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
                 </Button>
               ))}
+              {!isSingleDay && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => syncMutationKm.mutate({
+                    startDate: format(dates.inicio, "yyyy-MM-dd"),
+                    endDate: format(dates.fim, "yyyy-MM-dd"),
+                  })}
+                  disabled={syncMutationKm.isPending}
+                  className="h-7 text-xs"
+                  title="Sincronizar dados do período"
+                >
+                  {syncMutationKm.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                </Button>
+              )}
             </div>
             {preset === "personalizado" && (
               <div className="flex items-center gap-2 flex-wrap">
