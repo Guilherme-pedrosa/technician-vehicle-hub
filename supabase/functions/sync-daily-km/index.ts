@@ -187,47 +187,39 @@ Deno.serve(async (req) => {
           // CALL 1: log_motorista (KM per driver session)
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
 
-          // CALL 2: dirigibilidade (telemetry events + speed)
-          const eventos = await fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day);
+          // CALL 2: posicoes (GPS positions with speed)
+          const posicoes = await fetchPosicoes(rotaToken, vehicle.adesao_id!, day);
 
-          // Build per-driver telemetry stats from dirigibilidade events
-          const driverTelemetry = new Map<string, { telemetrias: number; excessos: number; velMax: number }>();
+          // Build per-driver speed stats from position data
+          const driverTelemetry = new Map<string, { posicoes: number; excessos: number; velMax: number }>();
           
-          for (const evento of eventos as Record<string, unknown>[]) {
-            const mot = evento.motorista as Record<string, unknown> | undefined;
+          for (const pos of posicoes) {
+            const mot = pos.motorista as Record<string, unknown> | undefined;
             const driverId = mot?.id ? String(mot.id) : "__unknown__";
             
             if (!driverTelemetry.has(driverId)) {
-              driverTelemetry.set(driverId, { telemetrias: 0, excessos: 0, velMax: 0 });
+              driverTelemetry.set(driverId, { posicoes: 0, excessos: 0, velMax: 0 });
             }
             const dt = driverTelemetry.get(driverId)!;
-            dt.telemetrias++;
+            dt.posicoes++;
             
-            // Check event name for speed violations
-            const eventoNome = String(evento.evento ?? "").toLowerCase();
-            const isSpeedEvent = eventoNome.includes("velocidade") || eventoNome.includes("speed");
-            
-            // Try to extract speed
+            // Extract speed from position
             const vel = parseFloat(String(
-              evento.velocidade ?? evento.speed ?? evento.vel ??
-              evento.velocidade_momento ?? evento.velocidadeMomento ??
-              evento.velocidade_maxima ?? evento.max_speed ?? 0
+              pos.velocidade ?? pos.speed ?? pos.vel ?? pos.velocidade_momento ?? 0
             ));
             if (vel > dt.velMax) dt.velMax = vel;
             if (vel > limiteVelocidade) dt.excessos++;
-            else if (isSpeedEvent) dt.excessos++; // Count by event name
           }
 
-          if (eventos.length > 0) {
-            const eventTypes = [...new Set((eventos as Record<string, unknown>[]).map(e => String((e as Record<string, unknown>).evento ?? "unknown")))];
-            console.log(`[sync] ${vehicle.adesao_id} ${day}: ${eventos.length} events, types: ${eventTypes.join(", ")}`);
-            // Log per-driver breakdown
+          if (posicoes.length > 0) {
             for (const [did, dt] of driverTelemetry) {
-              if (dt.excessos > 0) console.log(`[sync] driver ${did}: ${dt.telemetrias} tel, ${dt.excessos} excessos, velMax=${dt.velMax}`);
+              if (dt.excessos > 0 || dt.velMax > 80) {
+                console.log(`[sync] ${vehicle.adesao_id} ${day} driver ${did}: ${dt.posicoes} pos, ${dt.excessos} excessos, velMax=${dt.velMax}`);
+              }
             }
           }
 
-          if (entries.length === 0 && eventos.length === 0) continue;
+          if (entries.length === 0 && posicoes.length === 0) continue;
 
           // DELETE all existing records for this vehicle+day (clean slate)
           await supabase
