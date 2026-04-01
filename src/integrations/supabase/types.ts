@@ -41,6 +41,45 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_vehicle_km: {
+        Row: {
+          adesao_id: string
+          data: string
+          id: string
+          km_percorrido: number
+          motorista_id: string | null
+          motorista_nome: string
+          placa: string
+          synced_at: string
+          tempo_deslocamento: string | null
+          tipo_vinculo: string | null
+        }
+        Insert: {
+          adesao_id: string
+          data: string
+          id?: string
+          km_percorrido?: number
+          motorista_id?: string | null
+          motorista_nome?: string
+          placa: string
+          synced_at?: string
+          tempo_deslocamento?: string | null
+          tipo_vinculo?: string | null
+        }
+        Update: {
+          adesao_id?: string
+          data?: string
+          id?: string
+          km_percorrido?: number
+          motorista_id?: string | null
+          motorista_nome?: string
+          placa?: string
+          synced_at?: string
+          tempo_deslocamento?: string | null
+          tipo_vinculo?: string | null
+        }
+        Relationships: []
+      }
       driver_performance_records: {
         Row: {
           checklists_completos: number
