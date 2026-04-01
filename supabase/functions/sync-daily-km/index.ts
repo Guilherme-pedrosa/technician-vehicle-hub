@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       days.push(d.toISOString().split("T")[0]);
       d.setUTCDate(d.getUTCDate() + 1);
     }
-    if (days.length > 60) days.length = 60;
+    if (days.length > 365) days.length = 365;
 
     const rotaToken = await getToken();
     let totalSynced = 0;
