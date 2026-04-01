@@ -127,6 +127,10 @@ async function rotaExataFetch<T = unknown>(
   const res = await fetch(url, fetchOptions);
   if (!res.ok) {
     const errorBody = await res.text();
+    // 404 from RotaExata means "no data found" — not an error, return empty
+    if (res.status === 404) {
+      return [] as unknown as T;
+    }
     throw new Error(`Rota Exata API error [${res.status}]: ${errorBody}`);
   }
 
