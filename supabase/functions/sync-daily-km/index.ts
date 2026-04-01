@@ -70,10 +70,11 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
 }
 
 async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<unknown[]> {
-  // Include ALL event types: 1=Aceleração, 2=Freada, 3=Curva, 4=?, 5=Excesso Velocidade, etc.
+  // Event types: 1=Aceleração, 2=Freada, 3=Curva, 4-10=outros (inclui Excesso Velocidade)
   const where = JSON.stringify({
     adesao_id: Number(adesaoId),
     data,
+    eventos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
   });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
 
