@@ -22,6 +22,26 @@ type LogMotoristaEntry = {
   };
 };
 
+/** Robust km extraction: tries multiple fields, handles comma decimals */
+function extractKmFromEntry(entry: Record<string, unknown>): number {
+  const candidates = [
+    entry.km_percorrido,
+    entry.kmPercorrido,
+    entry.km,
+    entry.distancia,
+    entry.distance,
+    entry.km_rodado,
+    entry.km_total,
+  ];
+  for (const val of candidates) {
+    if (val == null) continue;
+    const str = String(val).replace(",", ".");
+    const num = parseFloat(str);
+    if (!isNaN(num) && num > 0) return num;
+  }
+  return 0;
+}
+
 // Batch with concurrency limit
 async function batchCalls<T>(tasks: (() => Promise<T>)[], concurrency = 6): Promise<PromiseSettledResult<T>[]> {
   const results: PromiseSettledResult<T>[] = [];
@@ -50,12 +70,10 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
     queryFn: async () => {
       if (!adesaoIds.length) return [];
 
-      // Generate all days in range
       const days = eachDayOfInterval({ start: startDate, end: endDate }).map((d) =>
         format(d, "yyyy-MM-dd")
       );
 
-      // Create tasks: one log_motorista call per vehicle per day
       const tasks = adesaoIds.flatMap((v) =>
         days.map((day) => () =>
           getRelatorioLogMotorista({ adesao_id: v.adesaoId, data: day }).then(
@@ -69,7 +87,6 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
 
       const results = await batchCalls(tasks, 8);
 
-      // Aggregate per driver
       const driverMap = new Map<string, { nome: string; km: number; placas: Set<string> }>();
 
       for (const result of results) {
@@ -77,17 +94,18 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
         const { placa, entries } = result.value;
 
         for (const entry of entries) {
-          const km = parseFloat(String(entry.km_percorrido ?? "0")) || 0;
+          const km = extractKmFromEntry(entry as unknown as Record<string, unknown>);
           if (km <= 0) continue;
 
           const motorista = entry.motorista;
-          const nome = motorista?.nome;
-          if (!nome || nome === "Desconhecido") continue;
-
-          const key = typeof motorista?.id === "number" ? String(motorista.id) : nome;
+          const isDesconhecido = !motorista?.nome || motorista.nome === "Desconhecido";
+          const nome = isDesconhecido ? "Sem condutor vinculado" : motorista!.nome!;
+          const key = isDesconhecido
+            ? `sem-condutor-${entry.placa ?? placa}`
+            : (typeof motorista?.id === "number" ? String(motorista.id) : nome);
 
           if (!driverMap.has(key)) {
-            driverMap.set(key, { nome, km: 0, placas: new Set() });
+            driverMap.set(key, { nome: isDesconhecido ? `Sem condutor vinculado (${entry.placa ?? placa})` : nome, km: 0, placas: new Set() });
           }
           const group = driverMap.get(key)!;
           group.km += km;
