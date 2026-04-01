@@ -71,132 +71,44 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
   return [];
 }
 
-async function fetchPosicoes(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
-  const allPositions: Record<string, unknown>[] = [];
-  let page = 1;
-  const limit = 1000;
-
-  while (true) {
-    const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
-    const url = `${ROTAEXATA_API}/relatorios/rastreamento/posicoes?where=${encodeURIComponent(where)}&limit=${limit}&page=${page}`;
-
+async function fetchResumoDia(token: string, adesaoId: string | number, data: string): Promise<{
+  telemetrias: number;
+  velocidadeMaxima: number;
+}> {
+  const url = `${ROTAEXATA_API}/resumo-dia/${adesaoId}/${data}`;
+  try {
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json", Authorization: token },
     });
-
-    if (res.status === 404) break;
-    if (!res.ok) break;
-
+    if (res.status === 404 || !res.ok) return { telemetrias: 0, velocidadeMaxima: 0 };
     const json = await res.json();
-    const items = Array.isArray(json) ? json : (json?.data && Array.isArray(json.data) ? json.data : []);
-    if (items.length === 0) break;
 
-    allPositions.push(...items);
-    if (items.length < limit) break;
-    page++;
+    // Log raw response (first 500 chars) for debugging
+    console.log(`[resumo-dia RAW] adesao=${adesaoId}:`, JSON.stringify(json).substring(0, 500));
+
+    // The API may return nested structure: basico.telemetria.quantidade and basico.velocidade.maxima
+    const basico = json?.basico ?? json?.data?.basico ?? json;
+    const telemetrias = Number(
+      basico?.telemetria?.quantidade ??
+      basico?.telemetrias ??
+      basico?.telemetria ??
+      json?.telemetria?.quantidade ??
+      json?.rowCount ??
+      0
+    ) || 0;
+    const velocidadeMaxima = Number(
+      basico?.velocidade?.maxima ??
+      basico?.velocidade_maxima ??
+      basico?.vel_maxima ??
+      json?.velocidade?.maxima ??
+      0
+    ) || 0;
+
+    console.log(`[resumo-dia] adesao=${adesaoId} data=${data} tel=${telemetrias} velMax=${velocidadeMaxima}`);
+    return { telemetrias, velocidadeMaxima };
+  } catch {
+    return { telemetrias: 0, velocidadeMaxima: 0 };
   }
-
-  return allPositions;
-}
-
-type NormalizedPosition = {
-  timestampMs: number | null;
-  speed: number;
-  driverId: string | null;
-  driverNameKey: string | null;
-};
-
-function normalizeDriverNameKey(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === "Desconhecido") return null;
-  return trimmed
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function parseNumber(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const parsed = parseFloat(String(value ?? "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function parseTimestampMs(value: unknown): number | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-function normalizePosition(entry: Record<string, unknown>): NormalizedPosition {
-  const raw = ((entry.posicao as Record<string, unknown> | undefined) ?? entry) as Record<string, unknown>;
-  const motorista = ((raw.motorista as Record<string, unknown> | undefined) ??
-    (entry.motorista as Record<string, unknown> | undefined)) as Record<string, unknown> | undefined;
-
-  const driverIdRaw = motorista?.id ?? raw.motorista_id ?? entry.motorista_id ?? null;
-  const driverNameRaw = motorista?.nome ?? raw.motorista_nome ?? entry.motorista_nome ?? null;
-
-  return {
-    timestampMs: parseTimestampMs(
-      raw.data_posicao ?? raw.dt_posicao ?? raw.data ?? entry.data_posicao ?? entry.dt_posicao
-    ),
-    speed: Math.max(
-      0,
-      parseNumber(
-        raw.velocidade ?? raw.speed ?? raw.vel ?? raw.velocidade_momento ?? entry.velocidade ?? entry.speed ?? entry.vel
-      )
-    ),
-    driverId: driverIdRaw == null || String(driverIdRaw).trim() === "" ? null : String(driverIdRaw),
-    driverNameKey: normalizeDriverNameKey(driverNameRaw),
-  };
-}
-
-function getSessionDriver(entry: Record<string, unknown>) {
-  const motorista = (entry.motorista as Record<string, unknown> | undefined) ?? undefined;
-  const driverId = motorista?.id == null || String(motorista.id).trim() === "" ? null : String(motorista.id);
-  const driverNameKey = normalizeDriverNameKey(motorista?.nome);
-  return { driverId, driverNameKey };
-}
-
-function getSessionStartMs(entry: Record<string, unknown>): number | null {
-  return parseTimestampMs(
-    entry.hr_vinculo ?? entry.horario_vinculo ?? entry.dt_inicio ?? entry.hora_inicio ?? null
-  );
-}
-
-function sameSessionDriver(
-  left: { driverId: string | null; driverNameKey: string | null },
-  right: { driverId: string | null; driverNameKey: string | null }
-) {
-  if (left.driverId && right.driverId) return left.driverId === right.driverId;
-  if (left.driverNameKey && right.driverNameKey) return left.driverNameKey === right.driverNameKey;
-  return !left.driverId && !left.driverNameKey && !right.driverId && !right.driverNameKey;
-}
-
-function summarizePositions(
-  positions: NormalizedPosition[],
-  startMs: number | null,
-  endMs: number | null,
-  speedLimit: number
-) {
-  let posicoes = 0;
-  let excessos = 0;
-  let velMax = 0;
-
-  for (const position of positions) {
-    if (startMs !== null) {
-      if (position.timestampMs === null || position.timestampMs < startMs) continue;
-    }
-    if (endMs !== null) {
-      if (position.timestampMs === null || position.timestampMs >= endMs) continue;
-    }
-
-    posicoes++;
-    if (position.speed > velMax) velMax = position.speed;
-    if (position.speed > speedLimit) excessos++;
-  }
-
-  return { posicoes, excessos, velMax };
 }
 
 function extractKm(entry: Record<string, unknown>): number {
@@ -286,54 +198,32 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // CALL 1: log_motorista (KM per driver session)
+          // CALL 1: log_motorista — KM per driver session
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
 
-          // CALL 2: posicoes (GPS positions with speed)
-          const posicoes = await fetchPosicoes(rotaToken, vehicle.adesao_id!, day);
-          const normalizedPositions = posicoes.map(normalizePosition);
+          // CALL 2: resumo-dia — telemetrias + velocidade máxima (REAL endpoint)
+          const resumo = await fetchResumoDia(rotaToken, vehicle.adesao_id!, day);
 
-          const positionsById = new Map<string, NormalizedPosition[]>();
-          const positionsByName = new Map<string, NormalizedPosition[]>();
-          const unknownPositions: NormalizedPosition[] = [];
-
-          for (const position of normalizedPositions) {
-            if (position.driverId) {
-              const list = positionsById.get(position.driverId) ?? [];
-              list.push(position);
-              positionsById.set(position.driverId, list);
-            }
-
-            if (position.driverNameKey) {
-              const list = positionsByName.get(position.driverNameKey) ?? [];
-              list.push(position);
-              positionsByName.set(position.driverNameKey, list);
-            }
-
-            if (!position.driverId && !position.driverNameKey) {
-              unknownPositions.push(position);
-            }
+          if (entries.length === 0 && resumo.telemetrias === 0) {
+            await new Promise((r) => setTimeout(r, 150));
+            continue;
           }
 
-          if (entries.length === 0 && posicoes.length === 0) continue;
-
-          // DELETE all existing records for this vehicle+day (clean slate)
+          // DELETE existing records for this vehicle+day
           await supabase
             .from("daily_vehicle_km")
             .delete()
             .eq("adesao_id", vehicle.adesao_id!)
             .eq("data", day);
 
-          // INSERT each driver session individually
-          if (entries.length > 0) {
-            const normalizedEntries = (entries as Record<string, unknown>[]).map((entry) => ({
-              entry,
-              ...getSessionDriver(entry),
-              startMs: getSessionStartMs(entry),
-            }));
+          // Determine excessos: if max speed exceeded the limit
+          const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
 
-            for (const current of normalizedEntries) {
-              const entry = current.entry;
+          if (entries.length > 0) {
+            // Distribute telemetrias proportionally across sessions by km
+            const totalKmDay = (entries as Record<string, unknown>[]).reduce((sum, e) => sum + extractKm(e), 0);
+
+            for (const entry of entries as Record<string, unknown>[]) {
               const km = extractKm(entry);
               if (km <= 0) continue;
 
@@ -345,25 +235,16 @@ Deno.serve(async (req) => {
               const motoristaId = motorista?.id ? String(motorista.id) : null;
               const placa = (entry.placa as string) ?? vehicle.placa;
 
-              const hrVinculo = (entry.hr_vinculo as string)
-                ?? (entry.horario_vinculo as string)
-                ?? (entry.dt_inicio as string)
-                ?? (entry.hora_inicio as string)
-                ?? new Date().toISOString();
+              const hrVinculo =
+                (entry.hr_vinculo as string) ??
+                (entry.horario_vinculo as string) ??
+                (entry.dt_inicio as string) ??
+                (entry.hora_inicio as string) ??
+                new Date().toISOString();
 
-              const nextStartMs = normalizedEntries
-                .filter((candidate) => candidate !== current && sameSessionDriver(candidate, current))
-                .map((candidate) => candidate.startMs)
-                .filter((value): value is number => value !== null && (current.startMs === null || value > current.startMs))
-                .sort((a, b) => a - b)[0] ?? null;
-
-              const matchingPositions = current.driverId && positionsById.has(current.driverId)
-                ? positionsById.get(current.driverId)!
-                : current.driverNameKey && positionsByName.has(current.driverNameKey)
-                  ? positionsByName.get(current.driverNameKey)!
-                  : unknownPositions;
-
-              const dt = summarizePositions(matchingPositions, current.startMs, nextStartMs, limiteVelocidade);
+              // Distribute telemetrias proportionally by km share
+              const kmShare = totalKmDay > 0 ? km / totalKmDay : 1 / entries.length;
+              const telemetriasSession = Math.round(resumo.telemetrias * kmShare);
 
               const { error } = await supabase.from("daily_vehicle_km").insert({
                 adesao_id: vehicle.adesao_id!,
@@ -378,9 +259,9 @@ Deno.serve(async (req) => {
                   ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                   null,
                 hr_vinculo: hrVinculo,
-                telemetrias: dt.posicoes,
-                velocidade_maxima: dt.velMax,
-                excessos_velocidade: dt.excessos,
+                telemetrias: telemetriasSession,
+                velocidade_maxima: resumo.velocidadeMaxima,
+                excessos_velocidade: excessos,
                 synced_at: new Date().toISOString(),
               });
 
@@ -390,9 +271,8 @@ Deno.serve(async (req) => {
                 totalErrors++;
               }
             }
-          } else if (posicoes.length > 0) {
-            // Vehicle had positions but no driver sessions — aggregate all
-            const aggregate = summarizePositions(normalizedPositions, null, null, limiteVelocidade);
+          } else if (resumo.telemetrias > 0) {
+            // Vehicle had movement but no driver sessions
             const { error } = await supabase.from("daily_vehicle_km").insert({
               adesao_id: vehicle.adesao_id!,
               placa: vehicle.placa,
@@ -401,16 +281,16 @@ Deno.serve(async (req) => {
               motorista_id: null,
               km_percorrido: 0,
               hr_vinculo: "00:00:00",
-              telemetrias: aggregate.posicoes,
-              velocidade_maxima: aggregate.velMax,
-              excessos_velocidade: aggregate.excessos,
+              telemetrias: resumo.telemetrias,
+              velocidade_maxima: resumo.velocidadeMaxima,
+              excessos_velocidade: excessos,
               synced_at: new Date().toISOString(),
             });
             if (!error) totalSynced++;
             else totalErrors++;
           }
 
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
           console.warn(
             `[sync-daily-km] Failed: vehicle=${vehicle.adesao_id} day=${day}:`,
