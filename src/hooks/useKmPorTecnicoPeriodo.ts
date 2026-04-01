@@ -113,11 +113,11 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
           const isDesconhecido = !motorista?.nome || motorista.nome === "Desconhecido";
           const nome = isDesconhecido ? "Sem condutor vinculado" : motorista!.nome!;
           const key = isDesconhecido
-            ? `sem-condutor-${entry.placa ?? placa}`
+            ? "sem-condutor"
             : (typeof motorista?.id === "number" ? String(motorista.id) : nome);
 
           if (!driverMap.has(key)) {
-            driverMap.set(key, { nome: isDesconhecido ? `Sem condutor vinculado (${entry.placa ?? placa})` : nome, km: 0, placas: new Set() });
+            driverMap.set(key, { nome, km: 0, placas: new Set() });
           }
           const group = driverMap.get(key)!;
           group.km += km;

@@ -29,8 +29,11 @@ export function useFleetMetrics() {
 
   const positionsQuery = useUltimaPosicaoTodos();
 
+  // Plates to ignore across the entire system
+  const IGNORED_PLATES = new Set(["DIW9D20"]);
+
   const rows = useMemo<FleetMetricRow[]>(() => {
-    const vehicles = vehiclesQuery.data ?? [];
+    const vehicles = (vehiclesQuery.data ?? []).filter((v) => !IGNORED_PLATES.has(v.placa));
     const positions = positionsQuery.data ?? [];
     const positionMap = new Map<string, RotaExataPosicao>();
 
