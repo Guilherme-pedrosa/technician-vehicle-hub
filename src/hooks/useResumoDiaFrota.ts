@@ -54,7 +54,14 @@ export function useResumoDiaFrota(dateStr?: string) {
             data: hoje,
           });
 
-          const entries = (Array.isArray(raw) ? raw : []) as LogMotoristaEntry[];
+          // DEBUG: log raw API response to identify real structure
+          console.log(`[log_motorista] adesao=${adesaoId} placa=${placa} raw=`, JSON.stringify(raw, null, 2));
+
+          // Resilient parsing: handle both array and { data: [...] } shapes
+          const unwrapped = raw && typeof raw === "object" && !Array.isArray(raw) && "data" in (raw as Record<string, unknown>)
+            ? (raw as Record<string, unknown>).data
+            : raw;
+          const entries = (Array.isArray(unwrapped) ? unwrapped : []) as LogMotoristaEntry[];
           return entries.map((entry) => ({
             adesaoId,
             placa: entry.placa ?? placa,

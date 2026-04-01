@@ -276,7 +276,7 @@ export async function getRelatorioLogMotorista(params: {
   adesao_id: string;
   data: string;
 }): Promise<unknown> {
-  return fetchRelatorio("log_motorista", params.adesao_id, params.data);
+  return fetchRelatorio("log_motorista", params.adesao_id, params.data, { horario: "00:00-23:59" });
 }
 
 export async function getRelatorioRuaPorRua(params: {
