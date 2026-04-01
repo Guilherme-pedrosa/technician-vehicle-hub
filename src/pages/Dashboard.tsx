@@ -521,7 +521,6 @@ export default function Dashboard() {
           <div className="sm:hidden divide-y divide-border">
             {driverTelemetryRows.length === 0 ? (
                 <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
-              )
             ) : (
               driverTelemetryRows.map((row) => (
                 <div key={row.id} className="px-4 py-3">
