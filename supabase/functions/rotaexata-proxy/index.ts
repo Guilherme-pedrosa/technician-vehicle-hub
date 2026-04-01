@@ -107,12 +107,12 @@ async function proxyRequest(
     return fetchOptions;
   };
 
-  let res = await fetch(url, buildOptions(`Bearer ${token}`));
+  // Rota Exata expects the raw token directly in Authorization (no Bearer prefix)
+  let res = await fetch(url, buildOptions(token));
 
-  // Rota Exata docs indicate the raw token is placed directly in Authorization.
-  // Retry without Bearer prefix when upstream rejects the bearer format.
+  // Fallback: try with Bearer prefix if raw token is rejected
   if (res.status === 401) {
-    res = await fetch(url, buildOptions(token));
+    res = await fetch(url, buildOptions(`Bearer ${token}`));
   }
 
   const responseBody = await res.text();

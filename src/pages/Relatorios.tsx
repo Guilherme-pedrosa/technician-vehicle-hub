@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfDay, startOfWeek, startOfMonth, subDays } from "date-fns";
+import { format, startOfDay, startOfWeek, startOfMonth, subDays, eachDayOfInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,13 +156,14 @@ export default function Relatorios() {
     enabled: filteredVehicles.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      const days = eachDayOfInterval({ start: parseISO(dataInicio), end: parseISO(dataFim) }).map(d => format(d, "yyyy-MM-dd"));
       const results = await Promise.allSettled(
-        filteredVehicles.map(async (v) => {
-          const raw = await getRelatorioKmRodado({ adesao_id: v.adesao_id!, data_inicio: dataInicio, data_fim: dataFim });
-          return { adesaoId: v.adesao_id!, km: extractKm(raw) };
-        })
+        filteredVehicles.flatMap((v) =>
+          days.map(day => getRelatorioKmRodado({ adesao_id: v.adesao_id!, data: day }).then(raw => ({ adesaoId: v.adesao_id!, km: extractKm(raw) })))
+        )
       );
       const m = new Map<string, number>();
+      results.forEach(r => { if (r.status === "fulfilled") { const cur = m.get(r.value.adesaoId) ?? 0; m.set(r.value.adesaoId, cur + r.value.km); } });
       results.forEach(r => { if (r.status === "fulfilled") m.set(r.value.adesaoId, r.value.km); });
       return m;
     },
