@@ -10,6 +10,8 @@ export type DriverPeriodRow = {
   kmRodado: number;
   telemetrias: number;
   kmPorTelemetria: number;
+  excessosVelocidade: number;
+  velocidadeMaxima: number;
   placas: string[];
 };
 
@@ -41,17 +43,21 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
 
   const driverRows = useMemo<DriverPeriodRow[]>(() => {
     const rows = query.data ?? [];
-    const groups = new Map<string, { nome: string; km: number; placas: Set<string> }>();
+    const groups = new Map<string, { nome: string; km: number; telemetrias: number; excessos: number; velMax: number; placas: Set<string> }>();
 
     for (const row of rows) {
       const km = Number(row.km_percorrido) || 0;
-      if (km <= 0) continue;
+      if (km <= 0 && !(Number((row as Record<string, unknown>).telemetrias) > 0)) continue;
       const key = row.motorista_id ?? row.motorista_nome;
       if (!groups.has(key)) {
-        groups.set(key, { nome: row.motorista_nome, km: 0, placas: new Set() });
+        groups.set(key, { nome: row.motorista_nome, km: 0, telemetrias: 0, excessos: 0, velMax: 0, placas: new Set() });
       }
       const g = groups.get(key)!;
       g.km += km;
+      g.telemetrias += Number((row as Record<string, unknown>).telemetrias) || 0;
+      g.excessos += Number((row as Record<string, unknown>).excessos_velocidade) || 0;
+      const vel = Number((row as Record<string, unknown>).velocidade_maxima) || 0;
+      if (vel > g.velMax) g.velMax = vel;
       g.placas.add(row.placa);
     }
     return Array.from(groups.entries())
@@ -59,19 +65,24 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
         id: key,
         nome: g.nome,
         kmRodado: Math.round(g.km * 100) / 100,
-        telemetrias: 0,
-        kmPorTelemetria: Math.round(g.km * 100) / 100,
+        telemetrias: g.telemetrias,
+        kmPorTelemetria: g.telemetrias > 0 ? Math.round((g.km / g.telemetrias) * 100) / 100 : Math.round(g.km * 100) / 100,
+        excessosVelocidade: g.excessos,
+        velocidadeMaxima: g.velMax,
         placas: Array.from(g.placas),
       }))
       .sort((a, b) => b.kmRodado - a.kmRodado);
   }, [query.data]);
 
   const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);
+  const totalTelemetrias = useMemo(() => driverRows.reduce((s, r) => s + r.telemetrias, 0), [driverRows]);
+  const totalExcessos = useMemo(() => driverRows.reduce((s, r) => s + r.excessosVelocidade, 0), [driverRows]);
 
   return {
     driverRows,
     totalKm: Math.round(totalKm * 100) / 100,
-    totalTelemetrias: 0,
+    totalTelemetrias,
+    totalExcessos,
     isLoading: query.isLoading,
     isError: query.isError,
     isEmpty: (query.data ?? []).length === 0,
@@ -148,13 +159,11 @@ export function useSyncDailyKm() {
           totalErrors += CHUNK_SIZE_DAYS;
         }
 
-        // Refresh data every 5 chunks so user sees progress in the table
         if ((i + 1) % 5 === 0) {
           queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
         }
       }
 
-      // Final refresh
       queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
 
       if (totalSynced > 0) {
