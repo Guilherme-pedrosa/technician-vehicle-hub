@@ -41,6 +41,14 @@ function parseDateInput(value: string, fallback: Date, endOfDay = false) {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
+function normalizeDriverName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   critica: "bg-destructive text-destructive-foreground",
   alta: "bg-warning text-warning-foreground",
@@ -250,11 +258,47 @@ export default function Dashboard() {
 
   const { sync: syncKm, cancel: cancelSyncKm, isSyncing: isSyncingKm, progress: syncProgress } = useSyncDailyKm();
 
-  // For single-day: use realtime KM rows but enrich with cached telemetria; for multi-day: use cached entirely
-  const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
-  const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
+  // For single-day: use realtime KM rows enriched with cached telemetria; for multi-day: use cached entirely
+  const driverTelemetryRows = useMemo(() => {
+    if (!isSingleDay) return cachedData.driverRows;
+    if (!realtimeData.driverRows.length) return cachedData.driverRows;
+
+    const cachedById = new Map(cachedData.driverRows.map((row) => [row.id, row]));
+    const cachedByName = new Map(cachedData.driverRows.map((row) => [normalizeDriverName(row.nome), row]));
+    const matchedCachedIds = new Set<string>();
+
+    const mergedRealtimeRows = realtimeData.driverRows.map((row) => {
+      const cachedMatch = cachedById.get(row.id) ?? cachedByName.get(normalizeDriverName(row.nome));
+
+      if (!cachedMatch) return row;
+
+      matchedCachedIds.add(cachedMatch.id);
+
+      return {
+        ...row,
+        telemetrias: cachedMatch.telemetrias,
+        excessosVelocidade: cachedMatch.excessosVelocidade,
+        velocidadeMaxima: cachedMatch.velocidadeMaxima,
+        placas: row.placas.length ? row.placas : cachedMatch.placas,
+        kmPorTelemetria:
+          cachedMatch.telemetrias > 0
+            ? Math.round((row.kmRodado / cachedMatch.telemetrias) * 100) / 100
+            : row.kmRodado,
+      };
+    });
+
+    const cachedOnlyRows = cachedData.driverRows.filter((row) => !matchedCachedIds.has(row.id));
+
+    return [...mergedRealtimeRows, ...cachedOnlyRows].sort(
+      (a, b) => b.kmRodado - a.kmRodado || b.telemetrias - a.telemetrias
+    );
+  }, [isSingleDay, realtimeData.driverRows, cachedData.driverRows]);
+
+  const totalKm = isSingleDay
+    ? (realtimeData.driverRows.length ? realtimeData.totalKm : cachedData.totalKm)
+    : cachedData.totalKm;
   const totalTelemetrias = cachedData.totalTelemetrias;
-  const loadingResumo = isSingleDay ? realtimeData.isLoading : cachedData.isLoading;
+  const loadingResumo = isSingleDay ? (realtimeData.isLoading || cachedData.isLoading) : cachedData.isLoading;
 
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
