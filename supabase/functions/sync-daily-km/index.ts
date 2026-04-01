@@ -92,13 +92,15 @@ Deno.serve(async (req) => {
     // Service role client for writes
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { start_date, end_date } = await req.json();
+    const body = await req.json();
+    const { start_date, end_date, force } = body;
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const forceSync = force === true;
 
     // Get all vehicles
     const { data: vehicles } = await supabase
