@@ -168,7 +168,7 @@ function SyncKmHistoricoDialog() {
         {!syncing && syncedCount !== null && (
           <div className="mt-3 p-3 rounded-lg bg-muted/50 border">
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
+              <CheckCircle className="w-4 h-4 text-success" />
               <span className="text-sm">{progress}</span>
             </div>
           </div>
