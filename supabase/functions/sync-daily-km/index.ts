@@ -131,18 +131,20 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // Check if already synced recently
-          const { data: existing } = await supabase
-            .from("daily_vehicle_km")
-            .select("id, synced_at")
-            .eq("adesao_id", vehicle.adesao_id!)
-            .eq("data", day)
-            .limit(1);
+          // Skip if already synced recently (unless force mode)
+          if (!forceSync) {
+            const { data: existing } = await supabase
+              .from("daily_vehicle_km")
+              .select("id, synced_at")
+              .eq("adesao_id", vehicle.adesao_id!)
+              .eq("data", day)
+              .limit(1);
 
-          if (existing?.length) {
-            const syncedAt = new Date(existing[0].synced_at).getTime();
-            const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
-            if (syncedAt > sixHoursAgo) continue;
+            if (existing?.length) {
+              const syncedAt = new Date(existing[0].synced_at).getTime();
+              const oneHourAgo = Date.now() - 60 * 60 * 1000;
+              if (syncedAt > oneHourAgo) continue;
+            }
           }
 
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
