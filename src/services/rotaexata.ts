@@ -212,91 +212,78 @@ export async function getComandosEnviados(where?: string): Promise<unknown> {
 // RELATÓRIOS DE RASTREAMENTO
 // ===========================
 
-export async function getRelatorioKmRodado(params: {
-  adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
-}): Promise<unknown> {
-  // Rota Exata expects report params as POST body
+// Helper: all RotaExata reports use GET with ?where=JSON
+async function fetchRelatorio(endpoint: string, adesaoId: string, data: string): Promise<unknown> {
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(
-    "/relatorios/rastreamento/kmrodado",
-    "POST",
-    undefined,
-    { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim }
+    `/relatorios/rastreamento/${endpoint}`,
+    "GET",
+    { where }
   );
   return unwrapRotaExataResponse(response);
 }
 
+export async function getRelatorioKmRodado(params: {
+  adesao_id: string;
+  data: string;
+}): Promise<unknown> {
+  return fetchRelatorio("kmrodado", params.adesao_id, params.data);
+}
+
 export async function getRelatorioDirigibilidade(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/dirigibilidade", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("dirigibilidade", params.adesao_id, params.data);
 }
 
 export async function getRelatorioDeslocamento(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/deslocamento", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("deslocamento", params.adesao_id, params.data);
 }
 
 export async function getRelatorioJornadaAnalitico(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_analitico", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("jornada_trabalho_analitico", params.adesao_id, params.data);
 }
 
 export async function getRelatorioJornadaSumarizado(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/jornada_trabalho_sumarizado", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("jornada_trabalho_sumarizado", params.adesao_id, params.data);
 }
 
 export async function getRelatorioUsoIndevido(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/uso_indevido", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("uso_indevido", params.adesao_id, params.data);
 }
 
 export async function getRelatorioParadasPassagens(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/paradas_passagens", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("paradas_passagens", params.adesao_id, params.data);
 }
 
 export async function getRelatorioLogMotorista(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/log_motorista", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("log_motorista", params.adesao_id, params.data);
 }
 
 export async function getRelatorioRuaPorRua(params: {
   adesao_id: string;
-  data_inicio: string;
-  data_fim: string;
+  data: string;
 }): Promise<unknown> {
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/relatorios/rastreamento/ruaPorRua", "POST", undefined, { adesao_id: Number(params.adesao_id), data_inicio: params.data_inicio, data_fim: params.data_fim });
-  return unwrapRotaExataResponse(response);
+  return fetchRelatorio("ruaPorRua", params.adesao_id, params.data);
 }
 
 // ===========================
