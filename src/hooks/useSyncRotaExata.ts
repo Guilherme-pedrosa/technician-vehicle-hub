@@ -203,7 +203,9 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     const motoristaName = pos.motorista_nome ?? pos.motorista_key ?? null;
     if (!motoristaName) continue;
 
-    const driver = drivers.find(d => d.full_name.toLowerCase().includes(motoristaName.toLowerCase()));
+    // Match by exact full name (case-insensitive, trimmed) — NOT substring
+    const normalizedApiName = motoristaName.toLowerCase().trim();
+    const driver = drivers.find(d => d.full_name.toLowerCase().trim() === normalizedApiName);
     if (!driver) continue;
 
     const { error } = await supabase.from("driver_vehicle_assignments").insert({
