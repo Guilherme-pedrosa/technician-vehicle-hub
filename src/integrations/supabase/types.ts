@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       checklist_config: {
         Row: {
           config_key: string
@@ -45,6 +63,7 @@ export type Database = {
         Row: {
           adesao_id: string
           data: string
+          excessos_velocidade: number
           hr_vinculo: string | null
           id: string
           km_percorrido: number
@@ -52,12 +71,15 @@ export type Database = {
           motorista_nome: string
           placa: string
           synced_at: string
+          telemetrias: number
           tempo_deslocamento: string | null
           tipo_vinculo: string | null
+          velocidade_maxima: number | null
         }
         Insert: {
           adesao_id: string
           data: string
+          excessos_velocidade?: number
           hr_vinculo?: string | null
           id?: string
           km_percorrido?: number
@@ -65,12 +87,15 @@ export type Database = {
           motorista_nome?: string
           placa: string
           synced_at?: string
+          telemetrias?: number
           tempo_deslocamento?: string | null
           tipo_vinculo?: string | null
+          velocidade_maxima?: number | null
         }
         Update: {
           adesao_id?: string
           data?: string
+          excessos_velocidade?: number
           hr_vinculo?: string | null
           id?: string
           km_percorrido?: number
@@ -78,8 +103,10 @@ export type Database = {
           motorista_nome?: string
           placa?: string
           synced_at?: string
+          telemetrias?: number
           tempo_deslocamento?: string | null
           tipo_vinculo?: string | null
+          velocidade_maxima?: number | null
         }
         Relationships: []
       }

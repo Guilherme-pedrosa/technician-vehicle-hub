@@ -10,6 +10,8 @@ export type DriverPeriodRow = {
   kmRodado: number;
   telemetrias: number;
   kmPorTelemetria: number;
+  excessosVelocidade: number;
+  velocidadeMaxima: number;
   placas: string[];
 };
 
@@ -99,7 +101,7 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
 
       const results = await batchCalls(tasks, concurrency);
 
-      const driverMap = new Map<string, { nome: string; km: number; placas: Set<string> }>();
+      const driverMap = new Map<string, { nome: string; km: number; telemetrias: number; excessos: number; velMax: number; placas: Set<string> }>();
 
       for (const result of results) {
         if (result.status !== "fulfilled") continue;
@@ -117,7 +119,7 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
             : (typeof motorista?.id === "number" ? String(motorista.id) : nome);
 
           if (!driverMap.has(key)) {
-            driverMap.set(key, { nome, km: 0, placas: new Set() });
+            driverMap.set(key, { nome, km: 0, telemetrias: 0, excessos: 0, velMax: 0, placas: new Set() });
           }
           const group = driverMap.get(key)!;
           group.km += km;
@@ -132,8 +134,10 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
             id: key,
             nome: g.nome,
             kmRodado,
-            telemetrias: 0,
-            kmPorTelemetria: kmRodado,
+            telemetrias: g.telemetrias,
+            kmPorTelemetria: g.telemetrias > 0 ? Math.round((g.km / g.telemetrias) * 100) / 100 : kmRodado,
+            excessosVelocidade: g.excessos,
+            velocidadeMaxima: g.velMax,
             placas: Array.from(g.placas),
           } satisfies DriverPeriodRow;
         })

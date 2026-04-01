@@ -18,7 +18,6 @@ async function getToken(): Promise<string> {
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
   if (!email || !password) throw new Error("ROTAEXATA credentials not configured");
 
-  // Retry login up to 3 times with backoff (Rota Exata returns 502 sometimes)
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -70,6 +69,27 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
   return [];
 }
 
+async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<unknown[]> {
+  const where = JSON.stringify({
+    adesao_id: Number(adesaoId),
+    data,
+    eventos: [1, 2, 3, 4],
+  });
+  const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json", Authorization: token },
+  });
+
+  if (res.status === 404) return [];
+  if (!res.ok) return [];
+
+  const json = await res.json();
+  if (Array.isArray(json)) return json;
+  if (json?.data && Array.isArray(json.data)) return json.data;
+  return [];
+}
+
 function extractKm(entry: Record<string, unknown>): number {
   for (const field of ["km_percorrido", "kmPercorrido", "km", "km_rodado", "km_total", "distancia"]) {
     const val = entry[field];
@@ -98,7 +118,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify caller
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -110,20 +129,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Service role client for writes
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { start_date, end_date, force } = body;
+    const { start_date, end_date } = body;
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const forceSync = force === true;
 
-    // Get all vehicles
+    // Get speed limit from settings
+    let limiteVelocidade = 120;
+    try {
+      const { data: setting } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "limite_velocidade_kmh")
+        .single();
+      if (setting?.value) limiteVelocidade = Number(setting.value) || 120;
+    } catch { /* use default */ }
+
     const { data: vehicles } = await supabase
       .from("vehicles")
       .select("adesao_id, placa")
@@ -135,7 +162,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate days — no cap, frontend handles chunking (sends max 5 days)
     const days: string[] = [];
     const d = new Date(start_date + "T00:00:00Z");
     const endD = new Date(end_date + "T00:00:00Z");
@@ -151,8 +177,31 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
+          // CALL 1: log_motorista (KM per driver session)
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
-          if (entries.length === 0) continue;
+
+          // CALL 2: dirigibilidade (telemetry events + speed)
+          const eventos = await fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day);
+
+          const totalTelemetrias = eventos.length;
+          let velMaxima = 0;
+          let excessosVelocidade = 0;
+
+          for (const evento of eventos as Record<string, unknown>[]) {
+            const vel = parseFloat(String(
+              evento.velocidade ?? evento.speed ?? evento.vel ??
+              evento.velocidade_momento ?? evento.velocidadeMomento ?? 0
+            ));
+            if (vel > velMaxima) velMaxima = vel;
+            if (vel > limiteVelocidade) excessosVelocidade++;
+          }
+
+          if (eventos.length > 0) {
+            console.log(`[sync] dirigibilidade sample for ${vehicle.adesao_id} ${day}:`,
+              JSON.stringify(eventos[0]).substring(0, 500));
+          }
+
+          if (entries.length === 0 && totalTelemetrias === 0) continue;
 
           // DELETE all existing records for this vehicle+day (clean slate)
           await supabase
@@ -161,47 +210,75 @@ Deno.serve(async (req) => {
             .eq("adesao_id", vehicle.adesao_id!)
             .eq("data", day);
 
-          // INSERT each session individually (preserves all km)
-          for (const entry of entries as Record<string, unknown>[]) {
-            const km = extractKm(entry);
-            if (km <= 0) continue;
+          // INSERT each driver session individually
+          if (entries.length > 0) {
+            const totalKmDay = (entries as Record<string, unknown>[]).reduce((sum, e) => sum + extractKm(e), 0);
 
-            const motorista = entry.motorista as Record<string, unknown> | undefined;
-            const motoristaNome =
-              motorista?.nome && motorista.nome !== "Desconhecido"
-                ? String(motorista.nome)
-                : "Sem condutor vinculado";
-            const motoristaId = motorista?.id ? String(motorista.id) : null;
-            const placa = (entry.placa as string) ?? vehicle.placa;
+            for (const entry of entries as Record<string, unknown>[]) {
+              const km = extractKm(entry);
+              if (km <= 0) continue;
 
-            // Extract session identifier to distinguish multiple sessions
-            const hrVinculo = (entry.hr_vinculo as string)
-              ?? (entry.horario_vinculo as string)
-              ?? (entry.dt_inicio as string)
-              ?? (entry.hora_inicio as string)
-              ?? new Date().toISOString();
+              const motorista = entry.motorista as Record<string, unknown> | undefined;
+              const motoristaNome =
+                motorista?.nome && motorista.nome !== "Desconhecido"
+                  ? String(motorista.nome)
+                  : "Sem condutor vinculado";
+              const motoristaId = motorista?.id ? String(motorista.id) : null;
+              const placa = (entry.placa as string) ?? vehicle.placa;
 
+              const hrVinculo = (entry.hr_vinculo as string)
+                ?? (entry.horario_vinculo as string)
+                ?? (entry.dt_inicio as string)
+                ?? (entry.hora_inicio as string)
+                ?? new Date().toISOString();
+
+              // Distribute telemetrias proportionally by KM share
+              const kmShare = totalKmDay > 0 ? km / totalKmDay : 1 / entries.length;
+              const sessionTelemetrias = Math.round(totalTelemetrias * kmShare);
+              const sessionExcessos = Math.round(excessosVelocidade * kmShare);
+
+              const { error } = await supabase.from("daily_vehicle_km").insert({
+                adesao_id: vehicle.adesao_id!,
+                placa,
+                data: day,
+                motorista_nome: motoristaNome,
+                motorista_id: motoristaId,
+                km_percorrido: km,
+                tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
+                tipo_vinculo:
+                  (entry.tipo_vinculo as string) ??
+                  ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
+                  null,
+                hr_vinculo: hrVinculo,
+                telemetrias: sessionTelemetrias,
+                velocidade_maxima: velMaxima,
+                excessos_velocidade: sessionExcessos,
+                synced_at: new Date().toISOString(),
+              });
+
+              if (!error) totalSynced++;
+              else {
+                console.warn(`[sync] Insert failed:`, error.message);
+                totalErrors++;
+              }
+            }
+          } else if (totalTelemetrias > 0) {
+            // Vehicle had telemetry events but no driver sessions
             const { error } = await supabase.from("daily_vehicle_km").insert({
               adesao_id: vehicle.adesao_id!,
-              placa,
+              placa: vehicle.placa,
               data: day,
-              motorista_nome: motoristaNome,
-              motorista_id: motoristaId,
-              km_percorrido: km,
-              tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
-              tipo_vinculo:
-                (entry.tipo_vinculo as string) ??
-                ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
-                null,
-              hr_vinculo: hrVinculo,
+              motorista_nome: "Sem condutor vinculado",
+              motorista_id: null,
+              km_percorrido: 0,
+              hr_vinculo: "00:00:00",
+              telemetrias: totalTelemetrias,
+              velocidade_maxima: velMaxima,
+              excessos_velocidade: excessosVelocidade,
               synced_at: new Date().toISOString(),
             });
-
             if (!error) totalSynced++;
-            else {
-              console.warn(`[sync-daily-km] Insert failed:`, error.message);
-              totalErrors++;
-            }
+            else totalErrors++;
           }
 
           await new Promise((r) => setTimeout(r, 200));
