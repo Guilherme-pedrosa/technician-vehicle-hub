@@ -58,6 +58,33 @@ export default function Relatorios() {
     return getPresetDates(preset);
   }, [preset, customInicio, customFim]);
 
+  const inicioSelecionado = preset === "personalizado" && customInicio ? customInicio : dates.inicio;
+  const fimSelecionado = preset === "personalizado" && customFim ? customFim : dates.fim;
+
+  const handlePresetChange = (nextPreset: Exclude<PeriodPreset, "personalizado">) => {
+    setPreset(nextPreset);
+  };
+
+  const handleInicioChange = (date?: Date) => {
+    if (!date) return;
+    setPreset("personalizado");
+    setCustomInicio(date);
+    setCustomFim((current) => {
+      if (!current) return fimSelecionado;
+      return date > current ? date : current;
+    });
+  };
+
+  const handleFimChange = (date?: Date) => {
+    if (!date) return;
+    setPreset("personalizado");
+    setCustomFim(date);
+    setCustomInicio((current) => {
+      if (!current) return inicioSelecionado;
+      return date < current ? date : current;
+    });
+  };
+
   const dataInicio = format(dates.inicio, "yyyy-MM-dd");
   const dataFim = format(dates.fim, "yyyy-MM-dd");
 
@@ -166,53 +193,47 @@ export default function Relatorios() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-end">
-            {/* Period preset */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Período</label>
               <div className="flex gap-1 flex-wrap">
-                {(["hoje", "semana", "mes", "personalizado"] as const).map(p => (
-                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => setPreset(p)} className="flex-1 sm:flex-none">
-                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
+                {(["hoje", "semana", "mes"] as const).map(p => (
+                  <Button key={p} size="sm" variant={preset === p ? "default" : "outline"} onClick={() => handlePresetChange(p)} className="flex-1 sm:flex-none">
+                    {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : "Mês"}
                   </Button>
                 ))}
               </div>
             </div>
 
-            {/* Custom date pickers */}
-            {preset === "personalizado" && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">De</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customInicio && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {customInicio ? format(customInicio, "dd/MM/yyyy") : "Selecionar"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={customInicio} onSelect={setCustomInicio} initialFocus className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Até</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-[160px] justify-start text-left font-normal", !customFim && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {customFim ? format(customFim, "dd/MM/yyyy") : "Selecionar"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={customFim} onSelect={setCustomFim} initialFocus className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </>
-            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Data inicial</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full sm:w-[170px] justify-start text-left font-normal", !inicioSelecionado && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {inicioSelecionado ? format(inicioSelecionado, "dd/MM/yyyy") : "Selecionar"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={inicioSelecionado} onSelect={handleInicioChange} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-            {/* Driver filter */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Data final</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full sm:w-[170px] justify-start text-left font-normal", !fimSelecionado && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fimSelecionado ? format(fimSelecionado, "dd/MM/yyyy") : "Selecionar"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={fimSelecionado} onSelect={handleFimChange} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Condutor</label>
               <SearchableSelect
