@@ -295,8 +295,9 @@ export async function getRelatorioRuaPorRua(params: {
 // ===========================
 
 export async function getCustos(where?: string): Promise<unknown> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = { limit: "500" };
   if (where) params.where = where;
+  params.fields = '["*"]';
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
   return unwrapRotaExataResponse(response);
 }

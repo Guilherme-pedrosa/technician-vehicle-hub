@@ -18,6 +18,7 @@ import Perfil from "./pages/Perfil";
 import Configuracoes from "./pages/Configuracoes";
 import EmailLogs from "./pages/EmailLogs";
 import ManutencaoPreventiva from "./pages/ManutencaoPreventiva";
+import CustosFlota from "./pages/CustosFlota";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/chamados" element={<Chamados />} />
               <Route path="/manutencao-preventiva" element={<ManutencaoPreventiva />} />
               <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/custos" element={<CustosFlota />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/emails" element={<EmailLogs />} />
               <Route path="/perfil" element={<Perfil />} />

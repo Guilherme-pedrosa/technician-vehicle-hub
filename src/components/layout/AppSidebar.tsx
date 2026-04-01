@@ -7,6 +7,7 @@ import {
   Wrench,
   Shield,
   BarChart3,
+  DollarSign,
   Settings,
   User,
   LogOut,
@@ -68,6 +69,7 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
     label: "Análises",
     items: [
       { title: "Relatórios", icon: BarChart3, href: "/relatorios" },
+      { title: "Custos", icon: DollarSign, href: "/custos" },
     ],
     adminOnly: true,
   },
