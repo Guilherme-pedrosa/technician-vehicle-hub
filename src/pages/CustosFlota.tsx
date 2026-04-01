@@ -86,14 +86,14 @@ export default function CustosFlota() {
     return Array.from(tipos).sort();
   }, [custos]);
 
-  // Unique placas for filter
+  // Unique placas for filter (from API data)
   const placas = useMemo(() => {
     const set = new Set<string>();
-    vehicles.forEach((v) => {
-      if (v.placa) set.add(v.placa);
+    custos.forEach((c) => {
+      if (c.placa) set.add(c.placa);
     });
     return Array.from(set).sort();
-  }, [vehicles]);
+  }, [custos]);
 
   // CSV export
   const exportCSV = () => {
