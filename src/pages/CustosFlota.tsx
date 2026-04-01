@@ -97,12 +97,16 @@ export default function CustosFlota() {
 
   // CSV export
   const exportCSV = () => {
-    const headers = ["Data", "Placa", "Tipo", "Descrição", "Valor", "Parcelado"];
+    const headers = ["Data", "Criado em", "Placa", "Descrição", "Hodômetro", "Tipo", "Fornecedor", "Criado por", "Valor", "Parcelado"];
     const rows = filteredCustos.map((c) => [
       c.dt_lancamento ? format(new Date(c.dt_lancamento), "dd/MM/yyyy") : "",
-      placaMap.get(String(c.adesao_id)) ?? `ID ${c.adesao_id}`,
+      c.dt_criacao ? format(new Date(c.dt_criacao), "dd/MM/yyyy") : "",
+      c.placa ?? `ID ${c.adesao_id}`,
+      c.descricao ?? c.veiculo_descricao ?? "",
+      String(c.hodometro ?? ""),
       c.tipo_custo_nome ?? "",
-      c.descricao ?? "",
+      c.fornecedor_nome ?? "Não informado",
+      c.criado_por_nome ?? "",
       String(c.valor ?? 0).replace(".", ","),
       c.parcelado ? "Sim" : "Não",
     ]);
