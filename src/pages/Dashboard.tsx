@@ -278,7 +278,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-xs text-muted-foreground truncate max-w-[60%]">{row.placas?.join(", ") ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">{row.telemetrias} telem.</p>
+                    <p className="text-xs text-muted-foreground">{row.telemetrias} viagens</p>
                   </div>
                 </div>
               ))
