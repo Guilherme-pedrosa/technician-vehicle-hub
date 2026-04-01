@@ -70,7 +70,7 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
       // Create tasks: one per vehicle per day
       const tasks = adesaoIds.flatMap((v) =>
         days.map((day) => () =>
-          getResumoDia(v.adesaoId, day).then((raw) => ({
+          getResumoDia(v.adesaoId, day).then((raw): { placa: string; day: string; data: ResumoDiaResponse } => ({
             placa: v.placa,
             day,
             data: raw as ResumoDiaResponse,
