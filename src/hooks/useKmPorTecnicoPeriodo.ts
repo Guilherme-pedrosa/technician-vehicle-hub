@@ -1,29 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, eachDayOfInterval, isSameDay } from "date-fns";
-import { getResumoDia } from "@/services/rotaexata";
+import { format } from "date-fns";
+import { getRelatorioLogMotorista } from "@/services/rotaexata";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
-
-type ResumoDiaMotorista = {
-  id: number;
-  nome: string;
-};
-
-type ResumoDiaResponse = {
-  basico?: {
-    km?: { total?: number };
-    telemetria?: { quantidade?: number };
-    tempo?: { movimento?: number };
-  };
-  posicao?: {
-    dt_posicao?: string;
-    motorista?: ResumoDiaMotorista;
-    deslocamento?: {
-      motorista?: ResumoDiaMotorista;
-      kmRodado?: number;
-    };
-  };
-};
 
 export type DriverPeriodRow = {
   id: string;
@@ -34,11 +13,62 @@ export type DriverPeriodRow = {
   placas: string[];
 };
 
-// Batch calls with concurrency limit
-async function batchCalls<T>(
-  tasks: (() => Promise<T>)[],
-  concurrency = 5
-): Promise<PromiseSettledResult<T>[]> {
+type LogMotoristaEntry = {
+  motorista?: string | { id?: number; nome?: string };
+  motorista_nome?: string;
+  motorista_id?: number;
+  nome?: string;
+  km_rodado?: number | string;
+  kmRodado?: number | string;
+  km?: number | string;
+  placa?: string;
+  veiculo?: string;
+  [key: string]: unknown;
+};
+
+function extractEntries(raw: unknown): LogMotoristaEntry[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    if (Array.isArray(obj.data)) return obj.data;
+    if (Array.isArray(obj.registros)) return obj.registros;
+    if (Array.isArray(obj.items)) return obj.items;
+    // Try first array property
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v)) return v;
+    }
+  }
+  return [];
+}
+
+function getDriverName(entry: LogMotoristaEntry): { id: string; nome: string } | null {
+  // Handle nested motorista object
+  if (entry.motorista && typeof entry.motorista === "object") {
+    const m = entry.motorista as { id?: number; nome?: string };
+    if (m.nome && m.nome !== "Desconhecido") {
+      return { id: m.id ? String(m.id) : m.nome, nome: m.nome };
+    }
+    return null;
+  }
+
+  // Handle string motorista
+  const nome = (entry.motorista as string) ?? entry.motorista_nome ?? entry.nome;
+  if (!nome || nome === "Desconhecido") return null;
+
+  const id = entry.motorista_id ? String(entry.motorista_id) : nome;
+  return { id, nome };
+}
+
+function getKm(entry: LogMotoristaEntry): number {
+  const raw = entry.km_rodado ?? entry.kmRodado ?? entry.km;
+  if (raw === undefined || raw === null) return 0;
+  if (typeof raw === "number") return raw;
+  const n = Number(String(raw).replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Batch with concurrency limit
+async function batchCalls<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<PromiseSettledResult<T>[]> {
   const results: PromiseSettledResult<T>[] = [];
   for (let i = 0; i < tasks.length; i += concurrency) {
     const batch = tasks.slice(i, i + concurrency);
@@ -57,87 +87,59 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
   );
 
   const isEnabled = startDate.getTime() > 0 && endDate.getTime() > 0;
-  const isSingleDay = isEnabled && isSameDay(startDate, endDate);
-  const days = useMemo(
-    () => (isEnabled ? eachDayOfInterval({ start: startDate, end: endDate }) : []),
-    [startDate.getTime(), endDate.getTime(), isEnabled]
-  );
-
   const startStr = isEnabled ? format(startDate, "yyyy-MM-dd") : "";
   const endStr = isEnabled ? format(endDate, "yyyy-MM-dd") : "";
 
   const query = useQuery({
-    queryKey: ["km-periodo-tecnico", startStr, endStr, adesaoIds.map((a) => a.adesaoId).join(",")],
+    queryKey: ["km-periodo-tecnico-log", startStr, endStr, adesaoIds.map((a) => a.adesaoId).join(",")],
     queryFn: async () => {
       if (!adesaoIds.length) return [];
 
-      // Build tasks: one per vehicle per day
-      const tasks: { adesaoId: string; placa: string; dateStr: string; fn: () => Promise<ResumoDiaResponse> }[] = [];
+      const tasks = adesaoIds.map((v) => () =>
+        getRelatorioLogMotorista({
+          adesao_id: v.adesaoId,
+          data_inicio: startStr,
+          data_fim: endStr,
+        }).then((raw) => ({ placa: v.placa, entries: extractEntries(raw) }))
+      );
 
-      for (const day of days) {
-        const dateStr = format(day, "yyyy-MM-dd");
-        for (const v of adesaoIds) {
-          tasks.push({
-            adesaoId: v.adesaoId,
-            placa: v.placa,
-            dateStr,
-            fn: () => getResumoDia(v.adesaoId, dateStr) as Promise<ResumoDiaResponse>,
-          });
+      const results = await batchCalls(tasks, 6);
+
+      // Aggregate per driver (by name, since API may not return consistent IDs)
+      const driverMap = new Map<string, { nome: string; km: number; registros: number; placas: Set<string> }>();
+
+      for (const result of results) {
+        if (result.status !== "fulfilled") continue;
+        const { placa, entries } = result.value;
+
+        for (const entry of entries) {
+          const driver = getDriverName(entry);
+          if (!driver) continue;
+
+          const km = getKm(entry);
+          if (km <= 0) continue;
+
+          // Use nome as key for consistent grouping
+          const key = driver.nome;
+          if (!driverMap.has(key)) {
+            driverMap.set(key, { nome: driver.nome, km: 0, registros: 0, placas: new Set() });
+          }
+          const group = driverMap.get(key)!;
+          group.km += km;
+          group.registros += 1;
+          group.placas.add(placa);
         }
       }
 
-      const results = await batchCalls(
-        tasks.map((t) => t.fn),
-        6
-      );
-
-      // Aggregate per driver
-      const driverMap = new Map<
-        string,
-        { nome: string; km: number; telemetrias: number; placas: Set<string> }
-      >();
-
-      results.forEach((result, idx) => {
-        if (result.status !== "fulfilled") return;
-        const raw = result.value;
-        const task = tasks[idx];
-
-        const dtPosicao = raw?.posicao?.dt_posicao;
-        const posicaoDate = dtPosicao ? dtPosicao.substring(0, 10) : null;
-        const isFromRequestedDate = posicaoDate === task.dateStr;
-        const tempoMovimento = raw?.basico?.tempo?.movimento ?? 0;
-        const kmTotal = raw?.basico?.km?.total ?? 0;
-        const telemetrias = raw?.basico?.telemetria?.quantidade ?? 0;
-        const isRealMovement = isFromRequestedDate && tempoMovimento > 60 && kmTotal > 50;
-
-        if (!isRealMovement) return;
-
-        const kmReal = kmTotal / 1000;
-        const telReal = telemetrias;
-        const motorista =
-          raw?.posicao?.deslocamento?.motorista ?? raw?.posicao?.motorista ?? undefined;
-        const key = motorista?.id ? String(motorista.id) : "sem-condutor";
-        const nome = motorista?.nome ?? "Sem condutor vinculado";
-
-        if (!driverMap.has(key)) {
-          driverMap.set(key, { nome, km: 0, telemetrias: 0, placas: new Set() });
-        }
-        const group = driverMap.get(key)!;
-        group.km += kmReal;
-        group.telemetrias += telReal;
-        group.placas.add(task.placa);
-      });
-
       return Array.from(driverMap.entries())
-        .map(([id, g]) => {
+        .map(([key, g]) => {
           const kmRodado = Math.round(g.km * 100) / 100;
-          const kmPorTelemetria =
-            g.telemetrias > 0 ? Math.round((g.km / g.telemetrias) * 100) / 100 : kmRodado;
+          const kmPorTelemetria = g.registros > 0 ? Math.round((g.km / g.registros) * 100) / 100 : kmRodado;
           return {
-            id,
+            id: key,
             nome: g.nome,
             kmRodado,
-            telemetrias: g.telemetrias,
+            telemetrias: g.registros,
             kmPorTelemetria,
             placas: Array.from(g.placas),
           } satisfies DriverPeriodRow;
@@ -148,15 +150,8 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const totalKm = useMemo(
-    () => (query.data ?? []).reduce((s, r) => s + r.kmRodado, 0),
-    [query.data]
-  );
-
-  const totalTelemetrias = useMemo(
-    () => (query.data ?? []).reduce((s, r) => s + r.telemetrias, 0),
-    [query.data]
-  );
+  const totalKm = useMemo(() => (query.data ?? []).reduce((s, r) => s + r.kmRodado, 0), [query.data]);
+  const totalTelemetrias = useMemo(() => (query.data ?? []).reduce((s, r) => s + r.telemetrias, 0), [query.data]);
 
   return {
     driverRows: query.data ?? [],

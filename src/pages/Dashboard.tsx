@@ -15,7 +15,6 @@ import { ptBR } from "date-fns/locale";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
-import { useResumoDiaFrota } from "@/hooks/useResumoDiaFrota";
 import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
 import { useNavigate } from "react-router-dom";
 import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
@@ -80,29 +79,13 @@ export default function Dashboard() {
     return getPresetDates(preset);
   }, [preset, customInicio, customFim]);
 
-  const isSingleDay = preset === "hoje";
-
+  // Use log_motorista for all presets (supports single-day and ranges)
   const {
-    driverRows: singleDayRows,
-    totalKmHoje: singleDayKm,
-    totalTelemetrias: singleDayTel,
-    isLoading: loadingSingleDay,
-  } = useResumoDiaFrota(isSingleDay ? format(dates.inicio, "yyyy-MM-dd") : undefined);
-
-  const {
-    driverRows: periodRows,
-    totalKm: periodKm,
-    totalTelemetrias: periodTel,
-    isLoading: loadingPeriod,
-  } = useKmPorTecnicoPeriodo(
-    isSingleDay ? new Date(0) : dates.inicio,
-    isSingleDay ? new Date(0) : dates.fim
-  );
-
-  const driverTelemetryRows = isSingleDay ? singleDayRows : periodRows;
-  const totalKm = isSingleDay ? singleDayKm : periodKm;
-  const totalTelemetrias = isSingleDay ? singleDayTel : periodTel;
-  const loadingResumo = isSingleDay ? loadingSingleDay : loadingPeriod;
+    driverRows: driverTelemetryRows,
+    totalKm,
+    totalTelemetrias,
+    isLoading: loadingResumo,
+  } = useKmPorTecnicoPeriodo(dates.inicio, dates.fim);
 
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
@@ -294,7 +277,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center justify-between mt-1">
                     <p className="text-xs text-muted-foreground truncate max-w-[60%]">{row.placas?.join(", ") ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">{row.telemetrias} telem.</p>
+                    <p className="text-xs text-muted-foreground">{row.telemetrias} viagens</p>
                   </div>
                 </div>
               ))
@@ -308,8 +291,8 @@ export default function Dashboard() {
                 <TableHead>Técnico</TableHead>
                 <TableHead>Placas</TableHead>
                 <TableHead className="text-right">Soma de KM Rodado</TableHead>
-                <TableHead className="text-right">Telemetrias</TableHead>
-                <TableHead className="text-right">KM por Telemetria</TableHead>
+                <TableHead className="text-right">Viagens</TableHead>
+                <TableHead className="text-right">KM por Viagem</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
