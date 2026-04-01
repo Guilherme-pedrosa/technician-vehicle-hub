@@ -103,7 +103,7 @@ function SyncKmHistoricoDialog() {
 
       try {
         const { data, error } = await supabase.functions.invoke("sync-daily-km", {
-          body: { start_date: chunk.start, end_date: chunk.end },
+          body: { start_date: chunk.start, end_date: chunk.end, force: true },
         });
 
         if (error) {
