@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, eachDayOfInterval } from "date-fns";
-import { getResumoDia } from "@/services/rotaexata";
+import { getRelatorioLogMotorista } from "@/services/rotaexata";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 
 export type DriverPeriodRow = {
@@ -13,24 +13,12 @@ export type DriverPeriodRow = {
   placas: string[];
 };
 
-type ResumoDiaMotorista = {
-  id?: number;
-  nome?: string;
-};
-
-type ResumoDiaResponse = {
-  basico?: {
-    km?: { total?: number };
-    telemetria?: { quantidade?: number };
-    tempo?: { movimento?: number };
-  };
-  posicao?: {
-    dt_posicao?: string;
-    motorista?: ResumoDiaMotorista;
-    deslocamento?: {
-      kmRodado?: number;
-      motorista?: ResumoDiaMotorista;
-    };
+type LogMotoristaEntry = {
+  placa?: string;
+  km_percorrido?: string | number;
+  motorista?: {
+    id?: number | string;
+    nome?: string;
   };
 };
 
@@ -67,70 +55,55 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
         format(d, "yyyy-MM-dd")
       );
 
-      // Create tasks: one per vehicle per day
+      // Create tasks: one log_motorista call per vehicle per day
       const tasks = adesaoIds.flatMap((v) =>
         days.map((day) => () =>
-          getResumoDia(v.adesaoId, day).then((raw): { placa: string; day: string; data: ResumoDiaResponse } => ({
-            placa: v.placa,
-            day,
-            data: raw as ResumoDiaResponse,
-          }))
+          getRelatorioLogMotorista({ adesao_id: v.adesaoId, data: day }).then(
+            (raw): { placa: string; entries: LogMotoristaEntry[] } => ({
+              placa: v.placa,
+              entries: (Array.isArray(raw) ? raw : []) as LogMotoristaEntry[],
+            })
+          )
         )
       );
 
       const results = await batchCalls(tasks, 8);
 
       // Aggregate per driver
-      const driverMap = new Map<string, { nome: string; km: number; registros: number; placas: Set<string> }>();
+      const driverMap = new Map<string, { nome: string; km: number; placas: Set<string> }>();
 
       for (const result of results) {
         if (result.status !== "fulfilled") continue;
-        const { placa, day, data } = result.value;
+        const { placa, entries } = result.value;
 
-        const tempoMovimento = data?.basico?.tempo?.movimento ?? 0;
-        const kmTotal = data?.basico?.km?.total ?? 0;
-        const telemetrias = data?.basico?.telemetria?.quantidade ?? 0;
+        for (const entry of entries) {
+          const km = parseFloat(String(entry.km_percorrido ?? "0")) || 0;
+          if (km <= 0) continue;
 
-        // Validate that posicao.dt_posicao matches the requested day.
-        // The API returns stale basico.km data for vehicles inactive for months.
-        const dtPosicao = data?.posicao?.dt_posicao ?? "";
-        const posicaoDate = dtPosicao ? dtPosicao.substring(0, 10) : "";
-        if (posicaoDate !== day) continue;
+          const motorista = entry.motorista;
+          const nome = motorista?.nome;
+          if (!nome || nome === "Desconhecido") continue;
 
-        // Skip no real movement
-        if (tempoMovimento <= 60 || kmTotal <= 50) continue;
+          const key = typeof motorista?.id === "number" ? String(motorista.id) : nome;
 
-        const kmKm = kmTotal / 1000;
-
-        // Get driver info
-        const motorista =
-          data?.posicao?.deslocamento?.motorista ??
-          data?.posicao?.motorista;
-
-        const nome = motorista?.nome;
-        if (!nome || nome === "Desconhecido") continue;
-
-        const key = motorista?.id ? String(motorista.id) : nome;
-
-        if (!driverMap.has(key)) {
-          driverMap.set(key, { nome, km: 0, registros: 0, placas: new Set() });
+          if (!driverMap.has(key)) {
+            driverMap.set(key, { nome, km: 0, placas: new Set() });
+          }
+          const group = driverMap.get(key)!;
+          group.km += km;
+          group.placas.add(entry.placa ?? placa);
         }
-        const group = driverMap.get(key)!;
-        group.km += kmKm;
-        group.registros += telemetrias;
-        group.placas.add(placa);
       }
 
       return Array.from(driverMap.entries())
         .map(([key, g]) => {
           const kmRodado = Math.round(g.km * 100) / 100;
-          const kmPorTelemetria = g.registros > 0 ? Math.round((g.km / g.registros) * 100) / 100 : kmRodado;
           return {
             id: key,
             nome: g.nome,
             kmRodado,
-            telemetrias: g.registros,
-            kmPorTelemetria,
+            telemetrias: 0,
+            kmPorTelemetria: kmRodado,
             placas: Array.from(g.placas),
           } satisfies DriverPeriodRow;
         })
