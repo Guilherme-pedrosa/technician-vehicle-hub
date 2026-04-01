@@ -405,15 +405,13 @@ export default function Dashboard() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">KM rodado e telemetria da frota</p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="flex-1 sm:flex-none">
-              {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Sincronizar Rota Exata
-            </Button>
-            <SyncKmHistoricoDialog />
-          </div>
-        )}
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="flex-1 sm:flex-none">
+            {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Sincronizar Rota Exata
+          </Button>
+          <SyncKmHistoricoDialog />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
