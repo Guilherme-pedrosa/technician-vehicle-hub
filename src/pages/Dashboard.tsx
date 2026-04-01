@@ -297,7 +297,29 @@ export default function Dashboard() {
           {/* Mobile cards */}
           <div className="sm:hidden divide-y divide-border">
             {driverTelemetryRows.length === 0 ? (
-              <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
+              !isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Dados do período não sincronizados ainda.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => syncMutationKm.mutate({
+                      startDate: format(dates.inicio, "yyyy-MM-dd"),
+                      endDate: format(dates.fim, "yyyy-MM-dd"),
+                    })}
+                    disabled={syncMutationKm.isPending}
+                  >
+                    {syncMutationKm.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
+                    ) : (
+                      <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
+              )
             ) : (
               driverTelemetryRows.map((row) => (
                 <div key={row.id} className="px-4 py-3">
