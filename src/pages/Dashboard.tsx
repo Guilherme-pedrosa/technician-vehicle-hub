@@ -213,7 +213,7 @@ export default function Dashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
-  const [preset, setPreset] = useState<PeriodPreset>("hoje");
+  const [preset, setPreset] = useState<PeriodPreset>("mes");
   const [customInicio, setCustomInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [customFim, setCustomFim] = useState(format(new Date(), "yyyy-MM-dd"));
 
