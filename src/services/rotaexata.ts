@@ -183,7 +183,7 @@ export async function getOdometro(where?: string): Promise<unknown> {
   return unwrapRotaExataResponse(response);
 }
 
-export async function updateOdometro(body: { adesao_id: number; odometro: number }): Promise<unknown> {
+export async function updateOdometro(body: { adesao_id: number; odometro_adesao: number }): Promise<unknown> {
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/odometro", "POST", undefined, body);
   return unwrapRotaExataResponse(response);
 }
