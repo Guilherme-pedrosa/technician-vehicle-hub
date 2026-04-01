@@ -875,9 +875,19 @@ export default function Chamados() {
         onStatusChange={handleStatusChange}
         onUpdate={(id, data) => updateTicket.mutate({ id, data })}
         onDelete={(id) => deleteTicket.mutate(id)}
+        onConcluirPreventiva={(t) => { setDetailOpen(false); setConcluirTicket(t); }}
         vehicles={vehicles}
         drivers={drivers}
       />
+      {concluirTicket && (
+        <ConcluirPreventivaDialog
+          open={!!concluirTicket}
+          onOpenChange={(o) => { if (!o) setConcluirTicket(null); }}
+          ticket={concluirTicket}
+          vehicles={vehicles}
+          onDone={() => setConcluirTicket(null)}
+        />
+      )}
     </div>
   );
 }
