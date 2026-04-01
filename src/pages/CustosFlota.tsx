@@ -10,8 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
@@ -62,28 +60,11 @@ export default function CustosFlota() {
 
   const { data: custos = [], isLoading } = useCustosFlota(where);
 
-  // Get vehicles for placa mapping
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicles-custos"],
-    queryFn: async () => {
-      const { data } = await supabase.from("vehicles").select("adesao_id, placa");
-      return data ?? [];
-    },
-  });
-
-  const placaMap = useMemo(
-    () => new Map(vehicles.map((v) => [String(v.adesao_id), v.placa])),
-    [vehicles]
-  );
-
-  // Filter by placa client-side
+  // Filter by placa client-side (placa comes from API directly)
   const filteredCustos = useMemo(() => {
     if (placaFilter === "todos") return custos;
-    return custos.filter((c) => {
-      const placa = placaMap.get(String(c.adesao_id));
-      return placa === placaFilter;
-    });
-  }, [custos, placaFilter, placaMap]);
+    return custos.filter((c) => c.placa === placaFilter);
+  }, [custos, placaFilter]);
 
   // Summary cards
   const summary = useMemo(() => {
@@ -103,23 +84,27 @@ export default function CustosFlota() {
     return Array.from(tipos).sort();
   }, [custos]);
 
-  // Unique placas for filter
+  // Unique placas for filter (from API data)
   const placas = useMemo(() => {
     const set = new Set<string>();
-    vehicles.forEach((v) => {
-      if (v.placa) set.add(v.placa);
+    custos.forEach((c) => {
+      if (c.placa) set.add(c.placa);
     });
     return Array.from(set).sort();
-  }, [vehicles]);
+  }, [custos]);
 
   // CSV export
   const exportCSV = () => {
-    const headers = ["Data", "Placa", "Tipo", "Descrição", "Valor", "Parcelado"];
+    const headers = ["Data", "Criado em", "Placa", "Descrição", "Hodômetro", "Tipo", "Fornecedor", "Criado por", "Valor", "Parcelado"];
     const rows = filteredCustos.map((c) => [
       c.dt_lancamento ? format(new Date(c.dt_lancamento), "dd/MM/yyyy") : "",
-      placaMap.get(String(c.adesao_id)) ?? `ID ${c.adesao_id}`,
+      c.dt_criacao ? format(new Date(c.dt_criacao), "dd/MM/yyyy") : "",
+      c.placa ?? `ID ${c.adesao_id}`,
+      c.descricao ?? c.veiculo_descricao ?? "",
+      String(c.hodometro ?? ""),
       c.tipo_custo_nome ?? "",
-      c.descricao ?? "",
+      c.fornecedor_nome ?? "Não informado",
+      c.criado_por_nome ?? "",
       String(c.valor ?? 0).replace(".", ","),
       c.parcelado ? "Sim" : "Não",
     ]);
@@ -284,11 +269,15 @@ export default function CustosFlota() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
+                    <TableHead>Data Lançamento</TableHead>
+                    <TableHead>Criado em</TableHead>
                     <TableHead>Placa</TableHead>
-                    <TableHead>Tipo</TableHead>
                     <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Hodômetro</TableHead>
+                    <TableHead>Tipo de Custo</TableHead>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Criado por</TableHead>
+                    <TableHead className="text-right">Custo</TableHead>
                     <TableHead className="text-center">Parcelado</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -300,16 +289,30 @@ export default function CustosFlota() {
                           ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
                           : "—"}
                       </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {custo.dt_criacao
+                          ? format(new Date(custo.dt_criacao), "dd/MM/yyyy")
+                          : "—"}
+                      </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {placaMap.get(String(custo.adesao_id)) ?? `ID ${custo.adesao_id}`}
+                        {custo.placa ?? `ID ${custo.adesao_id}`}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                        {custo.descricao ?? custo.veiculo_descricao ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {custo.hodometro ? custo.hodometro.toLocaleString("pt-BR") : "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
                           {custo.tipo_custo_nome ?? "—"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                        {custo.descricao ?? "—"}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {custo.fornecedor_nome ?? "Não informado"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {custo.criado_por_nome ?? "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium text-sm">
                         {formatCurrency(custo.valor ?? 0)}
