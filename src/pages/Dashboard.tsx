@@ -546,12 +546,14 @@ export default function Dashboard() {
                 <TableHead className="text-right">Soma de KM Rodado</TableHead>
                 <TableHead className="text-right">Telemetrias</TableHead>
                 <TableHead className="text-right">KM por Telemetria</TableHead>
+                <TableHead className="text-right">Excessos Vel.</TableHead>
+                <TableHead className="text-right">Vel. Máxima</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     Nenhum dado de telemetria encontrado
                   </TableCell>
                 </TableRow>
@@ -567,6 +569,20 @@ export default function Dashboard() {
                       <TableCell className="text-right tabular-nums">{row.telemetrias}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {row.kmPorTelemetria.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(row as { excessosVelocidade?: number }).excessosVelocidade && (row as { excessosVelocidade?: number }).excessosVelocidade! > 0 ? (
+                          <Badge className="bg-destructive text-destructive-foreground">
+                            {(row as { excessosVelocidade?: number }).excessosVelocidade}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">0</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {(row as { velocidadeMaxima?: number }).velocidadeMaxima
+                          ? `${(row as { velocidadeMaxima?: number }).velocidadeMaxima} km/h`
+                          : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -587,6 +603,12 @@ export default function Dashboard() {
                         return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       })()}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Badge className={driverTelemetryRows.reduce((s, r) => s + ((r as { excessosVelocidade?: number }).excessosVelocidade ?? 0), 0) > 0 ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}>
+                        {driverTelemetryRows.reduce((s, r) => s + ((r as { excessosVelocidade?: number }).excessosVelocidade ?? 0), 0)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell />
                   </TableRow>
                 </>
               )}
