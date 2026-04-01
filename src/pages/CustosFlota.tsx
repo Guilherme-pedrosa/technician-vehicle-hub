@@ -62,28 +62,11 @@ export default function CustosFlota() {
 
   const { data: custos = [], isLoading } = useCustosFlota(where);
 
-  // Get vehicles for placa mapping
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicles-custos"],
-    queryFn: async () => {
-      const { data } = await supabase.from("vehicles").select("adesao_id, placa");
-      return data ?? [];
-    },
-  });
-
-  const placaMap = useMemo(
-    () => new Map(vehicles.map((v) => [String(v.adesao_id), v.placa])),
-    [vehicles]
-  );
-
-  // Filter by placa client-side
+  // Filter by placa client-side (placa comes from API directly)
   const filteredCustos = useMemo(() => {
     if (placaFilter === "todos") return custos;
-    return custos.filter((c) => {
-      const placa = placaMap.get(String(c.adesao_id));
-      return placa === placaFilter;
-    });
-  }, [custos, placaFilter, placaMap]);
+    return custos.filter((c) => c.placa === placaFilter);
+  }, [custos, placaFilter]);
 
   // Summary cards
   const summary = useMemo(() => {
