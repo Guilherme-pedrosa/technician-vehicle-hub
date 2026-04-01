@@ -54,7 +54,80 @@ const STATUS_LABELS: Record<string, string> = {
   concluido: "Concluído",
 };
 
-export default function Dashboard() {
+function SyncKmHistoricoDialog() {
+  const [open, setOpen] = useState(false);
+  const [startDate, setStartDate] = useState("2026-01-01");
+  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const syncMutation = useSyncDailyKm();
+
+  const dayCount = useMemo(() => {
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    return Math.max(0, Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  }, [startDate, endDate]);
+
+  const handleSync = () => {
+    syncMutation.mutate(
+      { startDate, endDate },
+      { onSuccess: () => setOpen(false) }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" title="Sincronizar KM Histórico">
+          <Download className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Sincronizar KM Histórico</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Baixa os dados de KM do Rota Exata para o período selecionado e grava no banco de dados local.
+        </p>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">Data Inicial</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">Data Final</label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          {dayCount} dias · máximo 365 dias por sincronização
+        </p>
+        {dayCount > 365 && (
+          <p className="text-xs text-destructive">Reduza o período para no máximo 365 dias.</p>
+        )}
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button
+            onClick={handleSync}
+            disabled={syncMutation.isPending || dayCount <= 0 || dayCount > 365}
+          >
+            {syncMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Sincronizar {dayCount} dias
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
