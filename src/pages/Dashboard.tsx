@@ -292,8 +292,8 @@ export default function Dashboard() {
                 <TableHead>Técnico</TableHead>
                 <TableHead>Placas</TableHead>
                 <TableHead className="text-right">Soma de KM Rodado</TableHead>
-                <TableHead className="text-right">Telemetrias</TableHead>
-                <TableHead className="text-right">KM por Telemetria</TableHead>
+                <TableHead className="text-right">Viagens</TableHead>
+                <TableHead className="text-right">KM por Viagem</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
