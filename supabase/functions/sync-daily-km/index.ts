@@ -183,36 +183,44 @@ Deno.serve(async (req) => {
           // CALL 2: dirigibilidade (telemetry events + speed)
           const eventos = await fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day);
 
-          const totalTelemetrias = eventos.length;
-          let velMaxima = 0;
-          let excessosVelocidade = 0;
-
+          // Build per-driver telemetry stats from dirigibilidade events
+          const driverTelemetry = new Map<string, { telemetrias: number; excessos: number; velMax: number }>();
+          
           for (const evento of eventos as Record<string, unknown>[]) {
-            // Check evento name for speed violations
-            const eventoNome = String(evento.evento ?? evento.event ?? evento.descricao_evento ?? "").toLowerCase();
+            const mot = evento.motorista as Record<string, unknown> | undefined;
+            const driverId = mot?.id ? String(mot.id) : "__unknown__";
+            
+            if (!driverTelemetry.has(driverId)) {
+              driverTelemetry.set(driverId, { telemetrias: 0, excessos: 0, velMax: 0 });
+            }
+            const dt = driverTelemetry.get(driverId)!;
+            dt.telemetrias++;
+            
+            // Check event name for speed violations
+            const eventoNome = String(evento.evento ?? "").toLowerCase();
             const isSpeedEvent = eventoNome.includes("velocidade") || eventoNome.includes("speed");
             
-            // Try to extract speed from multiple possible fields
+            // Try to extract speed
             const vel = parseFloat(String(
               evento.velocidade ?? evento.speed ?? evento.vel ??
               evento.velocidade_momento ?? evento.velocidadeMomento ??
               evento.velocidade_maxima ?? evento.max_speed ?? 0
             ));
-            if (vel > velMaxima) velMaxima = vel;
-            if (vel > limiteVelocidade) excessosVelocidade++;
-            
-            // If event name indicates speed violation, count it even without velocity value
-            if (isSpeedEvent && vel <= 0) excessosVelocidade++;
+            if (vel > dt.velMax) dt.velMax = vel;
+            if (vel > limiteVelocidade) dt.excessos++;
+            else if (isSpeedEvent) dt.excessos++; // Count by event name
           }
 
           if (eventos.length > 0) {
-            // Log first event AND all unique event types for debugging
-            const eventTypes = [...new Set((eventos as Record<string, unknown>[]).map(e => String(e.evento ?? e.event ?? "unknown")))];
+            const eventTypes = [...new Set((eventos as Record<string, unknown>[]).map(e => String((e as Record<string, unknown>).evento ?? "unknown")))];
             console.log(`[sync] ${vehicle.adesao_id} ${day}: ${eventos.length} events, types: ${eventTypes.join(", ")}`);
-            console.log(`[sync] sample keys: ${Object.keys(eventos[0] as Record<string, unknown>).join(", ")}`);
+            // Log per-driver breakdown
+            for (const [did, dt] of driverTelemetry) {
+              if (dt.excessos > 0) console.log(`[sync] driver ${did}: ${dt.telemetrias} tel, ${dt.excessos} excessos, velMax=${dt.velMax}`);
+            }
           }
 
-          if (entries.length === 0 && totalTelemetrias === 0) continue;
+          if (entries.length === 0 && eventos.length === 0) continue;
 
           // DELETE all existing records for this vehicle+day (clean slate)
           await supabase
@@ -223,8 +231,6 @@ Deno.serve(async (req) => {
 
           // INSERT each driver session individually
           if (entries.length > 0) {
-            const totalKmDay = (entries as Record<string, unknown>[]).reduce((sum, e) => sum + extractKm(e), 0);
-
             for (const entry of entries as Record<string, unknown>[]) {
               const km = extractKm(entry);
               if (km <= 0) continue;
@@ -243,10 +249,9 @@ Deno.serve(async (req) => {
                 ?? (entry.hora_inicio as string)
                 ?? new Date().toISOString();
 
-              // Distribute telemetrias proportionally by KM share
-              const kmShare = totalKmDay > 0 ? km / totalKmDay : 1 / entries.length;
-              const sessionTelemetrias = Math.round(totalTelemetrias * kmShare);
-              const sessionExcessos = Math.round(excessosVelocidade * kmShare);
+              // Match telemetry to this specific driver
+              const driverKey = motoristaId ?? "__unknown__";
+              const dt = driverTelemetry.get(driverKey) ?? { telemetrias: 0, excessos: 0, velMax: 0 };
 
               const { error } = await supabase.from("daily_vehicle_km").insert({
                 adesao_id: vehicle.adesao_id!,
