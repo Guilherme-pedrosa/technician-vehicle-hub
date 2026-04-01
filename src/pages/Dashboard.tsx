@@ -213,7 +213,7 @@ export default function Dashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
-  const [preset, setPreset] = useState<PeriodPreset>("hoje");
+  const [preset, setPreset] = useState<PeriodPreset>("mes");
   const [customInicio, setCustomInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [customFim, setCustomFim] = useState(format(new Date(), "yyyy-MM-dd"));
 
@@ -239,23 +239,21 @@ export default function Dashboard() {
   const isSingleDay = preset === "hoje";
   const rangeDays = Math.ceil((dates.fim.getTime() - dates.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-  // "Hoje": direct API call (realtime)
+  // "Hoje": direct API call (realtime) — used for KM only
   const realtimeData = useKmPorTecnicoPeriodo(
     isSingleDay ? dates.inicio : new Date(0),
     isSingleDay ? dates.fim : new Date(0)
   );
 
-  // Multi-day: local cache table
-  const cachedData = useCachedKmPorTecnico(
-    !isSingleDay ? dates.inicio : new Date(0),
-    !isSingleDay ? dates.fim : new Date(0)
-  );
+  // Cache table — always queried for telemetria data
+  const cachedData = useCachedKmPorTecnico(dates.inicio, dates.fim);
 
   const { sync: syncKm, cancel: cancelSyncKm, isSyncing: isSyncingKm, progress: syncProgress } = useSyncDailyKm();
 
+  // For single-day: use realtime KM rows but enrich with cached telemetria; for multi-day: use cached entirely
   const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
   const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
-  const totalTelemetrias = isSingleDay ? realtimeData.totalTelemetrias : cachedData.totalTelemetrias;
+  const totalTelemetrias = cachedData.totalTelemetrias;
   const loadingResumo = isSingleDay ? realtimeData.isLoading : cachedData.isLoading;
 
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
