@@ -74,18 +74,30 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
         format(d, "yyyy-MM-dd")
       );
 
+      // Safety: cap range at 31 days to avoid API overload
+      if (days.length > 31) {
+        console.warn(`[KM] Range too long (${days.length} days), capping at 31`);
+        days.length = 31;
+      }
+
+      // Reduce concurrency for longer ranges to avoid rate limiting
+      const concurrency = days.length <= 7 ? 8 : days.length <= 14 ? 4 : 2;
+
       const tasks = adesaoIds.flatMap((v) =>
         days.map((day) => () =>
-          getRelatorioLogMotorista({ adesao_id: v.adesaoId, data: day }).then(
-            (raw): { placa: string; entries: LogMotoristaEntry[] } => ({
+          getRelatorioLogMotorista({ adesao_id: v.adesaoId, data: day })
+            .then((raw): { placa: string; entries: LogMotoristaEntry[] } => ({
               placa: v.placa,
               entries: (Array.isArray(raw) ? raw : []) as LogMotoristaEntry[],
+            }))
+            .catch((err): { placa: string; entries: LogMotoristaEntry[] } => {
+              console.warn(`[KM] Failed for vehicle=${v.adesaoId} day=${day}:`, (err as Error).message);
+              return { placa: v.placa, entries: [] };
             })
-          )
         )
       );
 
-      const results = await batchCalls(tasks, 8);
+      const results = await batchCalls(tasks, concurrency);
 
       const driverMap = new Map<string, { nome: string; km: number; placas: Set<string> }>();
 
@@ -129,6 +141,8 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
     },
     enabled: isEnabled && adesaoIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+    meta: { errorMessage: "Falha ao carregar KM por técnico" },
   });
 
   const totalKm = useMemo(() => (query.data ?? []).reduce((s, r) => s + r.kmRodado, 0), [query.data]);
