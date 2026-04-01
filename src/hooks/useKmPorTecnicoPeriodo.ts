@@ -56,14 +56,15 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
     [vehicles]
   );
 
-  const isSingleDay = isSameDay(startDate, endDate);
+  const isEnabled = startDate.getTime() > 0 && endDate.getTime() > 0;
+  const isSingleDay = isEnabled && isSameDay(startDate, endDate);
   const days = useMemo(
-    () => eachDayOfInterval({ start: startDate, end: endDate }),
-    [startDate.getTime(), endDate.getTime()]
+    () => (isEnabled ? eachDayOfInterval({ start: startDate, end: endDate }) : []),
+    [startDate.getTime(), endDate.getTime(), isEnabled]
   );
 
-  const startStr = format(startDate, "yyyy-MM-dd");
-  const endStr = format(endDate, "yyyy-MM-dd");
+  const startStr = isEnabled ? format(startDate, "yyyy-MM-dd") : "";
+  const endStr = isEnabled ? format(endDate, "yyyy-MM-dd") : "";
 
   const query = useQuery({
     queryKey: ["km-periodo-tecnico", startStr, endStr, adesaoIds.map((a) => a.adesaoId).join(",")],
