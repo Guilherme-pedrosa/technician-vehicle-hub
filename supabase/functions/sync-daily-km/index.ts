@@ -19,7 +19,7 @@ async function getToken(): Promise<string> {
   if (!email || !password) throw new Error("ROTAEXATA credentials not configured");
 
   let lastError: Error | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       const res = await fetch(`${ROTAEXATA_API}/login`, {
         method: "POST",
@@ -29,8 +29,9 @@ async function getToken(): Promise<string> {
 
       if (res.status === 502 || res.status === 503 || res.status === 429) {
         lastError = new Error(`Login returned ${res.status}`);
-        console.warn(`[sync-daily-km] Login attempt ${attempt}/3 failed with ${res.status}, retrying...`);
-        await new Promise((r) => setTimeout(r, attempt * 2000));
+        const delay = Math.min(attempt * 3000, 15000);
+        console.warn(`[sync-daily-km] Login attempt ${attempt}/5 failed with ${res.status}, retrying in ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
         continue;
       }
 
@@ -42,14 +43,15 @@ async function getToken(): Promise<string> {
       return cachedToken;
     } catch (err) {
       lastError = err as Error;
-      if (attempt < 3) {
-        console.warn(`[sync-daily-km] Login attempt ${attempt}/3 error: ${(err as Error).message}, retrying...`);
-        await new Promise((r) => setTimeout(r, attempt * 2000));
+      if (attempt < 5) {
+        const delay = Math.min(attempt * 3000, 15000);
+        console.warn(`[sync-daily-km] Login attempt ${attempt}/5 error: ${(err as Error).message}, retrying in ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
   }
 
-  throw lastError ?? new Error("Login failed after 3 attempts");
+  throw lastError ?? new Error("Login failed after 5 attempts");
 }
 
 async function fetchLogMotorista(token: string, adesaoId: string, data: string): Promise<unknown[]> {
