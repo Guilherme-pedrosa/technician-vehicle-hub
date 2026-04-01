@@ -529,8 +529,18 @@ export default function Dashboard() {
                     <p className="font-semibold text-sm tabular-nums">{row.kmRodado.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km</p>
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-muted-foreground truncate max-w-[60%]">{row.placas?.join(", ") ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">{row.telemetrias} telemetrias</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[40%]">{row.placas?.join(", ") ?? "—"}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{row.telemetrias} tel.</span>
+                      {(row as { excessosVelocidade?: number }).excessosVelocidade && (row as { excessosVelocidade?: number }).excessosVelocidade! > 0 && (
+                        <Badge className="bg-destructive text-destructive-foreground text-[10px] h-4 px-1">
+                          {(row as { excessosVelocidade?: number }).excessosVelocidade} exc.
+                        </Badge>
+                      )}
+                      {(row as { velocidadeMaxima?: number }).velocidadeMaxima ? (
+                        <span className="text-xs text-muted-foreground">{(row as { velocidadeMaxima?: number }).velocidadeMaxima} km/h</span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ))
