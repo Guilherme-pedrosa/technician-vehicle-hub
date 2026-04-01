@@ -80,13 +80,27 @@ export default function Dashboard() {
     return getPresetDates(preset);
   }, [preset, customInicio, customFim]);
 
-  // Use log_motorista for all presets (supports single-day and ranges)
-  const {
-    driverRows: driverTelemetryRows,
-    totalKm,
-    totalTelemetrias,
-    isLoading: loadingResumo,
-  } = useKmPorTecnicoPeriodo(dates.inicio, dates.fim);
+  const isSingleDay = preset === "hoje";
+  const rangeDays = Math.ceil((dates.fim.getTime() - dates.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  // "Hoje": direct API call (realtime)
+  const realtimeData = useKmPorTecnicoPeriodo(
+    isSingleDay ? dates.inicio : new Date(0),
+    isSingleDay ? dates.fim : new Date(0)
+  );
+
+  // Multi-day: local cache table
+  const cachedData = useCachedKmPorTecnico(
+    !isSingleDay ? dates.inicio : new Date(0),
+    !isSingleDay ? dates.fim : new Date(0)
+  );
+
+  const syncMutationKm = useSyncDailyKm();
+
+  const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
+  const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
+  const totalTelemetrias = isSingleDay ? realtimeData.totalTelemetrias : cachedData.totalTelemetrias;
+  const loadingResumo = isSingleDay ? realtimeData.isLoading : cachedData.isLoading;
 
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
