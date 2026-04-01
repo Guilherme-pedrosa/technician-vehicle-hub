@@ -16,6 +16,7 @@ import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
+import { useCachedKmPorTecnico, useSyncDailyKm } from "@/hooks/useCachedKmPorTecnico";
 import { useNavigate } from "react-router-dom";
 import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
 
@@ -79,13 +80,27 @@ export default function Dashboard() {
     return getPresetDates(preset);
   }, [preset, customInicio, customFim]);
 
-  // Use log_motorista for all presets (supports single-day and ranges)
-  const {
-    driverRows: driverTelemetryRows,
-    totalKm,
-    totalTelemetrias,
-    isLoading: loadingResumo,
-  } = useKmPorTecnicoPeriodo(dates.inicio, dates.fim);
+  const isSingleDay = preset === "hoje";
+  const rangeDays = Math.ceil((dates.fim.getTime() - dates.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  // "Hoje": direct API call (realtime)
+  const realtimeData = useKmPorTecnicoPeriodo(
+    isSingleDay ? dates.inicio : new Date(0),
+    isSingleDay ? dates.fim : new Date(0)
+  );
+
+  // Multi-day: local cache table
+  const cachedData = useCachedKmPorTecnico(
+    !isSingleDay ? dates.inicio : new Date(0),
+    !isSingleDay ? dates.fim : new Date(0)
+  );
+
+  const syncMutationKm = useSyncDailyKm();
+
+  const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
+  const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
+  const totalTelemetrias = isSingleDay ? realtimeData.totalTelemetrias : cachedData.totalTelemetrias;
+  const loadingResumo = isSingleDay ? realtimeData.isLoading : cachedData.isLoading;
 
   const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
@@ -235,6 +250,21 @@ export default function Dashboard() {
                   {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
                 </Button>
               ))}
+              {!isSingleDay && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => syncMutationKm.mutate({
+                    startDate: format(dates.inicio, "yyyy-MM-dd"),
+                    endDate: format(dates.fim, "yyyy-MM-dd"),
+                  })}
+                  disabled={syncMutationKm.isPending}
+                  className="h-7 text-xs"
+                  title="Sincronizar dados do período"
+                >
+                  {syncMutationKm.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                </Button>
+              )}
             </div>
             {preset === "personalizado" && (
               <div className="flex items-center gap-2 flex-wrap">
@@ -267,7 +297,29 @@ export default function Dashboard() {
           {/* Mobile cards */}
           <div className="sm:hidden divide-y divide-border">
             {driverTelemetryRows.length === 0 ? (
-              <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
+              !isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Dados do período não sincronizados ainda.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => syncMutationKm.mutate({
+                      startDate: format(dates.inicio, "yyyy-MM-dd"),
+                      endDate: format(dates.fim, "yyyy-MM-dd"),
+                    })}
+                    disabled={syncMutationKm.isPending}
+                  >
+                    {syncMutationKm.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
+                    ) : (
+                      <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
+              )
             ) : (
               driverTelemetryRows.map((row) => (
                 <div key={row.id} className="px-4 py-3">
@@ -299,7 +351,27 @@ export default function Dashboard() {
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhum dado de telemetria encontrado
+                    {!isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
+                      <div>
+                        <p className="mb-3">Dados do período não sincronizados ainda.</p>
+                        <Button
+                          size="sm"
+                          onClick={() => syncMutationKm.mutate({
+                            startDate: format(dates.inicio, "yyyy-MM-dd"),
+                            endDate: format(dates.fim, "yyyy-MM-dd"),
+                          })}
+                          disabled={syncMutationKm.isPending}
+                        >
+                          {syncMutationKm.isPending ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
+                          ) : (
+                            <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      "Nenhum dado de telemetria encontrado"
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (

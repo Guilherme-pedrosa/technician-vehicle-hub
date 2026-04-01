@@ -269,12 +269,29 @@ export function useSyncAllFromRotaExata() {
         ? await syncAssignmentsAndKm(positionsArray)
         : { assignmentsCreated: 0, kmUpdated: 0 };
 
+      // Sync last 7 days of KM data into cache
+      try {
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
+
+        await supabase.functions.invoke("sync-daily-km", {
+          body: {
+            start_date: sevenDaysAgo.toISOString().split("T")[0],
+            end_date: today.toISOString().split("T")[0],
+          },
+        });
+      } catch (e) {
+        console.warn("[sync-all] KM daily sync failed:", e);
+      }
+
       return { vehicleResult, driverResult, assignmentsCreated, kmUpdated };
     },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
       const msgs: string[] = [];
       if (r.vehicleResult.created > 0) msgs.push(`${r.vehicleResult.created} veículos criados`);
       if (r.vehicleResult.updated > 0) msgs.push(`${r.vehicleResult.updated} veículos atualizados`);
