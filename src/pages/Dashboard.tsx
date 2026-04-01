@@ -251,7 +251,7 @@ export default function Dashboard() {
     !isSingleDay ? dates.fim : new Date(0)
   );
 
-  const syncMutationKm = useSyncDailyKm();
+  const { sync: syncKm, cancel: cancelSyncKm, isSyncing: isSyncingKm, progress: syncProgress } = useSyncDailyKm();
 
   const driverTelemetryRows = isSingleDay ? realtimeData.driverRows : cachedData.driverRows;
   const totalKm = isSingleDay ? realtimeData.totalKm : cachedData.totalKm;
@@ -413,15 +413,18 @@ export default function Dashboard() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => syncMutationKm.mutate({
-                    startDate: format(dates.inicio, "yyyy-MM-dd"),
-                    endDate: format(dates.fim, "yyyy-MM-dd"),
-                  })}
-                  disabled={syncMutationKm.isPending}
+                  onClick={() => isSyncingKm
+                    ? cancelSyncKm()
+                    : syncKm(format(dates.inicio, "yyyy-MM-dd"), format(dates.fim, "yyyy-MM-dd"))
+                  }
                   className="h-7 text-xs"
                   title="Sincronizar dados do período"
                 >
-                  {syncMutationKm.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  {isSyncingKm ? (
+                    <><Loader2 className="w-3 h-3 animate-spin mr-1" />Cancelar</>
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
                 </Button>
               )}
             </div>
@@ -453,32 +456,71 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {/* Progress bar during sync */}
+          {isSyncingKm && syncProgress && (
+            <div className="mx-3 sm:mx-6 mb-4 p-3 bg-muted rounded-lg space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sincronizando com RotaExata...
+                </span>
+                <span className="font-mono text-xs">
+                  {syncProgress.current}/{syncProgress.total} dias
+                  {syncProgress.synced > 0 && ` • ${syncProgress.synced} registros`}
+                </span>
+              </div>
+              <div className="w-full bg-muted-foreground/20 rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((syncProgress.current / syncProgress.total) * 100)}%` }}
+                />
+              </div>
+              <Button variant="ghost" size="sm" className="text-xs h-6" onClick={cancelSyncKm}>
+                Cancelar
+              </Button>
+            </div>
+          )}
+
+          {/* Completude indicator */}
+          {!isSingleDay && !cachedData.isLoading && !isSyncingKm && (
+            <div className="mx-3 sm:mx-6 mb-2">
+              {cachedData.isComplete ? (
+                <Badge variant="outline" className="text-xs text-success border-success">
+                  ✓ {cachedData.syncedDays}/{cachedData.totalDaysInRange} dias sincronizados
+                </Badge>
+              ) : cachedData.syncedDays > 0 ? (
+                <Badge variant="outline" className="text-xs text-warning border-warning">
+                  ⚠ {cachedData.syncedDays}/{cachedData.totalDaysInRange} dias — dados parciais
+                </Badge>
+              ) : null}
+            </div>
+          )}
+
+          {/* Sync prompt when incomplete */}
+          {!isSingleDay && !isSyncingKm && !cachedData.isComplete && !cachedData.isLoading && (
+            <div className="text-center py-6 space-y-3 mx-3 sm:mx-6">
+              {cachedData.syncedDays > 0 ? (
+                <p className="text-sm text-warning font-medium">
+                  ⚠ Dados parciais: apenas {cachedData.syncedDays} de {cachedData.totalDaysInRange} dias sincronizados
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum dado sincronizado para este período
+                </p>
+              )}
+              <Button
+                onClick={() => syncKm(format(dates.inicio, "yyyy-MM-dd"), format(dates.fim, "yyyy-MM-dd"))}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Sincronizar período ({cachedData.totalDaysInRange} dias)
+              </Button>
+            </div>
+          )}
+
           {/* Mobile cards */}
           <div className="sm:hidden divide-y divide-border">
             {driverTelemetryRows.length === 0 ? (
-              !isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Dados do período não sincronizados ainda.
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => syncMutationKm.mutate({
-                      startDate: format(dates.inicio, "yyyy-MM-dd"),
-                      endDate: format(dates.fim, "yyyy-MM-dd"),
-                    })}
-                    disabled={syncMutationKm.isPending}
-                  >
-                    {syncMutationKm.isPending ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
-                    ) : (
-                      <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
-                    )}
-                  </Button>
-                </div>
-              ) : (
                 <p className="text-center py-8 text-sm text-muted-foreground">Nenhum dado encontrado</p>
-              )
             ) : (
               driverTelemetryRows.map((row) => (
                 <div key={row.id} className="px-4 py-3">
@@ -510,27 +552,7 @@ export default function Dashboard() {
               {driverTelemetryRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    {!isSingleDay && cachedData.isEmpty && !cachedData.isLoading ? (
-                      <div>
-                        <p className="mb-3">Dados do período não sincronizados ainda.</p>
-                        <Button
-                          size="sm"
-                          onClick={() => syncMutationKm.mutate({
-                            startDate: format(dates.inicio, "yyyy-MM-dd"),
-                            endDate: format(dates.fim, "yyyy-MM-dd"),
-                          })}
-                          disabled={syncMutationKm.isPending}
-                        >
-                          {syncMutationKm.isPending ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sincronizando {rangeDays} dias...</>
-                          ) : (
-                            <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar período ({rangeDays} dias)</>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      "Nenhum dado de telemetria encontrado"
-                    )}
+                    Nenhum dado de telemetria encontrado
                   </TableCell>
                 </TableRow>
               ) : (
