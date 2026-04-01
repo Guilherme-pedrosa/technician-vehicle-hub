@@ -10,7 +10,7 @@ import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
   Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull,
 } from "lucide-react";
-import { isPast, format, startOfDay, startOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { isPast, format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,7 +20,7 @@ import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
 import { useNavigate } from "react-router-dom";
 import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
 
-type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
+ type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
 
 function getPresetDates(preset: PeriodPreset) {
   const now = new Date();
@@ -30,6 +30,13 @@ function getPresetDates(preset: PeriodPreset) {
     case "mes": return { inicio: startOfMonth(now), fim: now };
     default: return { inicio: startOfDay(now), fim: now };
   }
+}
+
+function parseDateInput(value: string, fallback: Date, endOfDay = false) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return fallback;
+
+  const parsed = new Date(`${value}T${endOfDay ? "23:59:59" : "00:00:00"}`);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -56,16 +63,17 @@ export default function Dashboard() {
 
   const dates = useMemo(() => {
     if (preset === "personalizado") {
-      const inicioDate = new Date(`${customInicio}T00:00:00`);
-      const fimDate = new Date(`${customFim}T23:59:59`);
+      const now = new Date();
+      const inicioDate = parseDateInput(customInicio, startOfMonth(now));
+      const fimDate = parseDateInput(customFim, now, true);
 
       if (inicioDate <= fimDate) {
         return { inicio: inicioDate, fim: fimDate };
       }
 
       return {
-        inicio: new Date(`${customFim}T00:00:00`),
-        fim: new Date(`${customInicio}T23:59:59`),
+        inicio: parseDateInput(customFim, startOfMonth(now)),
+        fim: parseDateInput(customInicio, now, true),
       };
     }
 
@@ -74,7 +82,6 @@ export default function Dashboard() {
 
   const isSingleDay = preset === "hoje";
 
-  // For single day, use the existing efficient hook
   const {
     driverRows: singleDayRows,
     totalKmHoje: singleDayKm,
@@ -82,7 +89,6 @@ export default function Dashboard() {
     isLoading: loadingSingleDay,
   } = useResumoDiaFrota(isSingleDay ? format(dates.inicio, "yyyy-MM-dd") : undefined);
 
-  // For ranges, use the period hook
   const {
     driverRows: periodRows,
     totalKm: periodKm,
@@ -130,7 +136,6 @@ export default function Dashboard() {
   const openTickets = tickets.length;
   const naoConformidades = tickets.filter((t) => t.tipo === "nao_conformidade").length;
 
-  // Preventive maintenance
   const { data: mPlans = [] } = useMaintenancePlans();
   const { data: mExecs = [] } = useMaintenanceExecutions();
   const { data: allVehicles = [] } = useQuery({
