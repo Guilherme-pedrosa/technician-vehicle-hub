@@ -51,17 +51,28 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const syncMutation = useSyncAllFromRotaExata();
   const [preset, setPreset] = useState<PeriodPreset>("hoje");
-  const [customDate, setCustomDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [customInicio, setCustomInicio] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [customFim, setCustomFim] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const dates = useMemo(() => {
     if (preset === "personalizado") {
-      const d = new Date(customDate + "T12:00:00");
-      return { inicio: startOfDay(d), fim: d };
-    }
-    return getPresetDates(preset);
-  }, [preset, customDate]);
+      const inicioDate = new Date(`${customInicio}T00:00:00`);
+      const fimDate = new Date(`${customFim}T23:59:59`);
 
-  const isSingleDay = preset === "hoje" || preset === "personalizado";
+      if (inicioDate <= fimDate) {
+        return { inicio: inicioDate, fim: fimDate };
+      }
+
+      return {
+        inicio: new Date(`${customFim}T00:00:00`),
+        fim: new Date(`${customInicio}T23:59:59`),
+      };
+    }
+
+    return getPresetDates(preset);
+  }, [preset, customInicio, customFim]);
+
+  const isSingleDay = preset === "hoje";
 
   // For single day, use the existing efficient hook
   const {
@@ -148,8 +159,8 @@ export default function Dashboard() {
     if (preset === "hoje") return "KM Hoje";
     if (preset === "semana") return "KM Semana";
     if (preset === "mes") return "KM Mês";
-    return `KM ${new Date(customDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
-  }, [preset, customDate]);
+    return `KM ${format(dates.inicio, "dd/MM")} a ${format(dates.fim, "dd/MM")}`;
+  }, [preset, dates]);
 
   const stats = [
     {
@@ -223,26 +234,44 @@ export default function Dashboard() {
             <UserCheck className="w-4 h-4 text-primary" /> KM por Técnico
             {loadingResumo && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(["hoje", "semana", "mes", "personalizado"] as const).map((p) => (
-              <Button
-                key={p}
-                size="sm"
-                variant={preset === p ? "default" : "outline"}
-                onClick={() => setPreset(p)}
-                className="h-7 text-xs px-3"
-              >
-                {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
-              </Button>
-            ))}
+          <div className="flex flex-col items-start sm:items-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["hoje", "semana", "mes", "personalizado"] as const).map((p) => (
+                <Button
+                  key={p}
+                  size="sm"
+                  variant={preset === p ? "default" : "outline"}
+                  onClick={() => setPreset(p)}
+                  className="h-7 text-xs px-3"
+                >
+                  {p === "hoje" ? "Hoje" : p === "semana" ? "Semana" : p === "mes" ? "Mês" : "Data"}
+                </Button>
+              ))}
+            </div>
             {preset === "personalizado" && (
-              <Input
-                type="date"
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="w-36 h-7 text-xs"
-                max={format(new Date(), "yyyy-MM-dd")}
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">De</span>
+                  <Input
+                    type="date"
+                    value={customInicio}
+                    onChange={(e) => setCustomInicio(e.target.value)}
+                    className="w-[150px] h-8 text-xs"
+                    max={customFim}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Até</span>
+                  <Input
+                    type="date"
+                    value={customFim}
+                    onChange={(e) => setCustomFim(e.target.value)}
+                    className="w-[150px] h-8 text-xs"
+                    min={customInicio}
+                    max={format(new Date(), "yyyy-MM-dd")}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </CardHeader>
