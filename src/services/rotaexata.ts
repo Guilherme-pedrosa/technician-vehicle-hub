@@ -213,8 +213,8 @@ export async function getComandosEnviados(where?: string): Promise<unknown> {
 // ===========================
 
 // Helper: all RotaExata reports use GET with ?where=JSON
-async function fetchRelatorio(endpoint: string, adesaoId: string, data: string): Promise<unknown> {
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
+async function fetchRelatorio(endpoint: string, adesaoId: string, data: string, extra?: Record<string, unknown>): Promise<unknown> {
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data, ...extra });
   const response = await rotaExataFetch<RotaExataEnvelope<unknown>>(
     `/relatorios/rastreamento/${endpoint}`,
     "GET",
