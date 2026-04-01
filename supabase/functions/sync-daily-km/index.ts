@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
                   ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                   null,
                 hr_vinculo: hrVinculo,
-                telemetrias: dt.telemetrias,
+                telemetrias: dt.posicoes,
                 velocidade_maxima: dt.velMax,
                 excessos_velocidade: dt.excessos,
                 synced_at: new Date().toISOString(),
