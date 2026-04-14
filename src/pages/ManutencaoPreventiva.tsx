@@ -95,6 +95,15 @@ export default function ManutencaoPreventiva() {
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
   const [selectedExecutor, setSelectedExecutor] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
+  const [collapsedVehicles, setCollapsedVehicles] = useState<Set<string>>(new Set());
+
+  const toggleCollapse = (vehicleId: string) => {
+    setCollapsedVehicles((prev) => {
+      const next = new Set(prev);
+      next.has(vehicleId) ? next.delete(vehicleId) : next.add(vehicleId);
+      return next;
+    });
+  };
 
   // ── Data queries ──
   const { data: vehicles = [], isLoading: loadingVehicles } = useQuery<Vehicle[]>({
