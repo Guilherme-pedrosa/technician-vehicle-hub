@@ -445,6 +445,7 @@ export default function ChecklistDetail() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
     } catch (err: any) {
       toast.error("Erro ao revalidar: " + (err?.message ?? "Erro desconhecido"));
     } finally {
