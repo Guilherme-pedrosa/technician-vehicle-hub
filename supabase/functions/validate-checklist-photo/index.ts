@@ -193,8 +193,8 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
 Regras:
 
 - "vehicle_match": ${shouldCheckVehicle
-  ? 'true se a imagem for compatível com o veículo esperado; false se mostrar CLARAMENTE outro veículo de modelo/marca diferente. Se não for possível determinar (ângulo parcial, iluminação), aceite como true. Só reprove se for CLARAMENTE um veículo diferente.'
-  : 'true (não aplicável para esta categoria — não é possível verificar o veículo por este tipo de foto)'}
+  ? 'true se a imagem mostrar um veículo automotivo. Só marque false se a foto mostrar algo que DEFINITIVAMENTE NÃO É um veículo (ex: foto de pessoa, objeto aleatório). NÃO tente identificar marca/modelo específico — veículos da mesma frota podem ter adesivos, cores e versões diferentes. Variações como sedan vs hatch, cores diferentes, ou logotipos de empresa NÃO são motivo para rejeitar. Na dúvida, SEMPRE aceite como true.'
+  : 'true (não aplicável para esta categoria)'}
 - "target_match": true somente se a imagem mostrar exatamente o item, peça ou área solicitada. Se mostrar algo completamente diferente (ex: foto de pessoa quando deveria ser pneu), false.
 - "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Desfoque leve é aceitável se ainda for possível identificar o item.
 - "critical_visible": ${catConfig.has_critical
