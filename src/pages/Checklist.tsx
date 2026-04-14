@@ -570,6 +570,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
   const [vehicleId, setVehicleId] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState(autoDriverId);
+
+  // Sync when autoDriverId loads after initial render
+  useEffect(() => {
+    if (autoDriverId && !selectedDriverId) setSelectedDriverId(autoDriverId);
+  }, [autoDriverId]);
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
