@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -20,7 +21,7 @@ import {
   Settings, ClipboardCheck, Camera, Plus, Trash2,
   Save, Loader2, Pencil, AlertTriangle, CheckCircle,
   ChevronRight, ArrowLeft, FolderCog, Users, Shield,
-  Mail, Phone, Eye, EyeOff, UserPlus,
+  Mail, Phone, Eye, EyeOff, UserPlus, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -31,6 +32,7 @@ interface PhotoConfig {
   hint: string;
   min: number;
   step: number;
+  ai_prompt?: string;
 }
 
 interface FieldConfig {
@@ -266,6 +268,17 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
     setHasChanges(true);
   };
 
+  const handleMovePhoto = (index: number, direction: -1 | 1) => {
+    setPhotos((prev) => {
+      const arr = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      return arr;
+    });
+    setHasChanges(true);
+  };
+
   const handleSaveField = (field: FieldConfig) => {
     setFields((prev) => {
       const idx = prev.findIndex((f) => f.key === field.key);
@@ -283,6 +296,17 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
 
   const handleDeleteField = (key: string) => {
     setFields((prev) => prev.filter((f) => f.key !== key));
+    setHasChanges(true);
+  };
+
+  const handleMoveField = (index: number, direction: -1 | 1) => {
+    setFields((prev) => {
+      const arr = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      return arr;
+    });
     setHasChanges(true);
   };
 
@@ -352,14 +376,25 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                   Etapa {step} — {label}
                 </p>
                 <div className="grid gap-2">
-                  {items.map((photo) => (
+                  {items.map((photo) => {
+                    const globalIdx = photos.indexOf(photo);
+                    return (
                     <div key={photo.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{photo.label}</p>
                         <p className="text-xs text-muted-foreground truncate">{photo.hint}</p>
+                        {photo.ai_prompt && (
+                          <p className="text-[10px] text-muted-foreground/70 truncate mt-0.5">🤖 Prompt IA configurado</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Badge variant="secondary" className="text-[10px]">mín. {photo.min}</Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMovePhoto(globalIdx, -1)} disabled={globalIdx === 0}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMovePhoto(globalIdx, 1)} disabled={globalIdx === photos.length - 1}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPhoto(photo); setPhotoDialogOpen(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -382,7 +417,8 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </AlertDialog>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null,
@@ -410,7 +446,9 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
               <div key={category} className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</p>
                 <div className="grid gap-2">
-                  {items.map((field) => (
+                  {items.map((field) => {
+                    const globalIdx = fields.indexOf(field);
+                    return (
                     <div key={field.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{field.label}</p>
@@ -424,7 +462,13 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveField(globalIdx, -1)} disabled={globalIdx === 0}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveField(globalIdx, 1)} disabled={globalIdx === fields.length - 1}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingField(field); setFieldDialogOpen(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -447,7 +491,8 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </AlertDialog>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null,
@@ -540,6 +585,17 @@ function PhotoDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Prompt de validação IA (opcional)</Label>
+            <Textarea
+              value={form.ai_prompt || ""}
+              onChange={(e) => setForm({ ...form, ai_prompt: e.target.value })}
+              placeholder="Critério que a IA usará para validar esta foto. Ex: Deve mostrar o compartimento do motor com o capô aberto..."
+              rows={3}
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">Se vazio, será usado o critério padrão do sistema.</p>
           </div>
         </div>
         <DialogFooter>
