@@ -562,8 +562,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
+  // Auto-detect driver from logged user
+  const autoDriverId = useMemo(() => {
+    const match = localDrivers.find((d) => d.user_id === userId);
+    return match?.id ?? "";
+  }, [localDrivers, userId]);
+
   const [vehicleId, setVehicleId] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [selectedDriverId, setSelectedDriverId] = useState(autoDriverId);
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
