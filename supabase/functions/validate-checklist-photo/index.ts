@@ -15,22 +15,22 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_frente: {
     label: "Frente do veículo",
-    criterio: "Deve mostrar a frente do veículo. Aceite fotos parciais desde que seja possível identificar que é a parte dianteira (capô, para-choque ou faróis visíveis). Não exija enquadramento perfeito.",
+    criterio: "A foto deve conter a parte dianteira de um veículo automotivo. Elementos que confirmam: capô, para-choque dianteiro, grade, faróis dianteiros, placa dianteira, logo frontal. Se QUALQUER desses elementos estiver presente, a foto é válida.",
     has_critical: false,
   },
   exterior_traseira: {
     label: "Traseira do veículo",
-    criterio: "Deve mostrar a traseira do veículo. Aceite fotos parciais desde que seja possível identificar que é a parte traseira (para-choque, lanternas ou placa visíveis). Não exija enquadramento perfeito.",
+    criterio: "A foto deve conter a parte traseira de um veículo automotivo. Elementos que confirmam: para-choque traseiro, lanternas traseiras, placa traseira, porta-malas, logo traseiro. Se QUALQUER desses elementos estiver presente, a foto é válida.",
     has_critical: false,
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "Deve mostrar a lateral esquerda do veículo. Aceite fotos parciais, em ângulo ou que não capturem o veículo inteiro, desde que seja possível identificar que é o lado esquerdo do veículo. Não exija a lateral completa de ponta a ponta.",
+    criterio: "A foto deve conter a lateral esquerda (lado do motorista no Brasil) de um veículo. Elementos que confirmam: portas do lado esquerdo, retrovisor esquerdo, rodas do lado esquerdo, lataria lateral esquerda. Aceite qualquer ângulo que mostre o lado esquerdo.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "Deve mostrar a lateral direita do veículo. Aceite fotos parciais, em ângulo ou que não capturem o veículo inteiro, desde que seja possível identificar que é o lado direito do veículo. Não exija a lateral completa de ponta a ponta.",
+    criterio: "A foto deve conter a lateral direita (lado do passageiro no Brasil) de um veículo. Elementos que confirmam: portas do lado direito, retrovisor direito, rodas do lado direito, lataria lateral direita. Aceite qualquer ângulo que mostre o lado direito.",
     has_critical: false,
   },
   nivel_oleo: {
@@ -75,7 +75,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   farois_lanternas: {
     label: "Faróis e lanternas",
-    criterio: "Deve mostrar qualquer parte dos faróis ou lanternas do veículo. Aceite fotos que mostrem a frente ou traseira do veículo onde faróis/lanternas são visíveis, mesmo que não sejam o foco principal. Fotos do veículo de frente ou de trás com faróis/lanternas visíveis na imagem são válidas. Não exija que os faróis estejam acesos. Seja MUITO tolerante.",
+    criterio: "A foto deve mostrar faróis OU lanternas de um veículo. Faróis são as luzes dianteiras (podem estar apagados ou acesos). Lanternas são as luzes traseiras. Se a foto mostra a frente do veículo, os faróis estão visíveis na imagem — isso é válido. Se mostra a traseira, as lanternas estão visíveis — isso também é válido. NÃO exija close-up dos faróis. Uma foto do veículo de frente ou de trás CONTÉM faróis/lanternas por definição.",
     has_critical: false,
   },
   motor: {
