@@ -245,7 +245,7 @@ Regras:
 
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
-Critério esperado: ${catConfig.criterio}`;
+Critério esperado: ${finalCriterio}`;
 
     console.log(`Validating photo: category=${category}, vehicle=${vehicleInfo}, user=${user.id}`);
 
