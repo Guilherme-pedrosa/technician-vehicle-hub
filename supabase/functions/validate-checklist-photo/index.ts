@@ -25,12 +25,12 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "A foto deve mostrar o PERFIL COMPLETO da lateral esquerda (lado do motorista) do veículo, desde a região do para-lama dianteiro até o para-lama traseiro. A foto deve ser tirada a uma distância suficiente para enquadrar todo o comprimento lateral do carro. REJEITE se: (1) a foto mostra apenas uma parte da lateral (só portas traseiras, só a frente, etc), (2) a foto foi tirada muito de perto e não cabe o veículo inteiro, (3) o ângulo é tão inclinado que não se vê o perfil lateral. ACEITE se: o veículo inteiro (ou quase inteiro) cabe na foto de lado, mesmo com leve ângulo ou objetos parcialmente obstruindo as extremidades.",
+    criterio: "A foto deve mostrar a lateral esquerda (lado do motorista) do veículo. ACEITE se: o veículo aparece na foto mostrando seu lado esquerdo, mesmo que o ângulo seja de cima (vista superior/oblíqua), mesmo com leve inclinação, mesmo que não seja perfeitamente perpendicular. O importante é que a MAIORIA do comprimento lateral do veículo esteja visível na imagem. REJEITE APENAS se: (1) a foto mostra só uma pequena parte do carro (ex: só uma porta), ou (2) a foto não mostra a lateral esquerda de forma alguma (ex: mostra a frente ou traseira). Na DÚVIDA, ACEITE.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "A foto deve mostrar o PERFIL COMPLETO da lateral direita (lado do passageiro) do veículo, desde a região do para-lama dianteiro até o para-lama traseiro. A foto deve ser tirada a uma distância suficiente para enquadrar todo o comprimento lateral do carro. REJEITE se: (1) a foto mostra apenas uma parte da lateral (só portas traseiras, só a frente, etc), (2) a foto foi tirada muito de perto e não cabe o veículo inteiro, (3) o ângulo é tão inclinado que não se vê o perfil lateral. ACEITE se: o veículo inteiro (ou quase inteiro) cabe na foto de lado, mesmo com leve ângulo ou objetos parcialmente obstruindo as extremidades.",
+    criterio: "A foto deve mostrar a lateral direita (lado do passageiro) do veículo. ACEITE se: o veículo aparece na foto mostrando seu lado direito, mesmo que o ângulo seja de cima (vista superior/oblíqua), mesmo com leve inclinação, mesmo que não seja perfeitamente perpendicular. O importante é que a MAIORIA do comprimento lateral do veículo esteja visível na imagem. REJEITE APENAS se: (1) a foto mostra só uma pequena parte do carro (ex: só uma porta), ou (2) a foto não mostra a lateral direita de forma alguma (ex: mostra a frente ou traseira). Na DÚVIDA, ACEITE.",
     has_critical: false,
   },
   nivel_oleo: {
