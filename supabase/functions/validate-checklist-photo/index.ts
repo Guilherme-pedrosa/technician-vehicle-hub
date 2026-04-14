@@ -40,8 +40,8 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   reservatorio_agua: {
     label: "Reservatório de água",
-    criterio: "Deve mostrar o reservatório de água/arrefecimento do veículo com o NÍVEL DO LÍQUIDO visível. É necessário que se consiga identificar a presença do líquido de arrefecimento dentro do reservatório (pela cor do líquido, marca de nível, ou transparência do reservatório mostrando o líquido). Se o reservatório aparece mas não é possível verificar se há líquido dentro, a foto é INVÁLIDA (target_match=false).",
-    has_critical: true,
+    criterio: "Deve mostrar o reservatório de água/arrefecimento do veículo. ACEITE a foto se o reservatório estiver visível e identificável, mesmo que o nível do líquido não seja perfeitamente visível (reservatórios opacos, sujos ou escuros são comuns). Só REJEITE (target_match=false) se: (1) a foto não mostrar o reservatório de água, ou (2) o reservatório estiver CLARAMENTE vazio/seco. Se há dúvida sobre o nível mas o reservatório está presente, ACEITE.",
+    has_critical: false,
   },
   pneu_de: {
     label: "Pneu dianteiro esquerdo",
