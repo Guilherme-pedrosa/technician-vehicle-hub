@@ -408,6 +408,76 @@ export default function ChecklistDetail() {
       setEditing(false);
       queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+
+      // Check if result is non-conforme and ensure a ticket exists
+      const isNonConformeResult = editResultado !== "liberado";
+      const nonConformeFields = CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, editFields[f.key]));
+      const hasProblems = isNonConformeResult || nonConformeFields.length > 0;
+
+      if (hasProblems && vehicle) {
+        // Check if a NC ticket already exists for this vehicle around this checklist date
+        const checklistDate = (cl as any).checklist_date;
+        const { data: existingTickets } = await supabase
+          .from("maintenance_tickets")
+          .select("id")
+          .eq("vehicle_id", cl.vehicle_id)
+          .eq("tipo", "nao_conformidade")
+          .ilike("titulo", `%Checklist NC%${vehicle.placa}%`)
+          .gte("created_at", checklistDate + "T00:00:00")
+          .lte("created_at", checklistDate + "T23:59:59")
+          .limit(1);
+
+        if (!existingTickets || existingTickets.length === 0) {
+          // Ticket was deleted or never existed — create a new one
+          const { user } = (await supabase.auth.getUser()).data;
+          if (user) {
+            const problemItems = nonConformeFields.map((f) => {
+              const obs = (newDetalhes?.observacoes_itens?.[f.key] || "").trim();
+              return `• ${f.label}: ${editFields[f.key]}${obs ? ` — "${obs}"` : ""}`;
+            }).join("\n");
+
+            const fotosInvalidas = (newDetalhes?.fotos_invalidas ?? []) as any[];
+            const photoIssueLines = fotosInvalidas.map((inv: any) => {
+              const meta = PHOTO_META[inv.categoria as PhotoCategory];
+              return `• 📷 ${meta?.label ?? inv.categoria}: ${inv.motivos?.[0] ?? "Fora do padrão"}`;
+            });
+            const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
+
+            const dateStr = new Date(checklistDate + "T12:00:00").toLocaleDateString("pt-BR");
+            const ticketDesc = `Não conformidade detectada no checklist pré-operação (reaberto após edição).\n\nVeículo: ${vehicle.placa} — ${vehicle.modelo}\nTécnico: ${driverName}\nData: ${dateStr}\nResultado: ${RESULTADO_LABELS[editResultado]?.label ?? editResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${photoSection}${editObsGeral ? `\n\nObservações: ${editObsGeral}` : ""}`;
+
+            const hasCritical = nonConformeFields.some((f) => f.critical);
+            const ticketPrioridade = hasCritical ? "alta" : "media";
+
+            const { data: ticketData } = await supabase.from("maintenance_tickets").insert({
+              vehicle_id: cl.vehicle_id,
+              driver_id: cl.driver_id || null,
+              created_by: user.id,
+              tipo: "nao_conformidade" as any,
+              prioridade: ticketPrioridade as any,
+              status: "aberto",
+              titulo: `Checklist NC — ${vehicle.placa} — ${dateStr}`,
+              descricao: ticketDesc,
+              fotos: Object.values(fotosData).flat().slice(0, 5),
+            } as any).select("id").single();
+
+            if (ticketData?.id) {
+              const actions: Array<{ ticket_id: string; descricao: string; created_by: string; sort_order: number }> = [];
+              let sortOrder = 0;
+              for (const f of nonConformeFields) {
+                const obs = (newDetalhes?.observacoes_itens?.[f.key] || "").trim();
+                const descParts = [`Verificar/corrigir: ${f.label}`];
+                if (obs) descParts.push(`Obs técnico: ${obs}`);
+                actions.push({ ticket_id: ticketData.id, descricao: descParts.join(" — "), created_by: user.id, sort_order: sortOrder++ });
+              }
+              if (actions.length > 0) {
+                await supabase.from("ticket_actions").insert(actions);
+              }
+              toast.info("📋 Novo chamado de não conformidade criado automaticamente.");
+            }
+          }
+        }
+      }
     } catch (err: any) {
       toast.error("Erro ao salvar: " + (err?.message ?? "Erro desconhecido"));
     } finally {
