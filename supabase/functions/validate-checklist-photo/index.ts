@@ -75,7 +75,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   farois_lanternas: {
     label: "Faróis e lanternas",
-    criterio: "Deve mostrar faróis ou lanternas do veículo, preferencialmente acesos.",
+    criterio: "Deve mostrar qualquer parte dos faróis ou lanternas do veículo. Aceite fotos que mostrem a frente ou traseira do veículo onde faróis/lanternas são visíveis, mesmo que não sejam o foco principal. Fotos do veículo de frente ou de trás com faróis/lanternas visíveis na imagem são válidas. Não exija que os faróis estejam acesos. Seja MUITO tolerante.",
     has_critical: false,
   },
   motor: {
