@@ -35,8 +35,8 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   nivel_oleo: {
     label: "Nível de óleo",
-    criterio: "Deve mostrar a vareta de óleo ou indicador de nível de óleo de um motor de veículo.",
-    has_critical: false,
+    criterio: "Deve mostrar a vareta de óleo do motor com o NÍVEL DO ÓLEO visível. A vareta deve estar fora do motor e o óleo deve ser visível na ponta da vareta. Verifique se o nível está entre as marcas MIN e MAX. Se o óleo estiver ABAIXO da marca MIN ou não for possível identificar o nível na vareta, marque critical_visible=false. Se o nível estiver entre MIN e MAX ou próximo do MAX, critical_visible=true.",
+    has_critical: true,
   },
   reservatorio_agua: {
     label: "Reservatório de água",
