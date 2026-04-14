@@ -267,6 +267,17 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
     setHasChanges(true);
   };
 
+  const handleMovePhoto = (index: number, direction: -1 | 1) => {
+    setPhotos((prev) => {
+      const arr = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      return arr;
+    });
+    setHasChanges(true);
+  };
+
   const handleSaveField = (field: FieldConfig) => {
     setFields((prev) => {
       const idx = prev.findIndex((f) => f.key === field.key);
@@ -284,6 +295,17 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
 
   const handleDeleteField = (key: string) => {
     setFields((prev) => prev.filter((f) => f.key !== key));
+    setHasChanges(true);
+  };
+
+  const handleMoveField = (index: number, direction: -1 | 1) => {
+    setFields((prev) => {
+      const arr = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[index], arr[target]] = [arr[target], arr[index]];
+      return arr;
+    });
     setHasChanges(true);
   };
 
