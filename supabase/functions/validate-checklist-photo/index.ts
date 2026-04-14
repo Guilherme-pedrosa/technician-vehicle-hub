@@ -213,8 +213,9 @@ Regras:
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - Nunca invente detalhes não visíveis na foto
-- Seja MUITO tolerante com fotos de exterior/laterais: técnicos em campo nem sempre conseguem enquadrar o veículo inteiro. Se a foto mostra parte do veículo e é possível identificar o lado correto, aceite como válida.
-- Seja tolerante com pequenas limitações de ângulo ou iluminação, desde que ainda seja possível confirmar o que foi solicitado
+- Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
+- Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
+- Para laterais: identifique o lado pelo contexto (posição do motorista, retrovisores, ângulo). Não exija enquadramento perfeito.
 
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
