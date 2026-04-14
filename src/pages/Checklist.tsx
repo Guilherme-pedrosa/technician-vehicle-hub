@@ -2031,9 +2031,13 @@ export default function Checklist() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {fotoCount > 0 && (
-                            <span className={`text-xs flex items-center gap-0.5 ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                            <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
                               <ImageIcon className="w-3 h-3" /> {fotoCount}
-                              {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
+                            </span>
+                          )}
+                          {hasBadPhotos && (
+                            <span className="text-xs flex items-center gap-0.5 text-destructive font-bold">
+                              <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length}
                             </span>
                           )}
                           {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
@@ -2100,14 +2104,18 @@ export default function Checklist() {
                           <td className="p-3">{driver?.full_name ?? cl.tripulacao ?? "—"}</td>
                           <td className="p-3 text-center">
                             <div className="inline-flex flex-col items-center gap-1">
-                              <span className={`inline-flex items-center gap-1 text-xs ${hasBadPhotos ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
-                                {hasBadPhotos && <AlertTriangle className="w-3.5 h-3.5" />}
                               </span>
                               {hasBadPhotos && (
-                                <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
-                                  {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
-                                </span>
+                                <>
+                                  <span className="inline-flex items-center gap-1 text-xs text-destructive font-bold">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length} com problema
+                                  </span>
+                                  <span className="max-w-[180px] text-[10px] leading-tight text-destructive">
+                                    {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
+                                  </span>
+                                </>
                               )}
                             </div>
                           </td>
