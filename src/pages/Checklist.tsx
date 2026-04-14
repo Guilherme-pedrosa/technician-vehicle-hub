@@ -705,7 +705,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const shouldCreateTicket = hasAnyProblem || hasPhotoIssues;
 
       if (shouldCreateTicket && savedChecklist) {
-        const problemItems = nonConformeFields.map((f) => `• ${f.label}: ${answers[f.key]}`).join("\n");
+        const problemItems = nonConformeFields.map((f) => {
+          const obs = (answers[`obs_${f.key}`] || "").trim();
+          return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
+        }).join("\n");
         const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
         
         // Include photo validation issues
@@ -743,9 +746,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
           // Itens de inspeção não conformes
           for (const f of nonConformeFields) {
+            const obs = (answers[`obs_${f.key}`] || "").trim();
+            const descParts = [`Verificar/corrigir: ${f.label}`];
+            if (obs) descParts.push(`Obs técnico: ${obs}`);
             actions.push({
               ticket_id: ticketData.id,
-              descricao: `Verificar/corrigir: ${f.label}`,
+              descricao: descParts.join(" — "),
               created_by: userId,
               sort_order: sortOrder++,
             });
