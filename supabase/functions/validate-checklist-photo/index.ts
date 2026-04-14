@@ -85,7 +85,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   itens_seguranca: {
     label: "Itens de segurança",
-    criterio: "A foto DEVE mostrar os três itens de segurança obrigatórios juntos: triângulo de sinalização, macaco hidráulico/mecânico e chave de roda. Se apenas um ou dois itens estiverem visíveis, a foto é INVÁLIDA (target_match=false). Todos os três precisam aparecer na mesma foto.",
+    criterio: "A foto deve mostrar os itens de segurança do veículo (triângulo, macaco, chave de roda). ACEITE se: (1) o kit/estojo de ferramentas está aberto e visível com ferramentas dentro, OU (2) os itens estão dispostos/espalhados e pelo menos 2 são identificáveis, OU (3) o compartimento de ferramentas do porta-malas está aberto mostrando os itens armazenados. NÃO tente identificar cada item individualmente se a foto estiver escura ou os itens estiverem dentro de um estojo — o importante é que o CONJUNTO de itens de segurança está presente e fotografado. REJEITE APENAS se: a foto não mostra itens de segurança de forma alguma (ex: foto de outra coisa), ou o compartimento/estojo está claramente VAZIO. Na DÚVIDA, ACEITE. Se aceitar, marque critical_visible=true.",
     has_critical: true,
   },
   interior: {
