@@ -247,10 +247,19 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
     return await response.json();
   } catch (err: any) {
     console.error("Photo validation error:", err);
-    const reason = err?.name === "AbortError"
-      ? "Tempo limite excedido na validação (30s). Tente novamente."
-      : "Falha ao validar a foto. Tente novamente.";
-    return { valid: false, quality: "ruim", reason, ai_error: true };
+    // CRITICAL: Never block the technician. On any error/timeout, accept the photo.
+    return {
+      valid: true,
+      quality: "aceitavel",
+      reason: err?.name === "AbortError"
+        ? "Validação IA indisponível (timeout). Foto aceita automaticamente."
+        : "Validação IA indisponível. Foto aceita automaticamente.",
+      ai_error: true,
+      vehicle_match: true,
+      target_match: true,
+      focus_ok: true,
+      critical_visible: true,
+    };
   }
 }
 

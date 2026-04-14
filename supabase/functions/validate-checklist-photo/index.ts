@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A foto deve permitir avaliar o estado geral do interior do veículo. Para ser ACEITA, a foto deve mostrar pelo menos 2 dos 3 elementos: (1) bancos (dianteiros ou traseiros), (2) painel/console central, (3) forros de porta. Uma foto panorâmica que cubra esses elementos é suficiente. REJEITE se a foto mostra apenas uma parte insignificante do interior (ex: só o pedal, só a maçaneta, só o chão, só uma porta aberta sem contexto).",
+    criterio: "A foto deve mostrar alguma parte relevante do interior/cabine do veículo. Identifique QUAIS dos seguintes elementos estão visíveis: bancos_dianteiros, bancos_traseiros, painel_console, forros_porta. Inclua no JSON um campo extra 'detected_elements' como array de strings com os elementos encontrados. REJEITE (target_match=false) SOMENTE se a foto não mostrar NENHUM elemento relevante do interior (ex: foto de pessoa, objeto aleatório, chão sem contexto). ACEITE se pelo menos um elemento do interior for identificável.",
     has_critical: false,
   },
   danos: {
