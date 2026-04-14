@@ -221,10 +221,14 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("Not authenticated");
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-checklist-photo`,
       {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
@@ -238,11 +242,15 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
       }
     );
 
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error("Validation failed");
     return await response.json();
-  } catch (err) {
+  } catch (err: any) {
     console.error("Photo validation error:", err);
-    return { valid: false, quality: "ruim", reason: "Falha ao validar a foto", ai_error: true };
+    const reason = err?.name === "AbortError"
+      ? "Tempo limite excedido na validação (30s). Tente novamente."
+      : "Falha ao validar a foto. Tente novamente.";
+    return { valid: false, quality: "ruim", reason, ai_error: true };
   }
 }
 
