@@ -555,7 +555,7 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
 
 function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
-  localDrivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
 }) {
   const queryClient = useQueryClient();
@@ -1826,7 +1826,7 @@ export default function Checklist() {
   const { data: localDrivers = [] } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("drivers").select("id, full_name").eq("status", "ativo").order("full_name");
+      const { data, error } = await supabase.from("drivers").select("id, full_name, user_id").eq("status", "ativo").order("full_name");
       if (error) throw error;
       return data;
     },
