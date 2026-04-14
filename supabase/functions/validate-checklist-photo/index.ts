@@ -215,7 +215,7 @@ Regras:
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
 - Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
-- Para laterais: a foto deve mostrar a MAIORIA do comprimento lateral do veículo. Ângulos de cima (vista oblíqua/superior) são ACEITOS desde que o lado correto do veículo esteja visível. Só rejeite se a foto mostra apenas uma pequena parte do carro ou o lado errado.
+- Para laterais: a foto DEVE ser tirada de uma posição lateral (fotógrafo ao lado do carro). O veículo deve aparecer na HORIZONTAL na foto. REJEITE fotos tiradas de cima (vista aérea), fotos onde o carro aparece rotacionado/vertical/diagonal, ou fotos que mostram apenas uma parte pequena. Leve inclinação é OK desde que o perfil lateral seja avaliável.
 
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
