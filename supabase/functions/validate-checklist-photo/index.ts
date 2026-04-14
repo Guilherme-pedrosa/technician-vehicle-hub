@@ -236,7 +236,7 @@ Critério esperado: ${catConfig.criterio}`;
           {
             role: "user",
             content: [
-              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "low" } },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "auto" } },
               { type: "text", text: "Valide esta foto conforme os critérios informados." },
             ],
           },
