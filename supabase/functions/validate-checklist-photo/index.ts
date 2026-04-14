@@ -85,7 +85,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   itens_seguranca: {
     label: "Itens de segurança",
-    criterio: "A foto deve mostrar os itens de segurança do veículo (triângulo, macaco, chave de roda). ACEITE se: (1) o kit/estojo de ferramentas está aberto e visível com ferramentas dentro, OU (2) os itens estão dispostos/espalhados e pelo menos 2 são identificáveis, OU (3) o compartimento de ferramentas do porta-malas está aberto mostrando os itens armazenados. NÃO tente identificar cada item individualmente se a foto estiver escura ou os itens estiverem dentro de um estojo — o importante é que o CONJUNTO de itens de segurança está presente e fotografado. REJEITE APENAS se: a foto não mostra itens de segurança de forma alguma (ex: foto de outra coisa), ou o compartimento/estojo está claramente VAZIO. Na DÚVIDA, ACEITE. Se aceitar, marque critical_visible=true.",
+    criterio: "A foto DEVE mostrar os três itens de segurança obrigatórios: triângulo de sinalização, macaco hidráulico/mecânico e chave de roda. REGRAS CRÍTICAS: (1) Só afirme que um item está presente se você conseguir IDENTIFICÁ-LO COM CERTEZA na imagem. (2) Se a foto está escura, desfocada ou os itens estão dentro de um estojo fechado/difícil de ver, NÃO ADIVINHE quais itens são — diga que NÃO foi possível identificar os itens e rejeite. (3) Na mensagem de 'reason', liste APENAS os itens que você tem CERTEZA ABSOLUTA de ver. Se não tem certeza de nenhum, diga 'Não foi possível identificar os itens de segurança na foto'. (4) NUNCA invente ou suponha que um item está presente — é melhor rejeitar uma foto boa do que aceitar uma ruim. (5) Para aceitar (target_match=true), os 3 itens devem ser CLARAMENTE visíveis e identificáveis.",
     has_critical: true,
   },
   interior: {
@@ -212,7 +212,7 @@ Regras:
   - critical_visible = true (quando aplicável)
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
-- Nunca invente detalhes não visíveis na foto
+- REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
 - Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
 - Para laterais: a foto deve mostrar a MAIORIA do comprimento lateral do veículo. Ângulos de cima (vista oblíqua/superior) são ACEITOS desde que o lado correto do veículo esteja visível. Só rejeite se a foto mostra apenas uma pequena parte do carro ou o lado errado.
