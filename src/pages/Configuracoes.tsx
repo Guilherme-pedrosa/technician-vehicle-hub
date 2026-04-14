@@ -20,7 +20,7 @@ import {
   Settings, ClipboardCheck, Camera, Plus, Trash2,
   Save, Loader2, Pencil, AlertTriangle, CheckCircle,
   ChevronRight, ArrowLeft, FolderCog, Users, Shield,
-  Mail, Phone, Eye, EyeOff, UserPlus,
+  Mail, Phone, Eye, EyeOff, UserPlus, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -31,6 +31,7 @@ interface PhotoConfig {
   hint: string;
   min: number;
   step: number;
+  ai_prompt?: string;
 }
 
 interface FieldConfig {
