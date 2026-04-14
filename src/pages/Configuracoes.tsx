@@ -445,7 +445,9 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
               <div key={category} className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</p>
                 <div className="grid gap-2">
-                  {items.map((field) => (
+                  {items.map((field) => {
+                    const globalIdx = fields.indexOf(field);
+                    return (
                     <div key={field.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{field.label}</p>
@@ -459,7 +461,13 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveField(globalIdx, -1)} disabled={globalIdx === 0}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveField(globalIdx, 1)} disabled={globalIdx === fields.length - 1}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingField(field); setFieldDialogOpen(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -482,7 +490,8 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </AlertDialog>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null,
