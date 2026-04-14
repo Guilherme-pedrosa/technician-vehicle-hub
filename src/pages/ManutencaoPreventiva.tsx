@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Skull, Loader2, Wrench,
-  Filter, User, Building2,
+  Filter, User, Building2, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -95,6 +95,15 @@ export default function ManutencaoPreventiva() {
   const [selectedAlert, setSelectedAlert] = useState<string>("all");
   const [selectedExecutor, setSelectedExecutor] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
+  const [collapsedVehicles, setCollapsedVehicles] = useState<Set<string>>(new Set());
+
+  const toggleCollapse = (vehicleId: string) => {
+    setCollapsedVehicles((prev) => {
+      const next = new Set(prev);
+      next.has(vehicleId) ? next.delete(vehicleId) : next.add(vehicleId);
+      return next;
+    });
+  };
 
   // ── Data queries ──
   const { data: vehicles = [], isLoading: loadingVehicles } = useQuery<Vehicle[]>({
@@ -420,17 +429,26 @@ export default function ManutencaoPreventiva() {
       ) : (
         allStatuses.map(({ vehicle, statuses }) => (
           <Card key={vehicle.id}>
-            <CardHeader className="p-3 sm:p-4 pb-2">
+            <CardHeader
+              className="p-3 sm:p-4 pb-2 cursor-pointer select-none"
+              onClick={() => toggleCollapse(vehicle.id)}
+            >
               <CardTitle className="text-sm flex items-center justify-between">
-                <span>
+                <span className="flex items-center gap-2">
+                  {collapsedVehicles.has(vehicle.id) ? (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  )}
                   <span className="font-mono text-primary">{vehicle.placa}</span>
-                  <span className="text-muted-foreground font-normal ml-2">{vehicle.marca} {vehicle.modelo}</span>
+                  <span className="text-muted-foreground font-normal">{vehicle.marca} {vehicle.modelo}</span>
                 </span>
                 <Badge variant="outline" className="text-xs tabular-nums">
                   {vehicle.km_atual.toLocaleString("pt-BR")} km
                 </Badge>
               </CardTitle>
             </CardHeader>
+            {!collapsedVehicles.has(vehicle.id) && (
             <CardContent className="p-0">
               {/* Mobile */}
               <div className="sm:hidden divide-y divide-border">
@@ -580,6 +598,7 @@ export default function ManutencaoPreventiva() {
                 </Table>
               </div>
             </CardContent>
+            )}
           </Card>
         ))
       )}
