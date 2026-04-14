@@ -555,15 +555,26 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
 
 function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
-  localDrivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
+  // Auto-detect driver from logged user
+  const autoDriverId = useMemo(() => {
+    const match = localDrivers.find((d) => d.user_id === userId);
+    return match?.id ?? "";
+  }, [localDrivers, userId]);
+
   const [vehicleId, setVehicleId] = useState("");
-  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [selectedDriverId, setSelectedDriverId] = useState(autoDriverId);
+
+  // Sync when autoDriverId loads after initial render
+  useEffect(() => {
+    if (autoDriverId && !selectedDriverId) setSelectedDriverId(autoDriverId);
+  }, [autoDriverId]);
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
@@ -607,7 +618,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   }, []);
 
   const resetForm = () => {
-    setStep(0); setVehicleId(""); setSelectedDriverId("");
+    setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
     setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
@@ -1564,7 +1575,7 @@ const DIALOG_SECTIONS = [
 function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDeleted }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
-  localDrivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string; user_id: string | null }[];
   onDeleted?: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -1826,7 +1837,7 @@ export default function Checklist() {
   const { data: localDrivers = [] } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("drivers").select("id, full_name").eq("status", "ativo").order("full_name");
+      const { data, error } = await supabase.from("drivers").select("id, full_name, user_id").eq("status", "ativo").order("full_name");
       if (error) throw error;
       return data;
     },
