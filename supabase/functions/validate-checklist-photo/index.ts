@@ -157,11 +157,35 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Try to load dynamic prompt from checklist_config
+    let dynamicPrompt: string | null = null;
+    try {
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const adminClient = createClient(supabaseUrl, serviceKey);
+      const { data: configData } = await adminClient
+        .from("checklist_config")
+        .select("photo_categories")
+        .eq("config_key", "default")
+        .single();
+      if (configData?.photo_categories) {
+        const cats = configData.photo_categories as any[];
+        const match = cats.find((c: any) => c.key === category);
+        if (match?.ai_prompt) {
+          dynamicPrompt = match.ai_prompt;
+        }
+      }
+    } catch (e) {
+      console.log("Could not load dynamic prompt, using hardcoded:", e);
+    }
+
     const catConfig = CATEGORY_CRITERIA[category] || {
       label: category,
       criterio: "A foto deve ser relevante para uma inspeção veicular.",
       has_critical: false,
     };
+
+    // Use dynamic prompt if available, otherwise fall back to hardcoded
+    const finalCriterio = dynamicPrompt || catConfig.criterio;
 
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
       ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
