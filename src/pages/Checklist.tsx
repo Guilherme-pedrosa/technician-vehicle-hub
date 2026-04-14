@@ -1570,7 +1570,7 @@ const DIALOG_SECTIONS = [
 function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDeleted }: {
   checklist: any;
   vehicles: { id: string; placa: string; modelo: string; km_atual: number }[];
-  localDrivers: { id: string; full_name: string }[];
+  localDrivers: { id: string; full_name: string; user_id: string | null }[];
   onDeleted?: () => void;
 }) {
   const queryClient = useQueryClient();
