@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Skull, Loader2, Wrench,
-  Filter, User, Building2,
+  Filter, User, Building2, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
