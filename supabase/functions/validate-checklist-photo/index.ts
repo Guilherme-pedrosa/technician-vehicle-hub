@@ -15,22 +15,22 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_frente: {
     label: "Frente do veículo",
-    criterio: "Deve mostrar a frente completa do veículo (capô, para-choque dianteiro, faróis).",
+    criterio: "Deve mostrar a frente do veículo. Aceite fotos parciais desde que seja possível identificar que é a parte dianteira (capô, para-choque ou faróis visíveis). Não exija enquadramento perfeito.",
     has_critical: false,
   },
   exterior_traseira: {
     label: "Traseira do veículo",
-    criterio: "Deve mostrar a traseira completa do veículo (para-choque traseiro, lanternas, placa).",
+    criterio: "Deve mostrar a traseira do veículo. Aceite fotos parciais desde que seja possível identificar que é a parte traseira (para-choque, lanternas ou placa visíveis). Não exija enquadramento perfeito.",
     has_critical: false,
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "Deve mostrar a lateral esquerda completa do veículo.",
+    criterio: "Deve mostrar a lateral esquerda do veículo. Aceite fotos parciais, em ângulo ou que não capturem o veículo inteiro, desde que seja possível identificar que é o lado esquerdo do veículo. Não exija a lateral completa de ponta a ponta.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "Deve mostrar a lateral direita completa do veículo.",
+    criterio: "Deve mostrar a lateral direita do veículo. Aceite fotos parciais, em ângulo ou que não capturem o veículo inteiro, desde que seja possível identificar que é o lado direito do veículo. Não exija a lateral completa de ponta a ponta.",
     has_critical: false,
   },
   nivel_oleo: {
