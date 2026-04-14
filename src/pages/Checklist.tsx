@@ -724,7 +724,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
         const ticketPrioridade = hasCritical ? "alta" : (hasPhotoIssues && !hasAnyProblem) ? "media" : hasAnyProblem ? "media" : "baixa";
 
-        await supabase.from("maintenance_tickets").insert({
+        const { data: ticketData } = await supabase.from("maintenance_tickets").insert({
           vehicle_id: vehicleId,
           driver_id: selectedDriverId || null,
           created_by: userId,
@@ -734,7 +734,59 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           titulo: `Checklist NC — ${selectedVehicle?.placa} — ${format(now, "dd/MM")}`,
           descricao: ticketDesc,
           fotos: Object.values(fotosUrls).flat().slice(0, 5),
-        } as any);
+        } as any).select("id").single();
+
+        // Criar ações automáticas no chamado para cada item com problema
+        if (ticketData?.id) {
+          const actions: Array<{ ticket_id: string; descricao: string; created_by: string; sort_order: number }> = [];
+          let sortOrder = 0;
+
+          // Itens de inspeção não conformes
+          for (const f of nonConformeFields) {
+            actions.push({
+              ticket_id: ticketData.id,
+              descricao: `Verificar/corrigir: ${f.label}`,
+              created_by: userId,
+              sort_order: sortOrder++,
+            });
+          }
+
+          // Troca de óleo vencida
+          if (trocaOleoVencida) {
+            actions.push({
+              ticket_id: ticketData.id,
+              descricao: "Realizar troca de óleo (vencida)",
+              created_by: userId,
+              sort_order: sortOrder++,
+            });
+          }
+
+          // Fotos reprovadas pela IA
+          for (const inv of photoValidationSummary.invalid) {
+            const meta = PHOTO_META[inv.categoria as PhotoCategory];
+            actions.push({
+              ticket_id: ticketData.id,
+              descricao: `Foto reprovada: ${meta?.label ?? inv.categoria} — ${inv.motivos?.[0] ?? "Fora do padrão"}`,
+              created_by: userId,
+              sort_order: sortOrder++,
+            });
+          }
+
+          // Fotos forçadas pelo técnico
+          for (const forced of photoValidationSummary.forced) {
+            const meta = PHOTO_META[forced.categoria as PhotoCategory];
+            actions.push({
+              ticket_id: ticketData.id,
+              descricao: `Foto forçada pelo técnico: ${meta?.label ?? forced.categoria}`,
+              created_by: userId,
+              sort_order: sortOrder++,
+            });
+          }
+
+          if (actions.length > 0) {
+            await supabase.from("ticket_actions").insert(actions);
+          }
+        }
 
         // Send email notification to all users
         try {
