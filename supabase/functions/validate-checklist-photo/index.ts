@@ -85,8 +85,8 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   itens_seguranca: {
     label: "Itens de segurança",
-    criterio: "Deve mostrar itens de segurança veicular como triângulo, macaco ou chave de roda de forma identificável.",
-    has_critical: false,
+    criterio: "A foto DEVE mostrar os três itens de segurança obrigatórios juntos: triângulo de sinalização, macaco hidráulico/mecânico e chave de roda. Se apenas um ou dois itens estiverem visíveis, a foto é INVÁLIDA (target_match=false). Todos os três precisam aparecer na mesma foto.",
+    has_critical: true,
   },
   interior: {
     label: "Interior do veículo",
@@ -137,8 +137,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({
         valid: false, vehicle_match: false, target_match: false, focus_ok: false,
         critical_visible: false, quality: "ruim", confidence: 0,
@@ -223,14 +223,14 @@ Critério esperado: ${catConfig.criterio}`;
 
     console.log(`Validating photo: category=${category}, vehicle=${vehicleInfo}, user=${user.id}`);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://ai.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           {
