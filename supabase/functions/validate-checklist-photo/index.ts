@@ -215,7 +215,7 @@ Regras:
 - Nunca invente detalhes não visíveis na foto
 - Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
-- Para laterais: a foto DEVE mostrar o perfil completo do veículo (de ponta a ponta). Fotos parciais que só mostram parte do carro (ex: só as portas traseiras) devem ser REJEITADAS com target_match=false.
+- Para laterais: a foto deve mostrar a MAIORIA do comprimento lateral do veículo. Ângulos de cima (vista oblíqua/superior) são ACEITOS desde que o lado correto do veículo esteja visível. Só rejeite se a foto mostra apenas uma pequena parte do carro ou o lado errado.
 
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
