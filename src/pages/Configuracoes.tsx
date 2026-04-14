@@ -375,14 +375,25 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                   Etapa {step} — {label}
                 </p>
                 <div className="grid gap-2">
-                  {items.map((photo) => (
+                  {items.map((photo) => {
+                    const globalIdx = photos.indexOf(photo);
+                    return (
                     <div key={photo.key} className="flex items-center justify-between rounded-lg border bg-card p-3 group hover:shadow-sm transition-shadow">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{photo.label}</p>
                         <p className="text-xs text-muted-foreground truncate">{photo.hint}</p>
+                        {photo.ai_prompt && (
+                          <p className="text-[10px] text-muted-foreground/70 truncate mt-0.5">🤖 Prompt IA configurado</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Badge variant="secondary" className="text-[10px]">mín. {photo.min}</Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMovePhoto(globalIdx, -1)} disabled={globalIdx === 0}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMovePhoto(globalIdx, 1)} disabled={globalIdx === photos.length - 1}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPhoto(photo); setPhotoDialogOpen(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -405,7 +416,8 @@ function ChecklistConfigEditor({ onBack }: { onBack: () => void }) {
                         </AlertDialog>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null,
