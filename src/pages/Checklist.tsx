@@ -57,7 +57,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   farois_lanternas: { label: "💡 Faróis e Lanternas", hint: "Faróis acesos, setas funcionando", min: 1 },
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
   itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
-  interior: { label: "🪑 Interior do Veículo", hint: "Foto da organização e limpeza interna", min: 1 },
+  interior: { label: "🪑 Interior do Veículo", hint: "Bancos, painel e forros de porta visíveis", min: 1 },
   danos: { label: "⚠️ Registro de Dano/Avaria", hint: "Foto detalhada do dano encontrado", min: 1 },
   avaria: { label: "⚠️ Nova Avaria", hint: "Foto obrigatória da avaria encontrada", min: 1 },
 };

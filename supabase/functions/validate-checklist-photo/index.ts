@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "Deve mostrar o interior/cabine do veículo.",
+    criterio: "A foto deve permitir avaliar o estado geral do interior do veículo. Para ser ACEITA, a foto deve mostrar pelo menos 2 dos 3 elementos: (1) bancos (dianteiros ou traseiros), (2) painel/console central, (3) forros de porta. Uma foto panorâmica que cubra esses elementos é suficiente. REJEITE se a foto mostra apenas uma parte insignificante do interior (ex: só o pedal, só a maçaneta, só o chão, só uma porta aberta sem contexto).",
     has_critical: false,
   },
   danos: {
