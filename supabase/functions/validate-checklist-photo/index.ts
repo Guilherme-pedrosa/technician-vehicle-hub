@@ -25,12 +25,12 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "A foto deve mostrar a lateral esquerda (lado do motorista) do veículo. ACEITE se: o veículo aparece na foto mostrando seu lado esquerdo, mesmo que o ângulo seja de cima (vista superior/oblíqua), mesmo com leve inclinação, mesmo que não seja perfeitamente perpendicular. O importante é que a MAIORIA do comprimento lateral do veículo esteja visível na imagem. REJEITE APENAS se: (1) a foto mostra só uma pequena parte do carro (ex: só uma porta), ou (2) a foto não mostra a lateral esquerda de forma alguma (ex: mostra a frente ou traseira). Na DÚVIDA, ACEITE.",
+    criterio: "A foto deve mostrar o PERFIL LATERAL ESQUERDO do veículo de forma que seja possível avaliar a condição da lataria. REQUISITOS: (1) A foto deve ser tirada de uma POSIÇÃO LATERAL — ou seja, o fotógrafo deve estar ao lado do carro, aproximadamente na altura da cintura ou peito, olhando para a lateral. (2) O veículo deve aparecer na HORIZONTAL na foto (não rotacionado, não de cabeça pra baixo, não na diagonal). (3) A MAIORIA do comprimento lateral deve estar visível (de perto do para-lama dianteiro até perto do traseiro). REJEITE se: (1) a foto foi tirada de CIMA olhando para baixo (vista aérea/topo do veículo), (2) o carro aparece ROTACIONADO ou na VERTICAL dentro da foto, (3) a foto mostra apenas uma parte pequena da lateral (só uma porta), (4) o ângulo é tão extremo que não se consegue avaliar a lataria lateral. ACEITE leve inclinação desde que o perfil lateral seja claramente avaliável.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "A foto deve mostrar a lateral direita (lado do passageiro) do veículo. ACEITE se: o veículo aparece na foto mostrando seu lado direito, mesmo que o ângulo seja de cima (vista superior/oblíqua), mesmo com leve inclinação, mesmo que não seja perfeitamente perpendicular. O importante é que a MAIORIA do comprimento lateral do veículo esteja visível na imagem. REJEITE APENAS se: (1) a foto mostra só uma pequena parte do carro (ex: só uma porta), ou (2) a foto não mostra a lateral direita de forma alguma (ex: mostra a frente ou traseira). Na DÚVIDA, ACEITE.",
+    criterio: "A foto deve mostrar o PERFIL LATERAL DIREITO do veículo de forma que seja possível avaliar a condição da lataria. REQUISITOS: (1) A foto deve ser tirada de uma POSIÇÃO LATERAL — ou seja, o fotógrafo deve estar ao lado do carro, aproximadamente na altura da cintura ou peito, olhando para a lateral. (2) O veículo deve aparecer na HORIZONTAL na foto (não rotacionado, não de cabeça pra baixo, não na diagonal). (3) A MAIORIA do comprimento lateral deve estar visível (de perto do para-lama dianteiro até perto do traseiro). REJEITE se: (1) a foto foi tirada de CIMA olhando para baixo (vista aérea/topo do veículo), (2) o carro aparece ROTACIONADO ou na VERTICAL dentro da foto, (3) a foto mostra apenas uma parte pequena da lateral (só uma porta), (4) o ângulo é tão extremo que não se consegue avaliar a lataria lateral. ACEITE leve inclinação desde que o perfil lateral seja claramente avaliável.",
     has_critical: false,
   },
   nivel_oleo: {
@@ -215,7 +215,7 @@ Regras:
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
 - Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
-- Para laterais: a foto deve mostrar a MAIORIA do comprimento lateral do veículo. Ângulos de cima (vista oblíqua/superior) são ACEITOS desde que o lado correto do veículo esteja visível. Só rejeite se a foto mostra apenas uma pequena parte do carro ou o lado errado.
+- Para laterais: a foto DEVE ser tirada de uma posição lateral (fotógrafo ao lado do carro). O veículo deve aparecer na HORIZONTAL na foto. REJEITE fotos tiradas de cima (vista aérea), fotos onde o carro aparece rotacionado/vertical/diagonal, ou fotos que mostram apenas uma parte pequena. Leve inclinação é OK desde que o perfil lateral seja avaliável.
 
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
