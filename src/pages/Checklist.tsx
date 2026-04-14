@@ -2012,7 +2012,7 @@ export default function Checklist() {
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                  const det = { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
+                   const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
                   const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
                   const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
@@ -2079,7 +2079,7 @@ export default function Checklist() {
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
-                      const det = { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
+                      const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
                       const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
                       const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
                       const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
