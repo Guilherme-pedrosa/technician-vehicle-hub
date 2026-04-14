@@ -429,17 +429,26 @@ export default function ManutencaoPreventiva() {
       ) : (
         allStatuses.map(({ vehicle, statuses }) => (
           <Card key={vehicle.id}>
-            <CardHeader className="p-3 sm:p-4 pb-2">
+            <CardHeader
+              className="p-3 sm:p-4 pb-2 cursor-pointer select-none"
+              onClick={() => toggleCollapse(vehicle.id)}
+            >
               <CardTitle className="text-sm flex items-center justify-between">
-                <span>
+                <span className="flex items-center gap-2">
+                  {collapsedVehicles.has(vehicle.id) ? (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  )}
                   <span className="font-mono text-primary">{vehicle.placa}</span>
-                  <span className="text-muted-foreground font-normal ml-2">{vehicle.marca} {vehicle.modelo}</span>
+                  <span className="text-muted-foreground font-normal">{vehicle.marca} {vehicle.modelo}</span>
                 </span>
                 <Badge variant="outline" className="text-xs tabular-nums">
                   {vehicle.km_atual.toLocaleString("pt-BR")} km
                 </Badge>
               </CardTitle>
             </CardHeader>
+            {!collapsedVehicles.has(vehicle.id) && (
             <CardContent className="p-0">
               {/* Mobile */}
               <div className="sm:hidden divide-y divide-border">
