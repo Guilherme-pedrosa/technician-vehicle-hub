@@ -598,6 +598,7 @@ export default function ManutencaoPreventiva() {
                 </Table>
               </div>
             </CardContent>
+            )}
           </Card>
         ))
       )}
