@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -584,6 +585,17 @@ function PhotoDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Prompt de validação IA (opcional)</Label>
+            <Textarea
+              value={form.ai_prompt || ""}
+              onChange={(e) => setForm({ ...form, ai_prompt: e.target.value })}
+              placeholder="Critério que a IA usará para validar esta foto. Ex: Deve mostrar o compartimento do motor com o capô aberto..."
+              rows={3}
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">Se vazio, será usado o critério padrão do sistema.</p>
           </div>
         </div>
         <DialogFooter>
