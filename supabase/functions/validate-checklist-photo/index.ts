@@ -223,8 +223,12 @@ Critério esperado: ${catConfig.criterio}`;
 
     console.log(`Validating photo: category=${category}, vehicle=${vehicleInfo}, user=${user.id}`);
 
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 25000);
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
+      signal: aiController.signal,
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
@@ -236,7 +240,7 @@ Critério esperado: ${catConfig.criterio}`;
           {
             role: "user",
             content: [
-              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "auto" } },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "high" } },
               { type: "text", text: "Valide esta foto conforme os critérios informados." },
             ],
           },
@@ -245,6 +249,8 @@ Critério esperado: ${catConfig.criterio}`;
         temperature: 0.1,
       }),
     });
+
+    clearTimeout(aiTimeout);
 
     if (!response.ok) {
       const errorText = await response.text();
