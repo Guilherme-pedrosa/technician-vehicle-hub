@@ -613,7 +613,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   }, []);
 
   const resetForm = () => {
-    setStep(0); setVehicleId(""); setSelectedDriverId("");
+    setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
     setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
