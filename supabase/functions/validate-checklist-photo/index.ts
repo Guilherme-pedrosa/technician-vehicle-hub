@@ -213,6 +213,7 @@ Regras:
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - Nunca invente detalhes não visíveis na foto
+- Seja MUITO tolerante com fotos de exterior/laterais: técnicos em campo nem sempre conseguem enquadrar o veículo inteiro. Se a foto mostra parte do veículo e é possível identificar o lado correto, aceite como válida.
 - Seja tolerante com pequenas limitações de ângulo ou iluminação, desde que ainda seja possível confirmar o que foi solicitado
 
 Veículo esperado: ${vehicleInfo}
