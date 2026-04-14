@@ -284,6 +284,7 @@ Critério esperado: ${catConfig.criterio}`;
           quality: ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
           reason: parsed.reason || "Sem motivo informado",
           confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
+          detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
         };
       } else {
         result = {

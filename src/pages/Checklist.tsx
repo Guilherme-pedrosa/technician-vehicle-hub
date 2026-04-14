@@ -161,6 +161,7 @@ type ValidationResult = {
   reason: string;
   confidence?: number;
   ai_error?: boolean;
+  detected_elements?: string[];
 };
 
 type PhotoValidation = {
