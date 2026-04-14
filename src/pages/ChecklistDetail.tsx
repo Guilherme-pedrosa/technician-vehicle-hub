@@ -412,7 +412,10 @@ export default function ChecklistDetail() {
       // Check if result is non-conforme and ensure a ticket exists
       const isNonConformeResult = editResultado !== "liberado";
       const nonConformeFields = CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, editFields[f.key]));
-      const hasProblems = isNonConformeResult || nonConformeFields.length > 0;
+      const fotosInvalidasCheck = (newDetalhes?.fotos_invalidas ?? []) as any[];
+      const fotosErroCheck = (newDetalhes?.fotos_erro_validacao ?? []) as any[];
+      const hasBadPhotos = fotosInvalidasCheck.length > 0 || fotosErroCheck.length > 0;
+      const hasProblems = isNonConformeResult || nonConformeFields.length > 0 || hasBadPhotos;
 
       if (hasProblems && vehicle) {
         // Check if a NC ticket already exists for this vehicle around this checklist date
