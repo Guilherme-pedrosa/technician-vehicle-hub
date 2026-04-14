@@ -161,6 +161,7 @@ type ValidationResult = {
   reason: string;
   confidence?: number;
   ai_error?: boolean;
+  detected_elements?: string[];
 };
 
 type PhotoValidation = {
@@ -247,10 +248,19 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
     return await response.json();
   } catch (err: any) {
     console.error("Photo validation error:", err);
-    const reason = err?.name === "AbortError"
-      ? "Tempo limite excedido na validação (30s). Tente novamente."
-      : "Falha ao validar a foto. Tente novamente.";
-    return { valid: false, quality: "ruim", reason, ai_error: true };
+    // CRITICAL: Never block the technician. On any error/timeout, accept the photo.
+    return {
+      valid: true,
+      quality: "aceitavel",
+      reason: err?.name === "AbortError"
+        ? "Validação IA indisponível (timeout). Foto aceita automaticamente."
+        : "Validação IA indisponível. Foto aceita automaticamente.",
+      ai_error: true,
+      vehicle_match: true,
+      target_match: true,
+      focus_ok: true,
+      critical_visible: true,
+    };
   }
 }
 
@@ -423,7 +433,9 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         result,
       });
 
-      if (!result.valid) {
+      if (result.ai_error) {
+        toast.info("ℹ️ Validação IA indisponível. Foto aceita automaticamente.", { duration: 4000 });
+      } else if (!result.valid) {
         const details: string[] = [];
         if (result.vehicle_match === false) details.push("veículo errado");
         if (result.target_match === false) details.push("item incorreto");
@@ -431,6 +443,27 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         if (result.critical_visible === false) details.push("dado ilegível");
         const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
+      }
+
+      // Interior coverage check: after each photo, check collective coverage
+      if (category === "interior" && result.valid && result.detected_elements) {
+        const allValidations = validations ? [...validations] : [];
+        allValidations[newIdx] = { status: "valid", result };
+        const allElements = new Set<string>();
+        allValidations.forEach(v => {
+          v?.result?.detected_elements?.forEach(el => allElements.add(el));
+        });
+        const hasSeats = allElements.has("bancos_dianteiros") || allElements.has("bancos_traseiros");
+        const hasDash = allElements.has("painel_console");
+        const hasDoors = allElements.has("forros_porta");
+        const coverage = [hasSeats, hasDash, hasDoors].filter(Boolean).length;
+        if (coverage < 2) {
+          const missing: string[] = [];
+          if (!hasSeats) missing.push("bancos");
+          if (!hasDash) missing.push("painel/console");
+          if (!hasDoors) missing.push("forros de porta");
+          toast.info(`📸 Cobertura parcial do interior. Faltam: ${missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
+        }
       }
     }));
   };
