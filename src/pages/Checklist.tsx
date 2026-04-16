@@ -551,34 +551,34 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
 }
 
 // ═══════════════════════════════════════════
-// WIZARD STEPS — Fluxo físico do técnico
-// Lógica: painel → ao redor (360°+exterior) → pneus → capô (motor+óleo+água) → interior+kit → danos → resultado
+// WIZARD STEPS — Fluxo produtivo do técnico
+// Lógica: info → painel (KM) → capô (óleo+água+motor, CARRO DESLIGADO) → pneus → 360°/exterior (pode mover o carro) → interior+kit → danos → resultado
 // ═══════════════════════════════════════════
 
 const STEPS = [
   { id: "info", title: "Identificação", icon: ClipboardCheck },
   { id: "painel", title: "Foto do Painel", icon: Gauge },
-  { id: "exterior_360", title: "360° e Exterior", icon: Car },
+  { id: "capo", title: "Capô (carro desligado)", icon: Wrench },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot },
-  { id: "capo", title: "Capô Aberto", icon: Wrench },
+  { id: "exterior_360", title: "360° e Exterior", icon: Car },
   { id: "interior", title: "Interior", icon: Shield },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
 ];
 
 const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
-  exterior_360: ["Exterior"],
-  pneus: ["Pneus"],
   capo: ["Capô"],
+  pneus: ["Pneus"],
+  exterior_360: ["Exterior"],
   interior: ["Interior"],
   danos: ["Danos"],
 };
 
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
-  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"],
-  pneus: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"],
   capo: ["motor", "nivel_oleo", "reservatorio_agua"],
+  pneus: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"],
+  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"],
   interior: ["interior"],
 };
 
