@@ -134,7 +134,17 @@ export default function CustosFlota() {
   const summary = useMemo(() => {
     const total = filteredCustos.reduce((s, c) => s + (c.valor || 0), 0);
     const combustivel = filteredCustos
-      .filter((c) => c.tipo_custo_nome?.toLowerCase().includes("combust"))
+      .filter((c) => {
+        const n = c.tipo_custo_nome?.toLowerCase() ?? "";
+        return (
+          n.includes("combust") ||
+          n.includes("abastec") ||
+          n.includes("gasolin") ||
+          n.includes("etanol") ||
+          n.includes("diesel") ||
+          n.includes("deslocamento")
+        );
+      })
       .reduce((s, c) => s + (c.valor || 0), 0);
     const uniqueVehicles = new Set(filteredCustos.map((c) => c.adesao_id)).size;
     const custoMedio = uniqueVehicles > 0 ? total / uniqueVehicles : 0;
