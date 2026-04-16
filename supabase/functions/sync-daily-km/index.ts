@@ -299,34 +299,71 @@ Deno.serve(async (req) => {
           // Sort sessions by start time for nearest-match fallback
           sessions.sort((a, b) => a.startMs - b.startMs);
 
-          // Telemetry attribution: assign each event to the session containing its timestamp
+          // Telemetry attribution strategy:
+          // 1) PREFER /dirigibilidade with timestamps when available (most precise)
+          // 2) FALLBACK to /resumo-dia total telemetry count, prorated by KM per session
           let unattributedEvents = 0;
-          for (const ev of eventos) {
-            const evMs = getEventMs(ev);
-            if (!evMs) {
-              unattributedEvents++;
-              continue;
-            }
-            // Find session whose [start, end] contains this event time
-            let matched = sessions.find((s) => evMs >= s.startMs && evMs <= s.endMs);
-            // Fallback: nearest session within ±2h
-            if (!matched && sessions.length > 0) {
-              let best: Session | null = null;
-              let bestDelta = Infinity;
-              for (const s of sessions) {
-                const delta = Math.min(Math.abs(evMs - s.startMs), Math.abs(evMs - s.endMs));
-                if (delta < bestDelta) {
-                  bestDelta = delta;
-                  best = s;
-                }
+
+          if (eventos.length > 0) {
+            // Strategy 1: precise per-event timestamp matching
+            for (const ev of eventos) {
+              const evMs = getEventMs(ev);
+              if (!evMs) {
+                unattributedEvents++;
+                continue;
               }
-              if (best && bestDelta <= 2 * 60 * 60 * 1000) matched = best;
+              let matched = sessions.find((s) => evMs >= s.startMs && evMs <= s.endMs);
+              if (!matched && sessions.length > 0) {
+                let best: Session | null = null;
+                let bestDelta = Infinity;
+                for (const s of sessions) {
+                  const delta = Math.min(Math.abs(evMs - s.startMs), Math.abs(evMs - s.endMs));
+                  if (delta < bestDelta) {
+                    bestDelta = delta;
+                    best = s;
+                  }
+                }
+                if (best && bestDelta <= 2 * 60 * 60 * 1000) matched = best;
+              }
+              if (matched) matched.telemetrias++;
+              else unattributedEvents++;
             }
-            if (matched) matched.telemetrias++;
-            else unattributedEvents++;
+          } else if (resumo.telemetrias > 0 && sessions.length > 0) {
+            // Strategy 2: prorate /resumo-dia total by KM per session
+            const totalKm = sessions.reduce((sum, s) => sum + extractKm(s.entry), 0);
+            if (totalKm > 0) {
+              // Distribute floor(total * km_session / totalKm) to each session
+              let distributed = 0;
+              const shares = sessions.map((s) => {
+                const share = Math.floor((resumo.telemetrias * extractKm(s.entry)) / totalKm);
+                distributed += share;
+                return share;
+              });
+              // Distribute remainder to sessions with highest fractional part
+              let remainder = resumo.telemetrias - distributed;
+              const fractionals = sessions.map((s, i) => ({
+                i,
+                frac: ((resumo.telemetrias * extractKm(s.entry)) / totalKm) - shares[i],
+              }));
+              fractionals.sort((a, b) => b.frac - a.frac);
+              for (const f of fractionals) {
+                if (remainder <= 0) break;
+                shares[f.i]++;
+                remainder--;
+              }
+              sessions.forEach((s, i) => { s.telemetrias = shares[i]; });
+            } else {
+              // No KM data → split equally
+              const base = Math.floor(resumo.telemetrias / sessions.length);
+              let remainder = resumo.telemetrias - base * sessions.length;
+              sessions.forEach((s) => {
+                s.telemetrias = base + (remainder > 0 ? 1 : 0);
+                if (remainder > 0) remainder--;
+              });
+            }
           }
 
-          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents}`);
+          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} resumoTel=${resumo.telemetrias} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents} strategy=${eventos.length > 0 ? 'timestamp' : (resumo.telemetrias > 0 ? 'prorate-km' : 'none')}`);
 
           if (sessions.length > 0) {
             for (const session of sessions) {
