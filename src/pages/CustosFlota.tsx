@@ -172,11 +172,33 @@ export default function CustosFlota() {
             Acompanhe os custos operacionais de toda a frota
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
-          <Download className="h-4 w-4" />
-          Exportar CSV
-        </Button>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          <Select value={source} onValueChange={(v) => setSource(v as DataSource)}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auvo">Auvo (despesas)</SelectItem>
+              <SelectItem value="rotaexata">Rota Exata</SelectItem>
+            </SelectContent>
+          </Select>
+          {source === "auvo" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+              {syncing ? "Sincronizando…" : "Sincronizar Auvo"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+        </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
