@@ -123,6 +123,8 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
           }
           const group = driverMap.get(key)!;
           group.km += km;
+          // Each log_motorista entry = 1 real telemetria (1 driving session)
+          group.telemetrias += 1;
           group.placas.add(entry.placa ?? placa);
         }
       }

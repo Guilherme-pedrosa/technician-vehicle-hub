@@ -213,9 +213,6 @@ Deno.serve(async (req) => {
           const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
 
           if (entries.length > 0) {
-            // Distribute telemetrias proportionally across sessions by km
-            const totalKmDay = (entries as Record<string, unknown>[]).reduce((sum, e) => sum + extractKm(e), 0);
-
             for (const entry of entries as Record<string, unknown>[]) {
               const km = extractKm(entry);
               if (km <= 0) continue;
@@ -235,9 +232,8 @@ Deno.serve(async (req) => {
                 (entry.hora_inicio as string) ??
                 new Date().toISOString();
 
-              // Distribute telemetrias proportionally by km share
-              const kmShare = totalKmDay > 0 ? km / totalKmDay : 1 / entries.length;
-              const telemetriasSession = Math.round(resumo.telemetrias * kmShare);
+              // Each log_motorista entry = 1 real telemetria (1 driving session)
+              // No more pro-rating from resumo-dia
 
               // UPSERT: atomic insert-or-update, never deletes existing data
               const { error } = await supabase.from("daily_vehicle_km").upsert(
@@ -254,7 +250,7 @@ Deno.serve(async (req) => {
                     ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                     null,
                   hr_vinculo: hrVinculo,
-                  telemetrias: telemetriasSession,
+                  telemetrias: 1,
                   velocidade_maxima: resumo.velocidadeMaxima,
                   excessos_velocidade: excessos,
                   synced_at: new Date().toISOString(),
@@ -272,7 +268,7 @@ Deno.serve(async (req) => {
               }
             }
           } else if (resumo.telemetrias > 0) {
-            // Vehicle had movement but no driver sessions — UPSERT too
+            // Vehicle had movement but no driver sessions
             const { error } = await supabase.from("daily_vehicle_km").upsert(
               {
                 adesao_id: vehicle.adesao_id!,
@@ -282,7 +278,7 @@ Deno.serve(async (req) => {
                 motorista_id: null,
                 km_percorrido: 0,
                 hr_vinculo: "00:00:00",
-                telemetrias: resumo.telemetrias,
+                telemetrias: 1,
                 velocidade_maxima: resumo.velocidadeMaxima,
                 excessos_velocidade: excessos,
                 synced_at: new Date().toISOString(),
