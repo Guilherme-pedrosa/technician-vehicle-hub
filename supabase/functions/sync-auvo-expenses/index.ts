@@ -8,6 +8,46 @@ const corsHeaders = {
 };
 
 const AUVO_BASE = "https://api.auvo.com.br/v2";
+const EXCLUDED_PLATES = new Set(["DIW9D20", "IXO3G66", "OHW9F00"]);
+const MODEL_STOPWORDS = new Set([
+  "FLEX",
+  "MT",
+  "AT",
+  "LS",
+  "LT",
+  "LTZ",
+  "JOY",
+  "JOYE",
+  "SD",
+  "XS",
+  "X",
+  "CE",
+  "CD",
+  "CH",
+  "A",
+  "PRATA",
+  "VERMELHO",
+  "TROOP",
+  "SPORTLINE",
+  "WORKING",
+  "SOBERANA",
+]);
+
+const RECEIPT_HINT_WORDS = [
+  "ABASTECIMENTO",
+  "GASOLINA",
+  "ETANOL",
+  "DIESEL",
+  "COMBUSTIVEL",
+  "COMBUSTÍVEL",
+  "TICKETLOG",
+  "TICKET LOG",
+  "DESLOCAMENTO",
+  "KM",
+  "ODOMETRO",
+  "ODÔMETRO",
+  "PLACA",
+];
 
 type AuvoExpense = {
   id: number;
@@ -23,18 +63,40 @@ type AuvoExpense = {
   creationDate?: string;
 };
 
+type Vehicle = { id: string; placa: string; modelo: string };
+type Alias = { vehicle_id: string; keyword: string; priority: number };
+type KeywordEntry = {
+  keyword: string;
+  keyword_compact: string;
+  vehicle_id: string;
+  priority: number;
+  source: "plate" | "model" | "alias";
+};
+type ParsedVehicle = {
+  vehicle_id: string | null;
+  keyword: string | null;
+  source: "description" | "attachment" | null;
+  matched_by: KeywordEntry["source"] | null;
+};
+
+type AttachmentOcr = {
+  text: string;
+  clues: string[];
+};
+
 async function auvoLogin(apiKey: string, apiToken: string): Promise<string> {
   const url = `${AUVO_BASE}/login/?apiKey=${encodeURIComponent(apiKey)}&apiToken=${encodeURIComponent(apiToken)}`;
   const res = await fetch(url);
   const text = await res.text();
   if (!res.ok) throw new Error(`Auvo login failed [${res.status}]: ${text}`);
-  // API returns either { result: {...} } or "result": {...} pattern. Try both.
+
   let parsed: any;
   try {
     parsed = JSON.parse(text);
   } catch {
     parsed = JSON.parse(`{${text}}`);
   }
+
   const token = parsed?.result?.accessToken ?? parsed?.accessToken;
   if (!token) throw new Error(`Auvo login: no accessToken in response: ${text.slice(0, 200)}`);
   return token;
@@ -52,6 +114,7 @@ async function fetchExpensesPage(
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const text = await res.text();
   if (!res.ok) throw new Error(`Auvo /expenses failed [${res.status}]: ${text.slice(0, 300)}`);
+
   const parsed = JSON.parse(text);
   const result = parsed?.result ?? parsed;
   const items = (result?.entityList ?? []) as AuvoExpense[];
@@ -59,45 +122,230 @@ async function fetchExpensesPage(
   return { items, totalItems };
 }
 
-type Vehicle = { id: string; placa: string; modelo: string };
-type Alias = { vehicle_id: string; keyword: string; priority: number };
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+}
+
+function normalizeCompact(value: string | null | undefined) {
+  return normalizeText(value).replace(/[^A-Z0-9]/g, "");
+}
+
+function tokenize(value: string | null | undefined) {
+  return normalizeText(value)
+    .split(/[^A-Z0-9]+/)
+    .filter(Boolean);
+}
+
+function getModelAliases(vehicle: Vehicle) {
+  const tokens = tokenize(vehicle.modelo);
+  const aliases = new Set<string>();
+
+  const primary = tokens.find((token) => token.length >= 4 && !MODEL_STOPWORDS.has(token) && /[A-Z]/.test(token));
+  if (primary) aliases.add(primary);
+
+  const full = normalizeText(vehicle.modelo).replace(/\s+/g, " ").trim();
+  if (full) aliases.add(full);
+
+  return Array.from(aliases);
+}
+
+function addKeyword(
+  map: Map<string, KeywordEntry>,
+  keyword: string,
+  vehicle_id: string,
+  priority: number,
+  source: KeywordEntry["source"],
+) {
+  const normalized = normalizeText(keyword);
+  const compact = normalizeCompact(keyword);
+  if (!normalized || normalized.length < 3) return;
+
+  const current = map.get(normalized);
+  if (!current || current.priority < priority) {
+    map.set(normalized, {
+      keyword: normalized,
+      keyword_compact: compact,
+      vehicle_id,
+      priority,
+      source,
+    });
+  }
+}
 
 function buildKeywordIndex(vehicles: Vehicle[], aliases: Alias[]) {
-  // Returns array of { keyword, vehicle_id, priority } sorted by length desc / priority desc
-  const map: Array<{ keyword: string; vehicle_id: string; priority: number }> = [];
+  const activeVehicles = vehicles.filter((vehicle) => !EXCLUDED_PLATES.has(normalizeCompact(vehicle.placa)));
+  const entries = new Map<string, KeywordEntry>();
 
-  // 1) plates from vehicles (highest priority)
-  vehicles.forEach((v) => {
-    if (v.placa) map.push({ keyword: v.placa.toUpperCase(), vehicle_id: v.id, priority: 1000 });
-  });
-  // 2) custom aliases
-  aliases.forEach((a) => {
-    if (a.keyword) map.push({ keyword: a.keyword.toUpperCase(), vehicle_id: a.vehicle_id, priority: a.priority ?? 0 });
-  });
-  // sort longest keyword first to avoid partial matches stealing
-  map.sort((a, b) => b.keyword.length - a.keyword.length || b.priority - a.priority);
-  return map;
-}
+  for (const vehicle of activeVehicles) {
+    addKeyword(entries, vehicle.placa, vehicle.id, 1000, "plate");
+  }
 
-function normalizePlate(s: string) {
-  return s.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-}
-
-function parseVehicle(
-  description: string,
-  index: Array<{ keyword: string; vehicle_id: string; priority: number }>,
-): { vehicle_id: string | null; keyword: string | null } {
-  if (!description) return { vehicle_id: null, keyword: null };
-  const upper = description.toUpperCase();
-  const compact = normalizePlate(description);
-  for (const entry of index) {
-    const kwCompact = normalizePlate(entry.keyword);
-    // Check both raw substring and plate-style compact match
-    if (upper.includes(entry.keyword) || (kwCompact.length >= 6 && compact.includes(kwCompact))) {
-      return { vehicle_id: entry.vehicle_id, keyword: entry.keyword };
+  for (const alias of aliases) {
+    if (activeVehicles.some((vehicle) => vehicle.id === alias.vehicle_id)) {
+      addKeyword(entries, alias.keyword, alias.vehicle_id, 900 + (alias.priority ?? 0), "alias");
     }
   }
-  return { vehicle_id: null, keyword: null };
+
+  const modelAliasOwners = new Map<string, Set<string>>();
+  for (const vehicle of activeVehicles) {
+    for (const alias of getModelAliases(vehicle)) {
+      const key = normalizeText(alias);
+      if (!modelAliasOwners.has(key)) modelAliasOwners.set(key, new Set());
+      modelAliasOwners.get(key)!.add(vehicle.id);
+    }
+  }
+
+  for (const vehicle of activeVehicles) {
+    for (const alias of getModelAliases(vehicle)) {
+      const owners = modelAliasOwners.get(normalizeText(alias));
+      if (owners?.size === 1) {
+        addKeyword(entries, alias, vehicle.id, 600, "model");
+      }
+    }
+  }
+
+  return Array.from(entries.values()).sort(
+    (a, b) => b.keyword.length - a.keyword.length || b.priority - a.priority,
+  );
+}
+
+function parseVehicleFromText(text: string, index: KeywordEntry[]): ParsedVehicle {
+  if (!text) {
+    return { vehicle_id: null, keyword: null, source: null, matched_by: null };
+  }
+
+  const normalized = normalizeText(text);
+  const compact = normalizeCompact(text);
+
+  for (const entry of index) {
+    if (
+      normalized.includes(entry.keyword) ||
+      (entry.keyword_compact.length >= 6 && compact.includes(entry.keyword_compact))
+    ) {
+      return {
+        vehicle_id: entry.vehicle_id,
+        keyword: entry.keyword,
+        source: null,
+        matched_by: entry.source,
+      };
+    }
+  }
+
+  return { vehicle_id: null, keyword: null, source: null, matched_by: null };
+}
+
+function toBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function looksLikeVehicleExpense(expense: AuvoExpense) {
+  const haystack = normalizeText(`${expense.typeName ?? ""} ${expense.description ?? ""}`);
+  return RECEIPT_HINT_WORDS.some((word) => haystack.includes(normalizeText(word)));
+}
+
+function parseJsonObject(content: string) {
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON object returned by AI");
+  return JSON.parse(match[0]);
+}
+
+async function extractTextFromAttachment(
+  imageUrl: string,
+  lovableApiKey: string,
+): Promise<AttachmentOcr | null> {
+  try {
+    const imageRes = await fetch(imageUrl);
+    if (!imageRes.ok) {
+      console.warn(`Attachment fetch failed [${imageRes.status}] for ${imageUrl}`);
+      return null;
+    }
+
+    const contentType = imageRes.headers.get("content-type") || "image/png";
+    const imageBase64 = toBase64(await imageRes.arrayBuffer());
+
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        temperature: 0,
+        max_tokens: 250,
+        messages: [
+          {
+            role: "system",
+            content:
+              'Você analisa comprovantes de despesas e extrai somente pistas visíveis para identificar o veículo. Responda APENAS em JSON válido no formato {"text":"...","clues":["..."]}. Inclua em text a transcrição resumida do que estiver legível. Em clues, liste somente referências explícitas a placa, modelo, apelido do carro, prefixo ou identificação do veículo visível na imagem. Não invente nem deduza.',
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${contentType};base64,${imageBase64}`,
+                  detail: "high",
+                },
+              },
+              {
+                type: "text",
+                text: "Extraia apenas as pistas que aparecem no comprovante e possam ajudar a identificar o veículo.",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!aiRes.ok) {
+      console.warn(`Attachment OCR failed [${aiRes.status}] for ${imageUrl}`);
+      return null;
+    }
+
+    const data = await aiRes.json();
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    const parsed = parseJsonObject(content);
+    return {
+      text: String(parsed?.text ?? "").trim(),
+      clues: Array.isArray(parsed?.clues) ? parsed.clues.map((item: unknown) => String(item)) : [],
+    };
+  } catch (error) {
+    console.warn("Attachment OCR error:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+) {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= items.length) break;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
 }
 
 Deno.serve(async (req) => {
@@ -108,6 +356,7 @@ Deno.serve(async (req) => {
     const AUVO_USER_TOKEN = Deno.env.get("AUVO_USER_TOKEN");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!AUVO_API_KEY || !AUVO_USER_TOKEN) {
       return new Response(
@@ -126,6 +375,7 @@ Deno.serve(async (req) => {
     try {
       body = await req.json();
     } catch {}
+
     const today = new Date();
     const defaultStart = new Date(today.getFullYear(), today.getMonth() - 2, 1);
     const startDate: string = body.startDate ?? defaultStart.toISOString().slice(0, 10);
@@ -134,73 +384,107 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Load vehicles + aliases for parser
     const [{ data: vehicles }, { data: aliases }] = await Promise.all([
       supabase.from("vehicles").select("id, placa, modelo"),
       supabase.from("vehicle_aliases").select("vehicle_id, keyword, priority").eq("active", true),
     ]);
 
-    const index = buildKeywordIndex(
-      (vehicles ?? []) as Vehicle[],
-      (aliases ?? []) as Alias[],
-    );
+    const index = buildKeywordIndex((vehicles ?? []) as Vehicle[], (aliases ?? []) as Alias[]);
+    console.log(`Auvo parser loaded ${index.length} keywords for ${vehicles?.length ?? 0} vehicles`);
 
-    // Login
     const token = await auvoLogin(AUVO_API_KEY, AUVO_USER_TOKEN);
 
-    // Paginate
     const pageSize = 100;
     let page = 1;
     let totalItems = Infinity;
     const all: AuvoExpense[] = [];
     while (all.length < totalItems) {
-      const { items, totalItems: t } = await fetchExpensesPage(token, page, pageSize, startDate, endDate);
-      totalItems = t;
+      const { items, totalItems: total } = await fetchExpensesPage(token, page, pageSize, startDate, endDate);
+      totalItems = total;
       if (!items.length) break;
       all.push(...items);
       if (items.length < pageSize) break;
       page += 1;
-      if (page > 200) break; // safety
+      if (page > 200) break;
     }
 
-    // Build rows
-    const rows = all.map((e) => {
-      const date = (e.expenseDate ?? e.date ?? "").slice(0, 10);
-      const description = e.description ?? "";
-      const { vehicle_id, keyword } = parseVehicle(description, index);
+    const baseRows = all.map((expense) => {
+      const description = expense.description ?? "";
+      const parsedFromDescription = parseVehicleFromText(description, index);
+
       return {
-        auvo_id: e.id,
+        expense,
         description,
-        amount: Number(e.amount ?? 0),
-        expense_date: date || new Date().toISOString().slice(0, 10),
-        type_id: e.typeId ?? null,
-        type_name: e.typeName ?? null,
-        user_to_id: e.userToId ?? null,
-        user_to_name: e.userToName ?? null,
-        attachment_url: e.attachmentUrl || null,
-        vehicle_id,
-        parse_status: vehicle_id ? "matched" : "unmatched",
-        parsed_keyword: keyword,
-        raw_payload: e as unknown as Record<string, unknown>,
-        synced_at: new Date().toISOString(),
+        date: (expense.expenseDate ?? expense.date ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+        vehicle_id: parsedFromDescription.vehicle_id,
+        parsed_keyword: parsedFromDescription.keyword,
+        parse_status: parsedFromDescription.vehicle_id
+          ? `matched_description_${parsedFromDescription.matched_by}`
+          : "unmatched",
+        raw_payload: expense as Record<string, unknown>,
       };
     });
 
+    const unmatchedForAttachment = baseRows
+      .map((row, index) => ({ ...row, rowIndex: index }))
+      .filter((row) => !row.vehicle_id && row.expense.attachmentUrl && looksLikeVehicleExpense(row.expense));
+
+    if (LOVABLE_API_KEY && unmatchedForAttachment.length) {
+      const ocrResults = await mapWithConcurrency(unmatchedForAttachment, 3, async (row) => {
+        const attachment = row.expense.attachmentUrl!;
+        const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY);
+        if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null };
+
+        const combinedText = [ocr.text, ...ocr.clues].filter(Boolean).join(" ");
+        const parsed = parseVehicleFromText(combinedText, index);
+        return { rowIndex: row.rowIndex, ocr, parsed };
+      });
+
+      for (const result of ocrResults) {
+        if (!result?.ocr || !result.parsed?.vehicle_id) continue;
+        const row = baseRows[result.rowIndex];
+        row.vehicle_id = result.parsed.vehicle_id;
+        row.parsed_keyword = result.parsed.keyword;
+        row.parse_status = `matched_attachment_${result.parsed.matched_by}`;
+        row.raw_payload = {
+          ...(row.raw_payload ?? {}),
+          attachment_ocr: result.ocr,
+        };
+      }
+    }
+
+    const rows = baseRows.map((row) => ({
+      auvo_id: row.expense.id,
+      description: row.description,
+      amount: Number(row.expense.amount ?? 0),
+      expense_date: row.date,
+      type_id: row.expense.typeId ?? null,
+      type_name: row.expense.typeName ?? null,
+      user_to_id: row.expense.userToId ?? null,
+      user_to_name: row.expense.userToName ?? null,
+      attachment_url: row.expense.attachmentUrl || null,
+      vehicle_id: row.vehicle_id,
+      parse_status: row.parse_status,
+      parsed_keyword: row.parsed_keyword,
+      raw_payload: row.raw_payload,
+      synced_at: new Date().toISOString(),
+    }));
+
     let upserted = 0;
     if (!dryRun && rows.length) {
-      // chunked upsert
       const chunkSize = 500;
       for (let i = 0; i < rows.length; i += chunkSize) {
         const chunk = rows.slice(i, i + chunkSize);
-        const { error } = await supabase
-          .from("auvo_expenses")
-          .upsert(chunk, { onConflict: "auvo_id" });
+        const { error } = await supabase.from("auvo_expenses").upsert(chunk, { onConflict: "auvo_id" });
         if (error) throw new Error(`Upsert failed: ${error.message}`);
         upserted += chunk.length;
       }
     }
 
-    const matched = rows.filter((r) => r.parse_status === "matched").length;
+    const matched = rows.filter((row) => row.vehicle_id).length;
+    const matchedByDescription = rows.filter((row) => row.parse_status.startsWith("matched_description")).length;
+    const matchedByAttachment = rows.filter((row) => row.parse_status.startsWith("matched_attachment")).length;
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -209,6 +493,8 @@ Deno.serve(async (req) => {
         fetched: rows.length,
         upserted,
         matched,
+        matchedByDescription,
+        matchedByAttachment,
         unmatched: rows.length - matched,
         sample: rows.slice(0, 3),
       }),
