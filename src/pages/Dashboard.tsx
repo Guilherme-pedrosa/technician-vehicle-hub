@@ -363,6 +363,11 @@ export default function Dashboard() {
     return `KM ${format(dates.inicio, "dd/MM")} a ${format(dates.fim, "dd/MM")}`;
   }, [preset, dates]);
 
+  const { data: fuel, isLoading: loadingFuel } = useFuelMetrics(dates.inicio, dates.fim);
+  const fmtCurrency = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtNumber = (v: number, frac = 2) =>
+    v.toLocaleString("pt-BR", { minimumFractionDigits: frac, maximumFractionDigits: frac });
+
   const stats = [
     {
       label: "Veículos",
