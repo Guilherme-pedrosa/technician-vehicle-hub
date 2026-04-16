@@ -1232,6 +1232,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                 { value: "liberado_obs", label: "Liberado com observação", icon: AlertCircle, color: "warning" },
                 { value: "bloqueado", label: "Bloqueado para saída", icon: ShieldAlert, color: "destructive" },
               ].map((opt) => {
+                const hasAvaria = answers.danos_veiculo === "sim";
+                const isDisabled = opt.value === "liberado" && (hasAnyProblem || hasAvaria);
                 const isSelected = finalRes === opt.value;
                 const colorMap: Record<string, string> = {
                   success: isSelected ? "bg-success/10 border-success text-success" : "border-border text-muted-foreground",
@@ -1239,10 +1241,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   destructive: isSelected ? "bg-destructive/10 border-destructive text-destructive" : "border-border text-muted-foreground",
                 };
                 return (
-                  <button key={opt.value} type="button" onClick={() => setResultado(opt.value)}
-                    className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.97] ${colorMap[opt.color]}`}>
+                  <button key={opt.value} type="button"
+                    onClick={() => !isDisabled && setResultado(opt.value)}
+                    disabled={isDisabled}
+                    className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.97] ${colorMap[opt.color]} ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}>
                     <opt.icon className="w-5 h-5 shrink-0" />
                     <span className="text-base font-bold">{opt.label}</span>
+                    {isDisabled && hasAvaria && <span className="ml-auto text-xs text-muted-foreground">Veículo com avaria</span>}
                   </button>
                 );
               })}
