@@ -348,6 +348,7 @@ export default function CustosFlota() {
                     <TableHead>Criado por</TableHead>
                     <TableHead className="text-right">Custo</TableHead>
                     <TableHead className="text-center">Parcelado</TableHead>
+                    {source === "auvo" && <TableHead className="text-center">Anexo</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -364,7 +365,15 @@ export default function CustosFlota() {
                           : "—"}
                       </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {custo.placa ?? `ID ${custo.adesao_id}`}
+                        {custo.placa ? (
+                          custo.placa
+                        ) : source === "auvo" ? (
+                          <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
+                            <AlertCircle className="h-3 w-3" /> Sem placa
+                          </Badge>
+                        ) : (
+                          `ID ${custo.adesao_id}`
+                        )}
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                         {custo.descricao ?? custo.veiculo_descricao ?? "—"}
@@ -395,6 +404,30 @@ export default function CustosFlota() {
                           "Não"
                         )}
                       </TableCell>
+                      {source === "auvo" && (
+                        <TableCell className="text-center">
+                          {(custo as AuvoCusto).attachment_url ? (
+                            <a
+                              href={(custo as AuvoCusto).attachment_url ?? "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center text-primary hover:underline"
+                            >
+                              <Paperclip className="h-4 w-4" />
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
                     </TableRow>
                   ))}
                 </TableBody>
