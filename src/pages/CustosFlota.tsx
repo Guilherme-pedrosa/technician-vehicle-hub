@@ -47,10 +47,12 @@ export default function CustosFlota() {
   const [placaFilter, setPlacaFilter] = useState("todos");
   const [customStart, setCustomStart] = useState<Date>();
   const [customEnd, setCustomEnd] = useState<Date>();
+  const [source, setSource] = useState<DataSource>("auvo");
+  const [syncing, setSyncing] = useState(false);
 
   const { start, end } = getDateRange(period, customStart, customEnd);
 
-  // Build where clause
+  // Build where clause for Rota Exata
   const where = useMemo(() => {
     const filter: Record<string, unknown> = {
       dt_lancamento: {
@@ -64,13 +66,41 @@ export default function CustosFlota() {
     return JSON.stringify(filter);
   }, [start, end, tipoCusto]);
 
-  const { data: custos = [], isLoading } = useCustosFlota(where);
+  const rotaQuery = useCustosFlota(source === "rotaexata" ? where : undefined);
+  const auvoQuery = useAuvoExpenses(start, end);
 
-  // Filter by placa client-side (placa comes from API directly)
+  const custos: (CustoRotaExata | AuvoCusto)[] =
+    source === "auvo" ? auvoQuery.data ?? [] : rotaQuery.data ?? [];
+  const isLoading = source === "auvo" ? auvoQuery.isLoading : rotaQuery.isLoading;
+
+  // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
-    if (placaFilter === "todos") return custos;
-    return custos.filter((c) => c.placa === placaFilter);
-  }, [custos, placaFilter]);
+    let list = custos;
+    if (source === "auvo" && tipoCusto !== "todos") {
+      list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
+    }
+    if (placaFilter !== "todos") {
+      list = list.filter((c) => c.placa === placaFilter);
+    }
+    return list;
+  }, [custos, placaFilter, tipoCusto, source]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const startStr = start.toISOString().slice(0, 10);
+      const endStr = end.toISOString().slice(0, 10);
+      const r = await syncAuvoExpenses(startStr, endStr);
+      toast.success(
+        `Sync Auvo: ${r.fetched} despesas (${r.matched} vinculadas, ${r.unmatched} sem placa)`,
+      );
+      auvoQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na sincronização");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Aggregate per vehicle (cost + KM + R$/km + km/L)
   const { rows: porVeiculo, isLoading: loadingPorVeiculo } = useCustosPorVeiculo(
