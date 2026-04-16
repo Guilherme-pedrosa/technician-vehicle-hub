@@ -664,6 +664,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
   const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
 
+  // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
+  const KM_DISCREPANCY_THRESHOLD = 50_000;
+  const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
+    ? (kmTrocaNum - selectedVehicle.km_atual) > KM_DISCREPANCY_THRESHOLD
+    : false;
+
   const nonConformeFields = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
@@ -1056,15 +1062,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   value={kmProximaTroca} onChange={(e) => setKmProximaTroca(e.target.value)}
                   className="h-12 text-base" />
                 {selectedVehicle && kmProximaTroca && (
-                  <div className={`rounded-lg p-2 text-xs font-medium ${
-                    trocaOleoVencida
-                      ? "bg-destructive/10 text-destructive border border-destructive/30"
-                      : "bg-success/10 text-success border border-success/30"
-                  }`}>
-                    {trocaOleoVencida
-                      ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
-                      : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
-                    }
+                  <div className="space-y-2">
+                    <div className={`rounded-lg p-2 text-xs font-medium ${
+                      trocaOleoVencida
+                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : "bg-success/10 text-success border border-success/30"
+                    }`}>
+                      {trocaOleoVencida
+                        ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
+                        : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
+                      }
+                    </div>
+                    {odoDiscrepancy && (
+                      <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
+                        ⚠️ ATENÇÃO — Diferença de {(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km é muito grande.
+                        O odômetro do veículo no sistema pode estar incorreto (mostra {selectedVehicle.km_atual.toLocaleString("pt-BR")} km).
+                        Corrija em Veículos → Corrigir Odômetro.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

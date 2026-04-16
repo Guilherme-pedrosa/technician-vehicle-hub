@@ -30,10 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Truck, RefreshCw, Loader2, Gauge } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
+import { updateOdometro } from "@/services/rotaexata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
@@ -65,10 +66,37 @@ export default function Veiculos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<VehicleInsert>>(emptyForm);
 
+  // Odometer correction
+  const [odoDialogOpen, setOdoDialogOpen] = useState(false);
+  const [odoVehicle, setOdoVehicle] = useState<Vehicle | null>(null);
+  const [odoNewKm, setOdoNewKm] = useState("");
+
   // Rota Exata - positions
   const { data: posicoes } = useUltimaPosicaoTodos();
   const syncMutation = useSyncAllFromRotaExata();
 
+  const odoMutation = useMutation({
+    mutationFn: async ({ adesaoId, km, vehicleId }: { adesaoId: number; km: number; vehicleId: string }) => {
+      await updateOdometro({ adesao_id: adesaoId, odometro_adesao: km });
+      // Also update local DB
+      const { error } = await supabase.from("vehicles").update({ km_atual: km }).eq("id", vehicleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast.success("Odômetro corrigido no Rota Exata e no sistema!");
+      setOdoDialogOpen(false);
+      setOdoVehicle(null);
+      setOdoNewKm("");
+    },
+    onError: (err: Error) => toast.error(`Erro ao corrigir odômetro: ${err.message}`),
+  });
+
+  const openOdoDialog = (v: Vehicle) => {
+    setOdoVehicle(v);
+    setOdoNewKm("");
+    setOdoDialogOpen(true);
+  };
   const posicaoMap = new Map<string, RotaExataPosicao>();
   if (Array.isArray(posicoes)) {
     posicoes.forEach((p) => {
@@ -314,9 +342,16 @@ export default function Veiculos() {
                       </TableCell>
                       <TableCell className="text-right">
                         {isAdmin && (
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            {v.adesao_id && (
+                              <Button variant="ghost" size="icon" onClick={() => openOdoDialog(v)} title="Corrigir Odômetro">
+                                <Gauge className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -423,6 +458,61 @@ export default function Veiculos() {
             <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
             <Button onClick={handleSubmit} disabled={upsertMutation.isPending}>
               {upsertMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Odometer Correction Dialog */}
+      <Dialog open={odoDialogOpen} onOpenChange={setOdoDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gauge className="w-5 h-5" /> Corrigir Odômetro no Rota Exata
+            </DialogTitle>
+          </DialogHeader>
+          {odoVehicle && (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm"><span className="text-muted-foreground">Veículo:</span> <strong>{odoVehicle.placa}</strong> — {odoVehicle.marca} {odoVehicle.modelo}</p>
+                <p className="text-sm"><span className="text-muted-foreground">KM atual no sistema:</span> <strong className="tabular-nums">{odoVehicle.km_atual.toLocaleString("pt-BR")} km</strong></p>
+                <p className="text-sm"><span className="text-muted-foreground">Adesão ID:</span> <span className="font-mono text-xs">{odoVehicle.adesao_id}</span></p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Novo KM (odômetro real)</Label>
+                <Input
+                  type="number"
+                  value={odoNewKm}
+                  onChange={(e) => setOdoNewKm(e.target.value)}
+                  placeholder="Ex: 276822"
+                  className="tabular-nums"
+                />
+                {odoNewKm && Number(odoNewKm) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Diferença: <strong className="tabular-nums">{(Number(odoNewKm) - odoVehicle.km_atual).toLocaleString("pt-BR")} km</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOdoDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!odoVehicle?.adesao_id || !odoNewKm || Number(odoNewKm) <= 0) {
+                  toast.error("Informe um KM válido");
+                  return;
+                }
+                odoMutation.mutate({
+                  adesaoId: Number(odoVehicle.adesao_id),
+                  km: Number(odoNewKm),
+                  vehicleId: odoVehicle.id,
+                });
+              }}
+              disabled={odoMutation.isPending}
+            >
+              {odoMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Corrigindo...</> : "Corrigir Odômetro"}
             </Button>
           </DialogFooter>
         </DialogContent>
