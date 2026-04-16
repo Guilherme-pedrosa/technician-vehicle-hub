@@ -1,0 +1,1 @@
+SELECT COUNT(*) FILTER (WHERE raw_payload ? 'attachment_ocr') AS com_ocr_salvo, COUNT(*) AS total FROM public.auvo_expenses;
