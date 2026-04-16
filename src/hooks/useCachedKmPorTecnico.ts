@@ -71,7 +71,7 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
         velocidadeMaxima: g.velMax,
         placas: Array.from(g.placas),
       }))
-      .sort((a, b) => b.kmRodado - a.kmRodado);
+      .sort((a, b) => b.kmPorTelemetria - a.kmPorTelemetria);
   }, [query.data]);
 
   const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);
