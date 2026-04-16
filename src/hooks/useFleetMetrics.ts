@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type FleetMetricRow = {
   id: string;
