@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Critérios específicos por categoria
-const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean }> = {
+const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
   painel: {
     label: "Painel do veículo",
     criterio: "Deve mostrar o painel/dashboard do veículo com o hodômetro (KM) visível e legível. O painel deve ser de um veículo automotivo real.",
@@ -92,6 +92,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     label: "Interior do veículo",
     criterio: "A foto deve mostrar uma VISÃO AMPLA do interior do veículo, permitindo avaliar o estado de conservação. REQUISITOS MÍNIMOS: a foto deve ter um ENQUADRAMENTO ABERTO que mostre uma área significativa do interior — pelo menos 2 dos seguintes elementos devem ser CLARAMENTE visíveis e desobstruídos: bancos_dianteiros (assento + encosto expostos), bancos_traseiros, painel_console (volante/instrumentos/console central), forros_porta. REJEITE (target_match=false) se: (1) a foto mostra apenas UM elemento isolado (ex: só um banco de perto, só o forro de uma porta), (2) o ângulo é muito fechado/close-up sem contexto do interior, (3) a foto foi tirada de fora do carro olhando para dentro com ângulo muito estreito mostrando apenas uma faixa do interior, (4) objetos cobrem as superfícies (mochilas, bolsas, ferramentas — se algo está em cima do banco, o banco NÃO conta). ACEITE se: a foto mostra pelo menos 2 elementos com visão aberta suficiente para avaliar limpeza e conservação. Inclua 'detected_elements' no JSON com os elementos visíveis.",
     has_critical: false,
+    has_cleanliness_check: true,
   },
   danos: {
     label: "Dano/avaria",
@@ -149,7 +150,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { image_base64, category, vehicle_marca, vehicle_modelo } = await req.json();
+    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim } = await req.json();
 
     if (!image_base64 || !category) {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
@@ -242,7 +243,17 @@ Regras:
 - Para laterais: a foto DEVE permitir inspeção visual da lateral completa, de ponta a ponta. Não basta mostrar "boa parte" do carro: o paralama dianteiro, portas e paralama traseiro precisam estar visíveis o suficiente para análise de avarias.
 - REJEITE laterais em que qualquer extremidade importante ficou cortada, escondida, distante demais, escura demais ou em ângulo que impeça avaliar amassados/riscos — especialmente se não der para analisar o paralama dianteiro ou traseiro.
 - Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, ou sem enquadramento suficiente da lateral inteira devem ser rejeitadas, mesmo que ainda pareçam mostrar um carro lateralmente.
-
+${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
+VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
+O técnico afirmou que o veículo está LIMPO E ORGANIZADO. Verifique se a foto confirma isso.
+REJEITE a foto (valid=false, target_match=false) se o interior mostrar CLARAMENTE:
+- Lixo visível (embalagens, papéis, restos de comida, garrafas, copos)
+- Objetos jogados/espalhados pelo chão, bancos ou painel (roupas, ferramentas fora de lugar, sacolas, coletes jogados)
+- Sujeira excessiva nos bancos, painel ou assoalho
+- Desorganização evidente que contradiz a afirmação de "limpo e organizado"
+Na "reason", descreva especificamente o que foi encontrado que contradiz a limpeza (ex: "Lixo visível no assoalho, embalagem no banco, colete jogado no chão").
+Pequenas imperfeições cosméticas (poeira leve, desgaste natural) NÃO são motivo de rejeição.
+` : ''}
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
 Critério esperado: ${finalCriterio}`;

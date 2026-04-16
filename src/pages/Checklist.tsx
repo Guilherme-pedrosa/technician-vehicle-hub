@@ -221,7 +221,7 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string): Promise<ValidationResult> {
+async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string): Promise<ValidationResult> {
   try {
     const base64 = await fileToBase64(file);
     const { data: { session } } = await supabase.auth.getSession();
@@ -229,6 +229,16 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const body: Record<string, any> = {
+      image_base64: base64,
+      category,
+      vehicle_marca: vehicleMarca || null,
+      vehicle_modelo: vehicleModelo || null,
+    };
+    if (category === "interior" && limpezaClaim) {
+      body.limpeza_claim = limpezaClaim;
+    }
 
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-checklist-photo`,
@@ -239,12 +249,7 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          image_base64: base64,
-          category,
-          vehicle_marca: vehicleMarca || null,
-          vehicle_modelo: vehicleModelo || null,
-        }),
+        body: JSON.stringify(body),
       }
     );
 
@@ -408,7 +413,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: File[]) => Promise<File[]>;
@@ -418,6 +423,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   onValidationUpdate?: (cat: PhotoCategory, idx: number, validation: PhotoValidation) => void;
   vehicleMarca?: string;
   vehicleModelo?: string;
+  limpezaClaim?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
@@ -432,7 +438,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
     await Promise.all(preparedFiles.map(async (file, offset) => {
       const newIdx = photos.length + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
-      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo);
+      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim);
       onValidationUpdate(category, newIdx, {
         status: result.valid ? "valid" : "invalid",
         result,
@@ -977,7 +983,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
         </div>
       );
     }
@@ -991,7 +997,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Caminhe ao redor do veículo tirando as fotos:</p>
           {extPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           ))}
           {extFields.length > 0 && (
             <>
@@ -1055,7 +1061,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
           {capoPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           ))}
           {capoFields.length > 0 && (
             <>
@@ -1306,7 +1312,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
             {stepPhotos.map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
             ))}
             <Separator />
           </div>
@@ -1367,7 +1373,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
               value={answers["obs_danos_veiculo"] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
-            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           </div>
         )}
       </div>
