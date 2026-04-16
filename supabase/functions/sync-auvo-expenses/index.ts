@@ -548,11 +548,12 @@ Deno.serve(async (req) => {
       );
 
       // Limita OCRs por execução para caber no orçamento de CPU da edge function
-      const OCR_LIMIT = Number(body.ocrLimit ?? 30);
+      const OCR_LIMIT = Math.max(0, Math.min(Number(body.ocrLimit ?? 8), 20));
+      const OCR_CONCURRENCY = Math.max(1, Math.min(Number(body.ocrConcurrency ?? 2), 3));
       const toProcess = ocrPending.slice(0, OCR_LIMIT);
-      console.log(`[OCR] pending=${ocrPending.length} processing=${toProcess.length} (cached=${unmatchedForAttachment.length - ocrPending.length})`);
+      console.log(`[OCR] pending=${ocrPending.length} processing=${toProcess.length} concurrency=${OCR_CONCURRENCY} (cached=${unmatchedForAttachment.length - ocrPending.length})`);
 
-      const ocrResults = await mapWithConcurrency(toProcess, 3, async (row) => {
+      const ocrResults = await mapWithConcurrency(toProcess, OCR_CONCURRENCY, async (row) => {
         const attachment = row.expense.attachmentUrl!;
         const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY, knownPlates);
         if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null, byPlaca: false };
