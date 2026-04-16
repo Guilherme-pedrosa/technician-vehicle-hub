@@ -74,17 +74,22 @@ type ChecklistField = {
   critical?: boolean;
 };
 
+const NA_OPTION = { value: "na", label: "N/A", color: "secondary" };
+
 const CONFORME_NAO = [
   { value: "conforme", label: "CONFORME", color: "success" },
   { value: "nao_conforme", label: "NÃO CONFORME", color: "destructive" },
+  NA_OPTION,
 ];
 const SIM_NAO = [
   { value: "sim", label: "SIM", color: "success" },
   { value: "nao", label: "NÃO", color: "destructive" },
+  NA_OPTION,
 ];
 const NAO_SIM = [
   { value: "nao", label: "NÃO", color: "success" },
   { value: "sim", label: "SIM", color: "destructive" },
+  NA_OPTION,
 ];
 
 const CHECKLIST_FIELDS: ChecklistField[] = [
