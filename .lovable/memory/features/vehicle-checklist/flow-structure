@@ -1,6 +1,6 @@
 ---
 name: Checklist Flow Structure
-description: Ordem das etapas do checklist pré-operação, prioriza verificações com carro desligado antes de mover
+description: Ordem das etapas do checklist pré-operação, prioriza verificações com carro desligado/interno antes de mover
 type: feature
 ---
 O checklist segue um fluxo produtivo otimizado para evitar que o técnico precise ir e voltar:
@@ -8,10 +8,10 @@ O checklist segue um fluxo produtivo otimizado para evitar que o técnico precis
 1. **Identificação** — Seleção de veículo, condutor, tripulação, destino
 2. **Foto do Painel** — KM e indicadores (carro ligado apenas para ver painel)
 3. **Capô (carro desligado)** — Motor, nível de óleo, reservatório de água. Feito ANTES de mover o carro pois ligar o motor altera os níveis de fluidos
-4. **Pneus e Calibração** — 4 pneus + calibragem + estepe + itens de segurança
-5. **360° e Exterior** — Frente, traseira, laterais, faróis. Pode exigir mover o carro para foto completa
+4. **Calibração e Segurança** — Calibração dos pneus (feita internamente), estepe, itens de segurança (triângulo, macaco). Tudo feito com o carro parado no local
+5. **Exterior e Pneus** — Frente, traseira, laterais, faróis + fotos visuais dos 4 pneus. Pode exigir mover o carro para foto completa
 6. **Interior** — Bancos, painel, forros
 7. **Danos e Avarias** — Registro de danos encontrados, com foto e observação obrigatórios
 8. **Resultado Final** — Liberado, Liberado com observação, ou Bloqueado
 
-Razão da ordem: verificações de fluidos (óleo, água) devem ser feitas com o motor frio/desligado. Fotos laterais completas podem exigir reposicionar o veículo (ligar), então vêm depois.
+Razão da separação calibração/pneus: a calibração é feita com o carro parado no pátio/oficina (interno). As fotos dos pneus são visuais e podem ser tiradas junto com as fotos externas do veículo, quando ele já pode ser movimentado.
