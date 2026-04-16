@@ -252,7 +252,12 @@ function TicketDetailDialog({
             <DialogTitle className="text-lg leading-tight flex-1">
               {editing ? (
                 <Input value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="text-lg font-semibold" />
-              ) : ticket.titulo}
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-muted-foreground">#{(ticket as any).ticket_number ?? "?"}</span>
+                  {ticket.titulo}
+                </span>
+              )}
             </DialogTitle>
             <div className="flex gap-1 shrink-0">
               {!editing ? (
