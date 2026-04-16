@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Critérios específicos por categoria
-const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean }> = {
+const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
   painel: {
     label: "Painel do veículo",
     criterio: "Deve mostrar o painel/dashboard do veículo com o hodômetro (KM) visível e legível. O painel deve ser de um veículo automotivo real.",
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { image_base64, category, vehicle_marca, vehicle_modelo } = await req.json();
+    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim } = await req.json();
 
     if (!image_base64 || !category) {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
