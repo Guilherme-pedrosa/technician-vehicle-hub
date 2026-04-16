@@ -321,9 +321,14 @@ async function extractTextFromAttachment(
     const data = await aiRes.json();
     const content = data?.choices?.[0]?.message?.content ?? "";
     const parsed = parseJsonObject(content);
+    const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     return {
       text: String(parsed?.text ?? "").trim(),
       clues: Array.isArray(parsed?.clues) ? parsed.clues.map((item: unknown) => String(item)) : [],
+      placa: placaRaw && placaRaw.length === 7 ? placaRaw : null,
+      km: typeof parsed?.km === "number" ? parsed.km : null,
+      litros: typeof parsed?.litros === "number" ? parsed.litros : null,
+      valor: typeof parsed?.valor === "number" ? parsed.valor : null,
     };
   } catch (error) {
     console.warn("Attachment OCR error:", error instanceof Error ? error.message : String(error));
