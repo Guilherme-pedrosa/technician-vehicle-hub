@@ -48,9 +48,11 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     for (const row of rows) {
       const km = Number(row.km_percorrido) || 0;
       if (km <= 0 && !(Number((row as Record<string, unknown>).telemetrias) > 0)) continue;
-      const key = row.motorista_id ?? row.motorista_nome;
+      const isSemCondutor = !row.motorista_id || row.motorista_nome === "Sem condutor vinculado";
+      const key = isSemCondutor ? "sem-condutor" : (row.motorista_id ?? row.motorista_nome);
+      const nome = isSemCondutor ? "Sem condutor vinculado" : row.motorista_nome;
       if (!groups.has(key)) {
-        groups.set(key, { nome: row.motorista_nome, km: 0, telemetrias: 0, excessos: 0, velMax: 0, placas: new Set() });
+        groups.set(key, { nome, km: 0, telemetrias: 0, excessos: 0, velMax: 0, placas: new Set() });
       }
       const g = groups.get(key)!;
       g.km += km;
