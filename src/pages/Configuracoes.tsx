@@ -44,9 +44,9 @@ interface FieldConfig {
 }
 
 const OPTION_TYPE_LABELS: Record<string, string> = {
-  conforme_nao: "Conforme / Não Conforme",
-  sim_nao: "Sim / Não",
-  nao_sim: "Não / Sim (invertido)",
+  conforme_nao: "Conforme / Não Conforme / N/A",
+  sim_nao: "Sim / Não / N/A",
+  nao_sim: "Não / Sim (invertido) / N/A",
 };
 
 const STEP_LABELS: Record<number, string> = {
