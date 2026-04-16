@@ -342,9 +342,16 @@ export default function Veiculos() {
                       </TableCell>
                       <TableCell className="text-right">
                         {isAdmin && (
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            {v.adesao_id && (
+                              <Button variant="ghost" size="icon" onClick={() => openOdoDialog(v)} title="Corrigir Odômetro">
+                                <Gauge className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(v)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
