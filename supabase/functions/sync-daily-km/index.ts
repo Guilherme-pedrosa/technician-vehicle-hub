@@ -251,21 +251,25 @@ Deno.serve(async (req) => {
     let totalSynced = 0;
     let totalErrors = 0;
 
+    // Build list of all (vehicle, day) jobs and process in parallel batches
+    type Job = { vehicle: { adesao_id: string | null; placa: string }; day: string };
+    const jobs: Job[] = [];
     for (const vehicle of vehicles) {
-      for (const day of days) {
+      for (const day of days) jobs.push({ vehicle: vehicle as Job["vehicle"], day });
+    }
+
+    const CONCURRENCY = 6;
+    const processJob = async ({ vehicle, day }: Job) => {
         try {
-          // CALL 1: log_motorista — driving sessions per driver (with KM and time range)
-          const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
-
-          // CALL 2: resumo-dia — vehicle-level totals (used only for max speed)
-          const resumo = await fetchResumoDia(rotaToken, vehicle.adesao_id!, day);
-
-          // CALL 3: dirigibilidade — REAL telemetry events with timestamps (freadas/acelerações/curvas)
-          const eventos = await fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day);
+          // Run all 3 API calls in parallel for this vehicle/day
+          const [entries, resumo, eventos] = await Promise.all([
+            fetchLogMotorista(rotaToken, vehicle.adesao_id!, day),
+            fetchResumoDia(rotaToken, vehicle.adesao_id!, day),
+            fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day),
+          ]);
 
           if (entries.length === 0 && resumo.telemetrias === 0 && eventos.length === 0) {
-            await new Promise((r) => setTimeout(r, 150));
-            continue;
+            return;
           }
 
           if (eventos.length > 0) {
@@ -447,8 +451,6 @@ Deno.serve(async (req) => {
             if (!error) totalSynced++;
             else totalErrors++;
           }
-
-          await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
           console.warn(
             `[sync-daily-km] Failed: vehicle=${vehicle.adesao_id} day=${day}:`,
@@ -456,7 +458,12 @@ Deno.serve(async (req) => {
           );
           totalErrors++;
         }
-      }
+    };
+
+    // Process jobs in parallel batches to fit within edge function timeout
+    for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+      const batch = jobs.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(processJob));
     }
 
     return new Response(
