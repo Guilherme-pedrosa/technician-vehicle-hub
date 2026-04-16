@@ -414,11 +414,13 @@ export type Database = {
           created_by: string
           descricao: string | null
           driver_id: string | null
+          duplicate_of: string | null
           fotos: string[] | null
           id: string
           maintenance_plan_id: string | null
           prioridade: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
+          ticket_number: number
           tipo: Database["public"]["Enums"]["ticket_type"]
           titulo: string
           updated_at: string
@@ -430,11 +432,13 @@ export type Database = {
           created_by: string
           descricao?: string | null
           driver_id?: string | null
+          duplicate_of?: string | null
           fotos?: string[] | null
           id?: string
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
+          ticket_number?: number
           tipo?: Database["public"]["Enums"]["ticket_type"]
           titulo: string
           updated_at?: string
@@ -446,11 +450,13 @@ export type Database = {
           created_by?: string
           descricao?: string | null
           driver_id?: string | null
+          duplicate_of?: string | null
           fotos?: string[] | null
           id?: string
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
+          ticket_number?: number
           tipo?: Database["public"]["Enums"]["ticket_type"]
           titulo?: string
           updated_at?: string
@@ -462,6 +468,13 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "maintenance_tickets"
             referencedColumns: ["id"]
           },
           {

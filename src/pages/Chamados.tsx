@@ -18,7 +18,7 @@ import {
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle, Package,
   GripVertical, Car, User, CalendarDays, ChevronRight, Eye, Filter,
-  Pencil, Trash2, Save, X,
+  Pencil, Trash2, Save, X, Copy, Link,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -41,6 +41,8 @@ type TicketType = "preventiva" | "corretiva" | "nao_conformidade";
 type Ticket = Tables<"maintenance_tickets"> & {
   vehicles?: { placa: string; modelo: string } | null;
   drivers?: { full_name: string } | null;
+  ticket_number?: number;
+  duplicate_of?: string | null;
 };
 
 const COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
@@ -71,10 +73,12 @@ function TicketCard({
   ticket,
   onDragStart,
   onClick,
+  isDuplicate,
 }: {
   ticket: Ticket;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: () => void;
+  isDuplicate?: boolean;
 }) {
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
@@ -84,10 +88,13 @@ function TicketCard({
       draggable
       onDragStart={(e) => onDragStart(e, ticket.id)}
       onClick={onClick}
-      className="group bg-white rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2"
+      className={`group bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2 ${isDuplicate ? "border-muted-foreground/30 opacity-75" : "border-border"}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-xs font-mono text-muted-foreground shrink-0">#{(ticket as any).ticket_number ?? "?"}</span>
+          <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+        </div>
         <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
       </div>
 
@@ -181,8 +188,11 @@ function TicketDetailDialog({
   onUpdate,
   onDelete,
   onConcluirPreventiva,
+  onMarkDuplicate,
+  onRemoveDuplicate,
   vehicles,
   drivers,
+  allTickets,
 }: {
   ticket: Ticket | null;
   open: boolean;
@@ -191,8 +201,11 @@ function TicketDetailDialog({
   onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
   onConcluirPreventiva: (ticket: Ticket) => void;
+  onMarkDuplicate: (ticketId: string, duplicateOfNumber: number) => void;
+  onRemoveDuplicate: (ticketId: string) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
+  allTickets: Ticket[];
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
@@ -201,6 +214,7 @@ function TicketDetailDialog({
   const [editPrioridade, setEditPrioridade] = useState("");
   const [editVehicleId, setEditVehicleId] = useState("");
   const [editDriverId, setEditDriverId] = useState("");
+  const [dupInput, setDupInput] = useState("");
 
   useEffect(() => {
     if (ticket && open) {
@@ -238,7 +252,12 @@ function TicketDetailDialog({
             <DialogTitle className="text-lg leading-tight flex-1">
               {editing ? (
                 <Input value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} className="text-lg font-semibold" />
-              ) : ticket.titulo}
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-muted-foreground">#{(ticket as any).ticket_number ?? "?"}</span>
+                  {ticket.titulo}
+                </span>
+              )}
             </DialogTitle>
             <div className="flex gap-1 shrink-0">
               {!editing ? (
@@ -316,6 +335,46 @@ function TicketDetailDialog({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
+                {/* Duplicate section */}
+                {(ticket as any).duplicate_of ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 gap-1">
+                      <Copy className="w-3 h-3" /> Duplicado de #{allTickets.find(t => t.id === (ticket as any).duplicate_of)?.ticket_number ?? "?"}
+                    </Badge>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { onRemoveDuplicate(ticket.id); onOpenChange(false); }}>
+                      Desfazer
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="Nº do chamado original"
+                      value={dupInput}
+                      onChange={(e) => setDupInput(e.target.value)}
+                      className="h-8 w-[180px] text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1"
+                      disabled={!dupInput.trim()}
+                      onClick={() => {
+                        const num = parseInt(dupInput);
+                        if (isNaN(num)) { toast.error("Número inválido"); return; }
+                        const target = allTickets.find(t => (t as any).ticket_number === num);
+                        if (!target) { toast.error(`Chamado #${num} não encontrado`); return; }
+                        if (target.id === ticket.id) { toast.error("Não pode duplicar consigo mesmo"); return; }
+                        onMarkDuplicate(ticket.id, num);
+                        setDupInput("");
+                        onOpenChange(false);
+                      }}
+                    >
+                      <Copy className="w-3 h-3" /> Marcar Duplicado
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <Separator />
@@ -566,7 +625,7 @@ export default function Chamados() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("maintenance_tickets")
-        .select("*, vehicles(placa, modelo), drivers(full_name), maintenance_plan_id")
+        .select("*, vehicles(placa, modelo), drivers(full_name), maintenance_plan_id, ticket_number, duplicate_of")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Ticket[];
@@ -669,6 +728,34 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
+  // Mark as duplicate
+  const markDuplicate = useMutation({
+    mutationFn: async ({ ticketId, duplicateOfNumber }: { ticketId: string; duplicateOfNumber: number }) => {
+      const target = tickets.find(t => (t as any).ticket_number === duplicateOfNumber);
+      if (!target) throw new Error(`Chamado #${duplicateOfNumber} não encontrado`);
+      const { error } = await supabase.from("maintenance_tickets").update({ duplicate_of: target.id } as any).eq("id", ticketId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado marcado como duplicado!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
+  // Remove duplicate mark
+  const removeDuplicate = useMutation({
+    mutationFn: async (ticketId: string) => {
+      const { error } = await supabase.from("maintenance_tickets").update({ duplicate_of: null } as any).eq("id", ticketId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Duplicação removida!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
   // Filter tickets
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
@@ -686,14 +773,18 @@ export default function Chamados() {
     });
   }, [tickets, filterPriority, filterType, search]);
 
-  // Group by status
+  // Split duplicates from main tickets
+  const duplicates = useMemo(() => filtered.filter(t => (t as any).duplicate_of), [filtered]);
+  const nonDuplicates = useMemo(() => filtered.filter(t => !(t as any).duplicate_of), [filtered]);
+
+  // Group by status (only non-duplicates)
   const grouped = useMemo(() => {
     const map: Record<TicketStatus, Ticket[]> = { aberto: [], em_andamento: [], aguardando_peca: [], concluido: [] };
-    filtered.forEach((t) => {
+    nonDuplicates.forEach((t) => {
       if (map[t.status as TicketStatus]) map[t.status as TicketStatus].push(t);
     });
     return map;
-  }, [filtered]);
+  }, [nonDuplicates]);
 
   // Drag & drop
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
@@ -831,6 +922,42 @@ export default function Chamados() {
         </div>
       )}
 
+      {/* Duplicados */}
+      {duplicates.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-purple-700">
+              <Copy className="w-4 h-4" /> Duplicados
+              <Badge variant="secondary" className="ml-auto text-xs h-5 min-w-[24px] justify-center">
+                {duplicates.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {duplicates.map((t) => {
+                const originalTicket = tickets.find(ot => ot.id === (t as any).duplicate_of);
+                return (
+                  <div key={t.id} className="relative">
+                    <TicketCard
+                      ticket={t}
+                      onDragStart={handleDragStart}
+                      onClick={() => { setSelectedTicket(t); setDetailOpen(true); }}
+                      isDuplicate
+                    />
+                    {originalTicket && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-purple-600 font-medium pl-1">
+                        <Link className="w-3 h-3" /> Duplicado de #{(originalTicket as any).ticket_number}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Dialogs */}
       <NewTicketDialog
         open={newOpen}
@@ -847,8 +974,11 @@ export default function Chamados() {
         onUpdate={(id, data) => updateTicket.mutate({ id, data })}
         onDelete={(id) => deleteTicket.mutate(id)}
         onConcluirPreventiva={(t) => { setDetailOpen(false); setConcluirTicket(t); }}
+        onMarkDuplicate={(ticketId, num) => markDuplicate.mutate({ ticketId, duplicateOfNumber: num })}
+        onRemoveDuplicate={(ticketId) => removeDuplicate.mutate(ticketId)}
         vehicles={vehicles}
         drivers={drivers}
+        allTickets={tickets}
       />
       {concluirTicket && (
         <ConcluirPreventivaDialog
