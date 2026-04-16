@@ -442,26 +442,48 @@ Deno.serve(async (req) => {
       .filter((row) => !row.vehicle_id && row.expense.attachmentUrl && looksLikeVehicleExpense(row.expense));
 
     if (LOVABLE_API_KEY && unmatchedForAttachment.length) {
+      // Mapa placa->vehicle_id para match direto
+      const placaToVehicle = new Map<string, string>();
+      for (const v of (vehicles ?? []) as Vehicle[]) {
+        const p = normalizeCompact(v.placa);
+        if (p && !EXCLUDED_PLATES.has(p)) placaToVehicle.set(p, v.id);
+      }
+
       const ocrResults = await mapWithConcurrency(unmatchedForAttachment, 3, async (row) => {
         const attachment = row.expense.attachmentUrl!;
         const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY);
-        if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null };
+        if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null, byPlaca: false };
 
-        const combinedText = [ocr.text, ...ocr.clues].filter(Boolean).join(" ");
+        // 1) Tenta match direto pela placa extraída
+        if (ocr.placa && placaToVehicle.has(ocr.placa)) {
+          return {
+            rowIndex: row.rowIndex,
+            ocr,
+            parsed: { vehicle_id: placaToVehicle.get(ocr.placa)!, keyword: ocr.placa, source: null, matched_by: "plate" as const },
+            byPlaca: true,
+          };
+        }
+
+        // 2) Fallback: keyword search no texto + clues
+        const combinedText = [ocr.text, ...ocr.clues, ocr.placa ?? ""].filter(Boolean).join(" ");
         const parsed = parseVehicleFromText(combinedText, index);
-        return { rowIndex: row.rowIndex, ocr, parsed };
+        return { rowIndex: row.rowIndex, ocr, parsed, byPlaca: false };
       });
 
       for (const result of ocrResults) {
-        if (!result?.ocr || !result.parsed?.vehicle_id) continue;
+        if (!result?.ocr) continue;
         const row = baseRows[result.rowIndex];
-        row.vehicle_id = result.parsed.vehicle_id;
-        row.parsed_keyword = result.parsed.keyword;
-        row.parse_status = `matched_attachment_${result.parsed.matched_by}`;
+        // Sempre salva o OCR no payload, mesmo se não bateu (auditoria)
         row.raw_payload = {
           ...(row.raw_payload ?? {}),
           attachment_ocr: result.ocr,
         };
+        if (!result.parsed?.vehicle_id) continue;
+        row.vehicle_id = result.parsed.vehicle_id;
+        row.parsed_keyword = result.parsed.keyword;
+        row.parse_status = result.byPlaca
+          ? "matched_attachment_ocr_plate"
+          : `matched_attachment_${result.parsed.matched_by}`;
       }
     }
 
