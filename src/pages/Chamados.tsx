@@ -922,6 +922,42 @@ export default function Chamados() {
         </div>
       )}
 
+      {/* Duplicados */}
+      {duplicates.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-purple-700">
+              <Copy className="w-4 h-4" /> Duplicados
+              <Badge variant="secondary" className="ml-auto text-xs h-5 min-w-[24px] justify-center">
+                {duplicates.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {duplicates.map((t) => {
+                const originalTicket = tickets.find(ot => ot.id === (t as any).duplicate_of);
+                return (
+                  <div key={t.id} className="relative">
+                    <TicketCard
+                      ticket={t}
+                      onDragStart={handleDragStart}
+                      onClick={() => { setSelectedTicket(t); setDetailOpen(true); }}
+                      isDuplicate
+                    />
+                    {originalTicket && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-purple-600 font-medium pl-1">
+                        <Link className="w-3 h-3" /> Duplicado de #{(originalTicket as any).ticket_number}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Dialogs */}
       <NewTicketDialog
         open={newOpen}
