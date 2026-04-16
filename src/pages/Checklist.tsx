@@ -1062,15 +1062,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   value={kmProximaTroca} onChange={(e) => setKmProximaTroca(e.target.value)}
                   className="h-12 text-base" />
                 {selectedVehicle && kmProximaTroca && (
-                  <div className={`rounded-lg p-2 text-xs font-medium ${
-                    trocaOleoVencida
-                      ? "bg-destructive/10 text-destructive border border-destructive/30"
-                      : "bg-success/10 text-success border border-success/30"
-                  }`}>
-                    {trocaOleoVencida
-                      ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
-                      : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
-                    }
+                  <div className="space-y-2">
+                    <div className={`rounded-lg p-2 text-xs font-medium ${
+                      trocaOleoVencida
+                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : "bg-success/10 text-success border border-success/30"
+                    }`}>
+                      {trocaOleoVencida
+                        ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
+                        : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
+                      }
+                    </div>
+                    {odoDiscrepancy && (
+                      <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
+                        ⚠️ ATENÇÃO — Diferença de {(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km é muito grande.
+                        O odômetro do veículo no sistema pode estar incorreto (mostra {selectedVehicle.km_atual.toLocaleString("pt-BR")} km).
+                        Corrija em Veículos → Corrigir Odômetro.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
