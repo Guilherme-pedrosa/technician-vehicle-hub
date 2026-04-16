@@ -291,9 +291,29 @@ function inferMimeFromUrl(url: string): string | null {
   return null;
 }
 
+function extractKnownPlateFromHints(
+  hints: Array<string | null | undefined>,
+  knownPlates: string[],
+): string | null {
+  if (!knownPlates.length) return null;
+
+  const normalizedHints = hints
+    .map((hint) => normalizeCompact(hint))
+    .filter(Boolean);
+
+  for (const plate of knownPlates) {
+    if (normalizedHints.some((hint) => hint.includes(plate))) {
+      return plate;
+    }
+  }
+
+  return null;
+}
+
 async function extractTextFromAttachment(
   imageUrl: string,
   lovableApiKey: string,
+  knownPlates: string[] = [],
 ): Promise<AttachmentOcr | null> {
   try {
     const imageRes = await fetch(imageUrl);
@@ -306,15 +326,15 @@ async function extractTextFromAttachment(
     const buffer = await imageRes.arrayBuffer();
     const bytes = new Uint8Array(buffer);
 
-    // Auvo S3 entrega muitas vezes como "binary/octet-stream" — Gemini rejeita.
-    // Detectamos o tipo real por magic bytes (fallback) e por extensão da URL.
     let contentType = headerType.startsWith("image/") ? headerType : (inferMimeFromUrl(imageUrl) ?? inferMimeFromBytes(bytes));
     if (contentType === "image/heic" || contentType === "image/heif") {
-      // Gemini não aceita HEIC; força jpeg (alguns devices entregam .heic mas bytes JPEG)
       contentType = inferMimeFromBytes(bytes, "image/jpeg");
     }
 
     const imageBase64 = toBase64(buffer);
+    const knownPlatesPrompt = knownPlates.length
+      ? `Placas válidas da frota WeDo para conferir visualmente: ${knownPlates.join(", ")}. Se enxergar exatamente uma delas na imagem, retorne essa placa.`
+      : "";
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -330,7 +350,7 @@ async function extractTextFromAttachment(
           {
             role: "system",
             content:
-              'Você analisa comprovantes de abastecimento/deslocamento brasileiros (cupom fiscal, NFC-e, ticket TicketLog, recibos manuais).\n\nSua única tarefa: extrair literalmente o que está IMPRESSO ou ESCRITO na imagem. NUNCA invente, NUNCA deduza.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456 (número inteiro do hodômetro/odômetro, null se ausente),"litros":12.34 (número decimal, null se ausente),"valor":123.45 (valor total, null se ausente),"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas adicionais úteis para identificar veículo: modelo, apelido, prefixo"]}\n\nRegras:\n- Placa BR tem 7 caracteres: 3 letras + 4 caracteres (Mercosul tem letra na 5ª posição). Procure perto de "PLACA", "VEICULO", em ticket TicketLog geralmente aparece sozinha em uma linha.\n- KM/Hodômetro: número grande perto de "KM", "ODOMETRO", "HODOMETRO".\n- Se houver dois comprovantes na mesma imagem, priorize a placa que aparecer no ticket de combustível/TicketLog.\n- Se a placa estiver ilegível ou ausente, retorne string vazia "".\n- NUNCA chute uma placa parecida.',
+              'Você analisa comprovantes de abastecimento/deslocamento brasileiros (cupom fiscal, NFC-e, ticket TicketLog, recibos manuais).\n\nSua única tarefa: extrair literalmente o que está IMPRESSO ou ESCRITO na imagem. NUNCA invente, NUNCA deduza.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456 (número inteiro do hodômetro/odômetro, null se ausente),"litros":12.34 (número decimal, null se ausente),"valor":123.45 (valor total, null se ausente),"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas adicionais úteis para identificar veículo: modelo, apelido, prefixo"]}\n\nRegras:\n- Placa BR tem 7 caracteres: 3 letras + 4 caracteres (Mercosul tem letra na 5ª posição). Procure perto de "PLACA", "VEICULO", em ticket TicketLog geralmente aparece sozinha em uma linha.\n- KM/Hodômetro: número grande perto de "KM", "ODOMETRO", "HODOMETRO".\n- Se houver dois comprovantes na mesma imagem, priorize a placa que aparecer no ticket de combustível/TicketLog.\n- Se a placa estiver ilegível ou ausente, retorne string vazia "".\n- Se uma placa exata da frota aparecer em qualquer parte do comprovante, retorne essa placa no campo "placa".\n- NUNCA chute uma placa parecida.',
           },
           {
             role: "user",
@@ -344,7 +364,7 @@ async function extractTextFromAttachment(
               },
               {
                 type: "text",
-                text: "Extraia placa, KM do hodômetro, litros, valor e quaisquer pistas do veículo visíveis no(s) comprovante(s) desta imagem.",
+                text: `Extraia placa, KM do hodômetro, litros, valor e quaisquer pistas do veículo visíveis no(s) comprovante(s) desta imagem. ${knownPlatesPrompt}`.trim(),
               },
             ],
           },
@@ -367,11 +387,18 @@ async function extractTextFromAttachment(
       console.warn(`[OCR] parse error url=${imageUrl} content=${content.slice(0, 200)}`);
       return { text: content.slice(0, 300), clues: [], placa: null, km: null, litros: null, valor: null, error: `parse: ${e instanceof Error ? e.message : String(e)}` } as AttachmentOcr;
     }
+
+    const clues = Array.isArray(parsed?.clues) ? (parsed.clues as unknown[]).map((item) => String(item)) : [];
     const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const knownPlate = extractKnownPlateFromHints(
+      [placaRaw, String(parsed?.text ?? ""), ...clues],
+      knownPlates,
+    );
+
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
-      clues: Array.isArray(parsed?.clues) ? (parsed.clues as unknown[]).map((item) => String(item)) : [],
-      placa: placaRaw && placaRaw.length === 7 ? placaRaw : null,
+      clues,
+      placa: knownPlate ?? (placaRaw && placaRaw.length === 7 ? placaRaw : null),
       km: typeof parsed?.km === "number" ? (parsed.km as number) : null,
       litros: typeof parsed?.litros === "number" ? (parsed.litros as number) : null,
       valor: typeof parsed?.valor === "number" ? (parsed.valor as number) : null,
