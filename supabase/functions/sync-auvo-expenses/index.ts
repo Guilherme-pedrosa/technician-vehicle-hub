@@ -525,9 +525,10 @@ Deno.serve(async (req) => {
         if (p && !EXCLUDED_PLATES.has(p)) placaToVehicle.set(p, v.id);
       }
 
+      const knownPlates = Array.from(placaToVehicle.keys());
       const ocrResults = await mapWithConcurrency(unmatchedForAttachment, 3, async (row) => {
         const attachment = row.expense.attachmentUrl!;
-        const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY);
+        const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY, knownPlates);
         if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null, byPlaca: false };
 
         // 1) Tenta match direto pela placa extraída
