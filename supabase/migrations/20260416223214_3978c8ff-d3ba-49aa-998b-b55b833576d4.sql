@@ -1,0 +1,1 @@
+DELETE FROM public.auvo_expenses WHERE type_name IS DISTINCT FROM 'Deslocamento';
