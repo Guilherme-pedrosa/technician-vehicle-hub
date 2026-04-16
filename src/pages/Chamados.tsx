@@ -973,6 +973,7 @@ export default function Chamados() {
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
+              deadlinesByTicket={deadlinesByTicket}
             />
           ))}
         </div>
