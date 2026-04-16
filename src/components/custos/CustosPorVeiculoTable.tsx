@@ -76,7 +76,7 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                   <TrendingUp className="h-5 w-5 text-rose-600 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Quem gastou mais</p>
-                    <p className="text-sm font-bold text-foreground truncate">{maiorGasto.placa}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{maiorGasto.modelo || maiorGasto.placa}</p>
                     <p className="text-base font-bold text-rose-700 dark:text-rose-400">
                       {formatCurrency(maiorGasto.custoTotal)}
                     </p>
@@ -92,7 +92,7 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                   <TrendingDown className="h-5 w-5 text-emerald-600 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Quem gastou menos</p>
-                    <p className="text-sm font-bold text-foreground truncate">{menorGasto.placa}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{menorGasto.modelo || menorGasto.placa}</p>
                     <p className="text-base font-bold text-emerald-700 dark:text-emerald-400">
                       {formatCurrency(menorGasto.custoTotal)}
                     </p>
@@ -108,7 +108,7 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                   <TrendingUp className="h-5 w-5 text-amber-600 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Pior custo por KM</p>
-                    <p className="text-sm font-bold text-foreground truncate">{piorEficiencia.placa}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{piorEficiencia.modelo || piorEficiencia.placa}</p>
                     <p className="text-base font-bold text-amber-700 dark:text-amber-400">
                       R$ {formatNumber(piorEficiencia.custoPorKm, 2)}/km
                     </p>
@@ -124,7 +124,7 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                   <TrendingDown className="h-5 w-5 text-sky-600 mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Melhor custo por KM</p>
-                    <p className="text-sm font-bold text-foreground truncate">{melhorEficiencia.placa}</p>
+                    <p className="text-sm font-bold text-foreground truncate">{melhorEficiencia.modelo || melhorEficiencia.placa}</p>
                     <p className="text-base font-bold text-sky-700 dark:text-sky-400">
                       R$ {formatNumber(melhorEficiencia.custoPorKm, 2)}/km
                     </p>
