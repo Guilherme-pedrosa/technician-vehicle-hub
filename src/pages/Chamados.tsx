@@ -632,6 +632,27 @@ export default function Chamados() {
     },
   });
 
+  // Fetch earliest pending deadline per ticket
+  const { data: deadlinesByTicket = {} } = useQuery({
+    queryKey: ["ticket-actions-deadlines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ticket_actions")
+        .select("ticket_id, prazo, concluida")
+        .eq("concluida", false)
+        .not("prazo", "is", null);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of (data ?? []) as any[]) {
+        if (!row.prazo) continue;
+        if (!map[row.ticket_id] || row.prazo < map[row.ticket_id]) {
+          map[row.ticket_id] = row.prazo;
+        }
+      }
+      return map;
+    },
+  });
+
   // Fetch vehicles & drivers for new ticket form
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
