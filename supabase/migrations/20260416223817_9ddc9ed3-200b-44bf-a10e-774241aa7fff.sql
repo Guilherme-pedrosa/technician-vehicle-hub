@@ -1,0 +1,1 @@
+SELECT COUNT(*) AS sem_placa FROM public.auvo_expenses WHERE vehicle_id IS NULL;
