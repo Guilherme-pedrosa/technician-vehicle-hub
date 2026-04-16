@@ -282,12 +282,12 @@ async function extractTextFromAttachment(
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         temperature: 0,
-        max_tokens: 250,
+        max_tokens: 400,
         messages: [
           {
             role: "system",
             content:
-              'Você analisa comprovantes de despesas e extrai somente pistas visíveis para identificar o veículo. Responda APENAS em JSON válido no formato {"text":"...","clues":["..."]}. Inclua em text a transcrição resumida do que estiver legível. Em clues, liste somente referências explícitas a placa, modelo, apelido do carro, prefixo ou identificação do veículo visível na imagem. Não invente nem deduza.',
+              'Você analisa comprovantes de abastecimento/deslocamento brasileiros (cupom fiscal, NFC-e, ticket TicketLog, recibos manuais).\n\nSua única tarefa: extrair literalmente o que está IMPRESSO ou ESCRITO na imagem. NUNCA invente, NUNCA deduza.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456 (número inteiro do hodômetro/odômetro, null se ausente),"litros":12.34 (número decimal, null se ausente),"valor":123.45 (valor total, null se ausente),"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas adicionais úteis para identificar veículo: modelo, apelido, prefixo"]}\n\nRegras:\n- Placa BR tem 7 caracteres: 3 letras + 4 caracteres (Mercosul tem letra na 5ª posição). Procure perto de "PLACA", "VEICULO", em ticket TicketLog geralmente aparece sozinha em uma linha.\n- KM/Hodômetro: número grande perto de "KM", "ODOMETRO", "HODOMETRO".\n- Se houver dois comprovantes na mesma imagem, priorize a placa que aparecer no ticket de combustível/TicketLog.\n- Se a placa estiver ilegível ou ausente, retorne string vazia "".\n- NUNCA chute uma placa parecida.',
           },
           {
             role: "user",
@@ -301,7 +301,7 @@ async function extractTextFromAttachment(
               },
               {
                 type: "text",
-                text: "Extraia apenas as pistas que aparecem no comprovante e possam ajudar a identificar o veículo.",
+                text: "Extraia placa, KM do hodômetro, litros, valor e quaisquer pistas do veículo visíveis no(s) comprovante(s) desta imagem.",
               },
             ],
           },
