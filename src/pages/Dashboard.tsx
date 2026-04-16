@@ -434,6 +434,69 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* === MÉTRICAS DE COMBUSTÍVEL === */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Combustível</CardTitle>
+            <DollarSign className="w-4 sm:w-5 h-4 sm:h-5 text-warning" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtCurrency(fuel?.custoTotal ?? 0)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              {fuel?.registros ?? 0} abastecimentos no período
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Litros</CardTitle>
+            <Droplet className="w-4 sm:w-5 h-4 sm:h-5 text-info" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtNumber(fuel?.litrosTotal ?? 0, 1)} L
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Total abastecido
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">R$/km</CardTitle>
+            <TrendingUp className="w-4 sm:w-5 h-4 sm:h-5 text-destructive" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtCurrency(fuel?.custoPorKm ?? 0)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Custo por quilômetro rodado
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Km/L</CardTitle>
+            <Fuel className="w-4 sm:w-5 h-4 sm:h-5 text-success" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtNumber(fuel?.kmPorLitro ?? 0, 2)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Autonomia média da frota
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* === TABELA POR TÉCNICO === */}
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
