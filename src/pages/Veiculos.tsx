@@ -75,6 +75,28 @@ export default function Veiculos() {
   const { data: posicoes } = useUltimaPosicaoTodos();
   const syncMutation = useSyncAllFromRotaExata();
 
+  const odoMutation = useMutation({
+    mutationFn: async ({ adesaoId, km, vehicleId }: { adesaoId: number; km: number; vehicleId: string }) => {
+      await updateOdometro({ adesao_id: adesaoId, odometro_adesao: km });
+      // Also update local DB
+      const { error } = await supabase.from("vehicles").update({ km_atual: km }).eq("id", vehicleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      toast.success("Odômetro corrigido no Rota Exata e no sistema!");
+      setOdoDialogOpen(false);
+      setOdoVehicle(null);
+      setOdoNewKm("");
+    },
+    onError: (err: Error) => toast.error(`Erro ao corrigir odômetro: ${err.message}`),
+  });
+
+  const openOdoDialog = (v: Vehicle) => {
+    setOdoVehicle(v);
+    setOdoNewKm("");
+    setOdoDialogOpen(true);
+  };
   const posicaoMap = new Map<string, RotaExataPosicao>();
   if (Array.isArray(posicoes)) {
     posicoes.forEach((p) => {
