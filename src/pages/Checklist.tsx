@@ -1010,6 +1010,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         success: isSelected ? "bg-success text-success-foreground border-success" : "border-success/40 text-success hover:bg-success/10",
                         destructive: isSelected ? "bg-destructive text-destructive-foreground border-destructive" : "border-destructive/40 text-destructive hover:bg-destructive/10",
                         warning: isSelected ? "bg-warning text-warning-foreground border-warning" : "border-warning/40 text-warning hover:bg-warning/10",
+                        secondary: isSelected ? "bg-muted text-muted-foreground border-muted-foreground/50" : "border-muted-foreground/30 text-muted-foreground hover:bg-muted/50",
                       };
                       return (
                         <button key={opt.value} type="button"
