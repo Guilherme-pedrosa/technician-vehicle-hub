@@ -804,6 +804,19 @@ export default function ChecklistDetail() {
                           <p className="text-xs text-muted-foreground italic">📝 {obsValue}</p>
                         </div>
                       )}
+                      {/* Photos for non-conforme items (exc_ photos) */}
+                      {nc && fotosData[`exc_${f.key}`] && (fotosData[`exc_${f.key}`] as string[]).length > 0 && (
+                        <div className="ml-4 pl-3 border-l-2 border-destructive/30 mt-1 mb-1">
+                          <div className="flex gap-2 flex-wrap">
+                            {(fotosData[`exc_${f.key}`] as string[]).map((url: string, i: number) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                                className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 border-destructive/30 block hover:ring-2 hover:ring-primary transition-all">
+                                <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
