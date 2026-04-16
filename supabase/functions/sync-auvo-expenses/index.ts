@@ -402,7 +402,10 @@ Deno.serve(async (req) => {
       const { items, totalItems: total } = await fetchExpensesPage(token, page, pageSize, startDate, endDate);
       totalItems = total;
       if (!items.length) break;
-      all.push(...items);
+      const deslocamento = items.filter(
+        (it) => normalizeText(it.typeName).includes("DESLOCAMENTO"),
+      );
+      all.push(...deslocamento);
       if (items.length < pageSize) break;
       page += 1;
       if (page > 200) break;
