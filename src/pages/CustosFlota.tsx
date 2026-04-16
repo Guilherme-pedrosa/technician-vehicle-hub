@@ -261,7 +261,10 @@ export default function CustosFlota() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Per-vehicle breakdown: ranking + detalhamento */}
+      <CustosPorVeiculoTable rows={porVeiculo} isLoading={isLoading || loadingPorVeiculo} />
+
+      {/* Tabela bruta de lançamentos */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
