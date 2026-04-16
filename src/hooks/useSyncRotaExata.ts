@@ -132,18 +132,29 @@ async function syncDrivers() {
     }))
     .filter((d) => d.full_name.trim().length > 0);
 
-  if (driversToSync.length === 0) return { created: 0, updated: 0 };
+  if (driversToSync.length === 0) return { created: 0, updated: 0, deactivated: 0, reactivated: 0 };
 
-  const { data: existing } = await supabase.from("drivers").select("id, full_name, phone");
+  const { data: existing } = await supabase.from("drivers").select("id, full_name, phone, status");
   const existingByName = new Map((existing ?? []).map((d) => [d.full_name.toLowerCase().trim(), d]));
 
-  let created = 0, updated = 0;
+  // Track which existing drivers are present in the API response
+  const apiNamesSet = new Set(driversToSync.map((d) => d.full_name.toLowerCase().trim()));
+
+  let created = 0, updated = 0, deactivated = 0, reactivated = 0;
+
   for (const driver of driversToSync) {
     const normalizedName = driver.full_name.toLowerCase().trim();
     const match = existingByName.get(normalizedName);
     if (match) {
-      if (driver.phone && !match.phone) {
-        await supabase.from("drivers").update({ phone: driver.phone }).eq("id", match.id);
+      const updates: { phone?: string | null; status?: "ativo" | "inativo" } = {};
+      if (driver.phone && !match.phone) updates.phone = driver.phone;
+      // Reactivate driver who came back to RotaExata
+      if (match.status === "inativo") {
+        updates.status = "ativo";
+        reactivated++;
+      }
+      if (Object.keys(updates).length > 0) {
+        await supabase.from("drivers").update(updates).eq("id", match.id);
       }
       updated++;
     } else {
@@ -157,11 +168,25 @@ async function syncDrivers() {
       });
       if (!error) {
         created++;
-        existingByName.set(normalizedName, { id: "", full_name: driver.full_name, phone: driver.phone });
+        existingByName.set(normalizedName, { id: "", full_name: driver.full_name, phone: driver.phone, status: "ativo" });
       }
     }
   }
-  return { created, updated };
+
+  // Deactivate drivers that are active in our DB but missing from RotaExata API
+  const toDeactivate = (existing ?? []).filter(
+    (d) => d.status === "ativo" && !apiNamesSet.has(d.full_name.toLowerCase().trim())
+  );
+  if (toDeactivate.length > 0) {
+    const ids = toDeactivate.map((d) => d.id);
+    const { error } = await supabase
+      .from("drivers")
+      .update({ status: "inativo" as const })
+      .in("id", ids);
+    if (!error) deactivated = toDeactivate.length;
+  }
+
+  return { created, updated, deactivated, reactivated };
 }
 
 // ========== SYNC ASSIGNMENTS + KM (reuses positions data) ==========
