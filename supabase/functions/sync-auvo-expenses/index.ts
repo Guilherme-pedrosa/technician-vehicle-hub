@@ -457,9 +457,8 @@ async function extractTextFromAttachment(
       knownPlates,
     );
 
-    if (!knownPlate && knownPlates.length) {
-      knownPlate = await detectKnownPlateFromImage(imageBase64, contentType, lovableApiKey, knownPlates);
-    }
+    // 2ª chamada Gemini removida (custo de CPU dobrava sem ganho — a 1ª já recebe a lista de placas)
+
 
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
@@ -592,7 +591,30 @@ Deno.serve(async (req) => {
       }
 
       const knownPlates = Array.from(placaToVehicle.keys());
-      const ocrResults = await mapWithConcurrency(unmatchedForAttachment, 3, async (row) => {
+
+      // Pula despesas que já foram processadas por OCR antes (cache via parse_status)
+      const auvoIds = unmatchedForAttachment.map((r) => r.expense.id);
+      const { data: existingRows } = await supabase
+        .from("auvo_expenses")
+        .select("auvo_id, parse_status")
+        .in("auvo_id", auvoIds);
+      const alreadyOcrTried = new Set(
+        (existingRows ?? [])
+          .filter((r: any) => r.parse_status && r.parse_status !== "unmatched")
+          .map((r: any) => r.auvo_id),
+      );
+      // Também pula os que já estão como "ocr_no_match" (tentamos antes e Gemini não achou)
+      const ocrPending = unmatchedForAttachment.filter(
+        (r) => !alreadyOcrTried.has(r.expense.id) &&
+          !(existingRows ?? []).some((er: any) => er.auvo_id === r.expense.id && er.parse_status === "ocr_no_match"),
+      );
+
+      // Limita OCRs por execução para caber no orçamento de CPU da edge function
+      const OCR_LIMIT = Number(body.ocrLimit ?? 30);
+      const toProcess = ocrPending.slice(0, OCR_LIMIT);
+      console.log(`[OCR] pending=${ocrPending.length} processing=${toProcess.length} (cached=${unmatchedForAttachment.length - ocrPending.length})`);
+
+      const ocrResults = await mapWithConcurrency(toProcess, 3, async (row) => {
         const attachment = row.expense.attachmentUrl!;
         const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY, knownPlates);
         if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null, byPlaca: false };
@@ -621,7 +643,11 @@ Deno.serve(async (req) => {
           ...(row.raw_payload ?? {}),
           attachment_ocr: result.ocr,
         };
-        if (!result.parsed?.vehicle_id) continue;
+        if (!result.parsed?.vehicle_id) {
+          // Marca como já tentado, evita reprocessar OCR em syncs futuros
+          row.parse_status = "ocr_no_match";
+          continue;
+        }
         row.vehicle_id = result.parsed.vehicle_id;
         row.parsed_keyword = result.parsed.keyword;
         row.parse_status = result.byPlaca
