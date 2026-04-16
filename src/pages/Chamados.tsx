@@ -974,8 +974,11 @@ export default function Chamados() {
         onUpdate={(id, data) => updateTicket.mutate({ id, data })}
         onDelete={(id) => deleteTicket.mutate(id)}
         onConcluirPreventiva={(t) => { setDetailOpen(false); setConcluirTicket(t); }}
+        onMarkDuplicate={(ticketId, num) => markDuplicate.mutate({ ticketId, duplicateOfNumber: num })}
+        onRemoveDuplicate={(ticketId) => removeDuplicate.mutate(ticketId)}
         vehicles={vehicles}
         drivers={drivers}
+        allTickets={tickets}
       />
       {concluirTicket && (
         <ConcluirPreventivaDialog
