@@ -30,10 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Truck, RefreshCw, Loader2, Gauge } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
+import { updateOdometro } from "@/services/rotaexata";
 
 type Vehicle = Tables<"vehicles">;
 type VehicleInsert = TablesInsert<"vehicles">;
