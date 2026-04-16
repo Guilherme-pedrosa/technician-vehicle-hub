@@ -92,6 +92,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     label: "Interior do veículo",
     criterio: "A foto deve mostrar uma VISÃO AMPLA do interior do veículo, permitindo avaliar o estado de conservação. REQUISITOS MÍNIMOS: a foto deve ter um ENQUADRAMENTO ABERTO que mostre uma área significativa do interior — pelo menos 2 dos seguintes elementos devem ser CLARAMENTE visíveis e desobstruídos: bancos_dianteiros (assento + encosto expostos), bancos_traseiros, painel_console (volante/instrumentos/console central), forros_porta. REJEITE (target_match=false) se: (1) a foto mostra apenas UM elemento isolado (ex: só um banco de perto, só o forro de uma porta), (2) o ângulo é muito fechado/close-up sem contexto do interior, (3) a foto foi tirada de fora do carro olhando para dentro com ângulo muito estreito mostrando apenas uma faixa do interior, (4) objetos cobrem as superfícies (mochilas, bolsas, ferramentas — se algo está em cima do banco, o banco NÃO conta). ACEITE se: a foto mostra pelo menos 2 elementos com visão aberta suficiente para avaliar limpeza e conservação. Inclua 'detected_elements' no JSON com os elementos visíveis.",
     has_critical: false,
+    has_cleanliness_check: true,
   },
   danos: {
     label: "Dano/avaria",
