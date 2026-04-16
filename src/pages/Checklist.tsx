@@ -1632,9 +1632,9 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
 // Detail sections for dialog (matching wizard flow)
 const DIALOG_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
-  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fieldCategories: ["Exterior"] },
+  { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
-  { id: "capo", title: "Capô Aberto", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
+  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fieldCategories: ["Danos"] },
 ];
