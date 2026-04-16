@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { TicketActions } from "@/components/chamados/TicketActions";
 import { ConcluirPreventivaDialog } from "@/components/chamados/ConcluirPreventivaDialog";
+import { KanbanConfigDialog } from "@/components/chamados/KanbanConfigDialog";
+import { Settings } from "lucide-react";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
