@@ -66,6 +66,11 @@ export default function Veiculos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<VehicleInsert>>(emptyForm);
 
+  // Odometer correction
+  const [odoDialogOpen, setOdoDialogOpen] = useState(false);
+  const [odoVehicle, setOdoVehicle] = useState<Vehicle | null>(null);
+  const [odoNewKm, setOdoNewKm] = useState("");
+
   // Rota Exata - positions
   const { data: posicoes } = useUltimaPosicaoTodos();
   const syncMutation = useSyncAllFromRotaExata();
