@@ -644,7 +644,11 @@ Deno.serve(async (req) => {
           ...(row.raw_payload ?? {}),
           attachment_ocr: result.ocr,
         };
-        if (!result.parsed?.vehicle_id) continue;
+        if (!result.parsed?.vehicle_id) {
+          // Marca como já tentado, evita reprocessar OCR em syncs futuros
+          row.parse_status = "ocr_no_match";
+          continue;
+        }
         row.vehicle_id = result.parsed.vehicle_id;
         row.parsed_keyword = result.parsed.keyword;
         row.parse_status = result.byPlaca
