@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getCustos } from "@/services/rotaexata";
-
-const EXCLUDED_PLACAS = new Set(["DIW9D20", "IXO3G66", "OHW9F00"]);
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type FuelMetrics = {
   custoTotal: number;
