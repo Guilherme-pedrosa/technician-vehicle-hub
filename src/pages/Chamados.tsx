@@ -73,10 +73,12 @@ function TicketCard({
   ticket,
   onDragStart,
   onClick,
+  isDuplicate,
 }: {
   ticket: Ticket;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: () => void;
+  isDuplicate?: boolean;
 }) {
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
