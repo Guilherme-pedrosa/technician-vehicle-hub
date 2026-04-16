@@ -85,21 +85,42 @@ export default function CustosFlota() {
     return list;
   }, [custos, placaFilter, tipoCusto, source]);
 
-  const handleSync = async () => {
+  const [syncStart, setSyncStart] = useState<Date>();
+  const [syncEnd, setSyncEnd] = useState<Date>();
+  const [syncOpen, setSyncOpen] = useState(false);
+
+  const runSync = async (s: Date, e: Date, label: string) => {
     setSyncing(true);
+    setSyncOpen(false);
     try {
-      const startStr = start.toISOString().slice(0, 10);
-      const endStr = end.toISOString().slice(0, 10);
-      const r = await syncAuvoExpenses(startStr, endStr);
+      const r = await syncAuvoExpenses(
+        s.toISOString().slice(0, 10),
+        e.toISOString().slice(0, 10),
+      );
       toast.success(
-        `Sync Auvo: ${r.fetched} despesas (${r.matched} vinculadas, ${r.unmatched} sem placa)`,
+        `Sync Auvo (${label}): ${r.fetched} despesas — ${r.matched} vinculadas, ${r.unmatched} sem placa`,
       );
       auvoQuery.refetch();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha na sincronização");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha na sincronização");
     } finally {
       setSyncing(false);
     }
+  };
+
+  const syncPreset = (months: number) => {
+    const now = new Date();
+    const s = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+    const e = endOfMonth(now);
+    runSync(s, e, months === 1 ? "mês atual" : `últimos ${months}m`);
+  };
+
+  const syncCustom = () => {
+    if (!syncStart || !syncEnd) {
+      toast.error("Selecione data de início e fim");
+      return;
+    }
+    runSync(syncStart, syncEnd, `${format(syncStart, "dd/MM/yy")}–${format(syncEnd, "dd/MM/yy")}`);
   };
 
   // Aggregate per vehicle (cost + KM + R$/km + km/L)
