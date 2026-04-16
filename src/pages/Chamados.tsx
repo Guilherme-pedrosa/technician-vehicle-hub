@@ -625,7 +625,7 @@ export default function Chamados() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("maintenance_tickets")
-        .select("*, vehicles(placa, modelo), drivers(full_name), maintenance_plan_id")
+        .select("*, vehicles(placa, modelo), drivers(full_name), maintenance_plan_id, ticket_number, duplicate_of")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Ticket[];
