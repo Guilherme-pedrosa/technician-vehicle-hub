@@ -16,7 +16,7 @@ import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type DataSource = "auvo" | "rotaexata";
+type DataSource = "todos" | "auvo" | "rotaexata";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
 
@@ -47,7 +47,7 @@ export default function CustosFlota() {
   const [placaFilter, setPlacaFilter] = useState("todos");
   const [customStart, setCustomStart] = useState<Date>();
   const [customEnd, setCustomEnd] = useState<Date>();
-  const [source, setSource] = useState<DataSource>("auvo");
+  const [source, setSource] = useState<DataSource>("todos");
   const [syncing, setSyncing] = useState(false);
 
   const { start, end } = getDateRange(period, customStart, customEnd);
@@ -66,17 +66,27 @@ export default function CustosFlota() {
     return JSON.stringify(filter);
   }, [start, end, tipoCusto]);
 
-  const rotaQuery = useCustosFlota(source === "rotaexata" ? where : undefined);
+  const rotaQuery = useCustosFlota(source !== "auvo" ? where : undefined);
   const auvoQuery = useAuvoExpenses(start, end);
 
-  const custos: (CustoRotaExata | AuvoCusto)[] =
-    source === "auvo" ? auvoQuery.data ?? [] : rotaQuery.data ?? [];
-  const isLoading = source === "auvo" ? auvoQuery.isLoading : rotaQuery.isLoading;
+  const custos: (CustoRotaExata | AuvoCusto)[] = useMemo(() => {
+    if (source === "auvo") return auvoQuery.data ?? [];
+    if (source === "rotaexata") return rotaQuery.data ?? [];
+    // todos: combina as duas fontes
+    return [...(rotaQuery.data ?? []), ...(auvoQuery.data ?? [])];
+  }, [source, auvoQuery.data, rotaQuery.data]);
+
+  const isLoading =
+    source === "auvo"
+      ? auvoQuery.isLoading
+      : source === "rotaexata"
+      ? rotaQuery.isLoading
+      : auvoQuery.isLoading || rotaQuery.isLoading;
 
   // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
     let list = custos;
-    if (source === "auvo" && tipoCusto !== "todos") {
+    if (source !== "rotaexata" && tipoCusto !== "todos") {
       list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
     }
     if (placaFilter !== "todos") {
@@ -209,6 +219,7 @@ export default function CustosFlota() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="todos">Todas as fontes</SelectItem>
               <SelectItem value="auvo">Auvo (despesas)</SelectItem>
               <SelectItem value="rotaexata">Rota Exata</SelectItem>
             </SelectContent>
