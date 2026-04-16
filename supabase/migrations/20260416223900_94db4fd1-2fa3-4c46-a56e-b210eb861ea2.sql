@@ -1,0 +1,1 @@
+SELECT expense_date, description FROM public.auvo_expenses WHERE vehicle_id IS NULL ORDER BY expense_date DESC;

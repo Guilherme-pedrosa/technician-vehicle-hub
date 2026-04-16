@@ -1,0 +1,1 @@
+SELECT MAX(updated_at) AS ultima_atualizacao, MAX(synced_at) AS ultima_sync FROM public.auvo_expenses;

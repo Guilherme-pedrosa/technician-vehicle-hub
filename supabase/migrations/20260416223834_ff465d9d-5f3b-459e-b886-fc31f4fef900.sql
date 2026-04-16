@@ -1,0 +1,1 @@
+SELECT COUNT(*) FILTER (WHERE vehicle_id IS NULL AND attachment_url IS NOT NULL) AS sem_placa_com_anexo, COUNT(*) FILTER (WHERE vehicle_id IS NULL AND attachment_url IS NULL) AS sem_placa_sem_anexo FROM public.auvo_expenses;

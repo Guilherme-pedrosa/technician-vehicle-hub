@@ -1,0 +1,1 @@
+SELECT parse_status, COUNT(*) FROM public.auvo_expenses GROUP BY parse_status ORDER BY COUNT(*) DESC;
