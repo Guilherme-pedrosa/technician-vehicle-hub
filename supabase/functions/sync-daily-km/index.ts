@@ -213,6 +213,12 @@ Deno.serve(async (req) => {
           const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
 
           if (entries.length > 0) {
+            // Log raw first entry to discover available fields
+            console.log(`[log_motorista RAW] adesao=${vehicle.adesao_id} day=${day} count=${entries.length} keys=${Object.keys(entries[0] as object).join(",")} sample=${JSON.stringify(entries[0]).substring(0, 800)}`);
+
+            // Count sessions per driver for this vehicle+day
+            const totalSessionsThisVehicleDay = entries.length;
+
             for (const entry of entries as Record<string, unknown>[]) {
               const km = extractKm(entry);
               if (km <= 0) continue;
@@ -232,10 +238,30 @@ Deno.serve(async (req) => {
                 (entry.hora_inicio as string) ??
                 new Date().toISOString();
 
-              // Each log_motorista entry = 1 real telemetria (1 driving session)
-              // No more pro-rating from resumo-dia
+              // Try to extract per-entry telemetria count from log_motorista fields
+              const entryTelemetrias = Number(
+                entry.telemetrias ??
+                entry.qtd_telemetria ??
+                entry.telemetria ??
+                entry.quantidade_telemetrias ??
+                0
+              ) || 0;
 
-              // UPSERT: atomic insert-or-update, never deletes existing data
+              // Attribution logic:
+              // 1. If log_motorista provides per-entry telemetria count → use it (real data)
+              // 2. If only 1 driver session for this vehicle+day → all vehicle telemetrias are theirs
+              // 3. Multiple sessions without per-entry data → each gets 1 (conservative)
+              let telemetriasForEntry: number;
+              if (entryTelemetrias > 0) {
+                telemetriasForEntry = entryTelemetrias;
+              } else if (totalSessionsThisVehicleDay === 1) {
+                telemetriasForEntry = resumo.telemetrias;
+              } else {
+                telemetriasForEntry = 1;
+              }
+
+              console.log(`[sync] driver=${motoristaNome} entry_tel=${entryTelemetrias} resumo_tel=${resumo.telemetrias} sessions=${totalSessionsThisVehicleDay} → assigned=${telemetriasForEntry}`);
+
               const { error } = await supabase.from("daily_vehicle_km").upsert(
                 {
                   adesao_id: vehicle.adesao_id!,
@@ -250,7 +276,7 @@ Deno.serve(async (req) => {
                     ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                     null,
                   hr_vinculo: hrVinculo,
-                  telemetrias: 1,
+                  telemetrias: telemetriasForEntry,
                   velocidade_maxima: resumo.velocidadeMaxima,
                   excessos_velocidade: excessos,
                   synced_at: new Date().toISOString(),
