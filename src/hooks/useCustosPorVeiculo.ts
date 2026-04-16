@@ -81,35 +81,34 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
   const rows = useMemo<VeiculoCustoRow[]>(() => {
     const map = new Map<string, VeiculoCustoRow>();
 
-    // 1. Inicia com KM rodado por veículo
-    // IMPORTANTE: daily_vehicle_km pode ter múltiplos registros por placa+dia
-    // (1 por motorista/sessão). Para evitar contagem duplicada, pegamos
-    // o MAX(km_percorrido) por placa+dia (a API já entrega o acumulado do dia
-    // em cada registro de motorista).
-    const kmPorPlacaDia = new Map<string, number>(); // key: placa|data → maxKm
-    const placaToAdesao = new Map<string, string>();
+    // 1. KM rodado por veículo — agrupa por placa NORMALIZADA + dia, pegando MAX
+    // (daily_vehicle_km tem 1 registro por motorista/sessão; a API entrega o
+    // acumulado do dia em cada registro, então MAX evita contagem duplicada).
+    const kmPorPlacaDia = new Map<string, number>(); // key: placaNorm|data → maxKm
+    const placaOriginal = new Map<string, string>(); // placaNorm → placa exibição
     (kmQuery.data ?? []).forEach((r) => {
       if (isExcludedPlaca(r.placa)) return;
+      const placaNorm = normalizePlaca(r.placa);
+      if (!placaNorm) return;
       const dataStr = String((r as { data?: string }).data ?? "");
-      const dayKey = `${r.placa}|${dataStr}`;
+      const dayKey = `${placaNorm}|${dataStr}`;
       const km = Number(r.km_percorrido ?? 0);
       const prev = kmPorPlacaDia.get(dayKey) ?? 0;
       if (km > prev) kmPorPlacaDia.set(dayKey, km);
-      if (r.adesao_id) placaToAdesao.set(r.placa, String(r.adesao_id));
+      if (!placaOriginal.has(placaNorm)) placaOriginal.set(placaNorm, r.placa);
     });
 
-    // Agrega KM por placa (somando MAX de cada dia)
+    // Agrega KM por placa normalizada (somando MAX de cada dia)
     const kmPorPlaca = new Map<string, number>();
     kmPorPlacaDia.forEach((km, key) => {
-      const placa = key.split("|")[0];
-      kmPorPlaca.set(placa, (kmPorPlaca.get(placa) ?? 0) + km);
+      const placaNorm = key.split("|")[0];
+      kmPorPlaca.set(placaNorm, (kmPorPlaca.get(placaNorm) ?? 0) + km);
     });
 
-    kmPorPlaca.forEach((kmTotal, placa) => {
-      const adesaoId = placaToAdesao.get(placa) ?? placa;
-      map.set(adesaoId, {
-        adesaoId,
-        placa,
+    kmPorPlaca.forEach((kmTotal, placaNorm) => {
+      map.set(placaNorm, {
+        adesaoId: placaNorm,
+        placa: placaOriginal.get(placaNorm) ?? placaNorm,
         modelo: "",
         kmRodado: kmTotal,
         custoTotal: 0,
@@ -123,14 +122,15 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
       });
     });
 
-    // 2. Acumula custos
+    // 2. Acumula custos — chave SEMPRE pela placa normalizada
     custos.forEach((c) => {
       if (isExcludedPlaca(c.placa)) return;
-      const key = String(c.adesao_id || c.placa || "");
+      const placaNorm = normalizePlaca(c.placa);
+      const key = placaNorm || String(c.adesao_id ?? "");
       if (!key) return;
       if (!map.has(key)) {
         map.set(key, {
-          adesaoId: String(c.adesao_id ?? ""),
+          adesaoId: key,
           placa: c.placa ?? `ID ${c.adesao_id}`,
           modelo: c.veiculo_descricao ?? "",
           kmRodado: 0,
@@ -146,7 +146,7 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
       }
       const row = map.get(key)!;
       if (!row.modelo && c.veiculo_descricao) row.modelo = c.veiculo_descricao;
-      if (!row.placa.startsWith("ID") && c.placa) row.placa = c.placa;
+      if ((!row.placa || row.placa.startsWith("ID")) && c.placa) row.placa = c.placa;
 
       const valor = Number(c.valor ?? 0);
       row.custoTotal += valor;
