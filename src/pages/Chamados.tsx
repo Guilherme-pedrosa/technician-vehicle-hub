@@ -728,6 +728,34 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
+  // Mark as duplicate
+  const markDuplicate = useMutation({
+    mutationFn: async ({ ticketId, duplicateOfNumber }: { ticketId: string; duplicateOfNumber: number }) => {
+      const target = tickets.find(t => (t as any).ticket_number === duplicateOfNumber);
+      if (!target) throw new Error(`Chamado #${duplicateOfNumber} não encontrado`);
+      const { error } = await supabase.from("maintenance_tickets").update({ duplicate_of: target.id } as any).eq("id", ticketId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Chamado marcado como duplicado!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
+  // Remove duplicate mark
+  const removeDuplicate = useMutation({
+    mutationFn: async (ticketId: string) => {
+      const { error } = await supabase.from("maintenance_tickets").update({ duplicate_of: null } as any).eq("id", ticketId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      toast.success("Duplicação removida!");
+    },
+    onError: (err: any) => toast.error("Erro: " + err.message),
+  });
+
   // Filter tickets
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
@@ -745,14 +773,18 @@ export default function Chamados() {
     });
   }, [tickets, filterPriority, filterType, search]);
 
-  // Group by status
+  // Split duplicates from main tickets
+  const duplicates = useMemo(() => filtered.filter(t => (t as any).duplicate_of), [filtered]);
+  const nonDuplicates = useMemo(() => filtered.filter(t => !(t as any).duplicate_of), [filtered]);
+
+  // Group by status (only non-duplicates)
   const grouped = useMemo(() => {
     const map: Record<TicketStatus, Ticket[]> = { aberto: [], em_andamento: [], aguardando_peca: [], concluido: [] };
-    filtered.forEach((t) => {
+    nonDuplicates.forEach((t) => {
       if (map[t.status as TicketStatus]) map[t.status as TicketStatus].push(t);
     });
     return map;
-  }, [filtered]);
+  }, [nonDuplicates]);
 
   // Drag & drop
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
