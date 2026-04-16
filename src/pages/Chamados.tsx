@@ -18,7 +18,7 @@ import {
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle, Package,
   GripVertical, Car, User, CalendarDays, ChevronRight, Eye, Filter,
-  Pencil, Trash2, Save, X,
+  Pencil, Trash2, Save, X, Copy, Link,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -41,6 +41,8 @@ type TicketType = "preventiva" | "corretiva" | "nao_conformidade";
 type Ticket = Tables<"maintenance_tickets"> & {
   vehicles?: { placa: string; modelo: string } | null;
   drivers?: { full_name: string } | null;
+  ticket_number?: number;
+  duplicate_of?: string | null;
 };
 
 const COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
