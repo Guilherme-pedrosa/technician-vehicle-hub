@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
   Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull, Download,
+  Fuel, DollarSign, TrendingUp, Droplet,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { isPast, format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
@@ -21,6 +22,7 @@ import { useKmPorTecnicoPeriodo } from "@/hooks/useKmPorTecnicoPeriodo";
 import { useCachedKmPorTecnico, useSyncDailyKm } from "@/hooks/useCachedKmPorTecnico";
 import { useNavigate } from "react-router-dom";
 import { useMaintenancePlans, useMaintenanceExecutions, computeVehiclePlanStatuses } from "@/hooks/useMaintenancePlans";
+import { useFuelMetrics } from "@/hooks/useFuelMetrics";
 
  type PeriodPreset = "hoje" | "semana" | "mes" | "personalizado";
 
@@ -361,6 +363,11 @@ export default function Dashboard() {
     return `KM ${format(dates.inicio, "dd/MM")} a ${format(dates.fim, "dd/MM")}`;
   }, [preset, dates]);
 
+  const { data: fuel, isLoading: loadingFuel } = useFuelMetrics(dates.inicio, dates.fim);
+  const fmtCurrency = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtNumber = (v: number, frac = 2) =>
+    v.toLocaleString("pt-BR", { minimumFractionDigits: frac, maximumFractionDigits: frac });
+
   const stats = [
     {
       label: "Veículos",
@@ -425,6 +432,69 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* === MÉTRICAS DE COMBUSTÍVEL === */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Combustível</CardTitle>
+            <DollarSign className="w-4 sm:w-5 h-4 sm:h-5 text-warning" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtCurrency(fuel?.custoTotal ?? 0)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              {fuel?.registros ?? 0} abastecimentos no período
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Litros</CardTitle>
+            <Droplet className="w-4 sm:w-5 h-4 sm:h-5 text-info" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtNumber(fuel?.litrosTotal ?? 0, 1)} L
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Total abastecido
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">R$/km</CardTitle>
+            <TrendingUp className="w-4 sm:w-5 h-4 sm:h-5 text-destructive" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtCurrency(fuel?.custoPorKm ?? 0)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Custo por quilômetro rodado
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Km/L</CardTitle>
+            <Fuel className="w-4 sm:w-5 h-4 sm:h-5 text-success" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-xl sm:text-3xl font-bold tabular-nums">
+              {loadingFuel ? "..." : fmtNumber(fuel?.kmPorLitro ?? 0, 2)}
+            </p>
+            <p className="text-[10px] sm:text-xs mt-1 text-muted-foreground line-clamp-1">
+              Autonomia média da frota
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* === TABELA POR TÉCNICO === */}
