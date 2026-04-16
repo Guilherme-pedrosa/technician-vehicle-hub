@@ -243,7 +243,17 @@ Regras:
 - Para laterais: a foto DEVE permitir inspeção visual da lateral completa, de ponta a ponta. Não basta mostrar "boa parte" do carro: o paralama dianteiro, portas e paralama traseiro precisam estar visíveis o suficiente para análise de avarias.
 - REJEITE laterais em que qualquer extremidade importante ficou cortada, escondida, distante demais, escura demais ou em ângulo que impeça avaliar amassados/riscos — especialmente se não der para analisar o paralama dianteiro ou traseiro.
 - Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, ou sem enquadramento suficiente da lateral inteira devem ser rejeitadas, mesmo que ainda pareçam mostrar um carro lateralmente.
-
+${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
+VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
+O técnico afirmou que o veículo está LIMPO E ORGANIZADO. Verifique se a foto confirma isso.
+REJEITE a foto (valid=false, target_match=false) se o interior mostrar CLARAMENTE:
+- Lixo visível (embalagens, papéis, restos de comida, garrafas, copos)
+- Objetos jogados/espalhados pelo chão, bancos ou painel (roupas, ferramentas fora de lugar, sacolas, coletes jogados)
+- Sujeira excessiva nos bancos, painel ou assoalho
+- Desorganização evidente que contradiz a afirmação de "limpo e organizado"
+Na "reason", descreva especificamente o que foi encontrado que contradiz a limpeza (ex: "Lixo visível no assoalho, embalagem no banco, colete jogado no chão").
+Pequenas imperfeições cosméticas (poeira leve, desgaste natural) NÃO são motivo de rejeição.
+` : ''}
 Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
 Critério esperado: ${finalCriterio}`;
