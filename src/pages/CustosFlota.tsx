@@ -204,16 +204,55 @@ export default function CustosFlota() {
             </SelectContent>
           </Select>
           {source === "auvo" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={syncing}
-              className="gap-2"
-            >
-              <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-              {syncing ? "Sincronizando…" : "Sincronizar Auvo"}
-            </Button>
+            <Popover open={syncOpen} onOpenChange={setSyncOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" disabled={syncing} className="gap-2">
+                  <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+                  {syncing ? "Sincronizando…" : "Sincronizar Auvo"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-3" align="end">
+                <div>
+                  <p className="text-sm font-medium mb-2">Período rápido</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="outline" onClick={() => syncPreset(1)}>Mês atual</Button>
+                    <Button size="sm" variant="outline" onClick={() => syncPreset(3)}>Últimos 3 meses</Button>
+                    <Button size="sm" variant="outline" onClick={() => syncPreset(6)}>Últimos 6 meses</Button>
+                    <Button size="sm" variant="outline" onClick={() => syncPreset(12)}>Últimos 12 meses</Button>
+                  </div>
+                </div>
+                <div className="border-t pt-3">
+                  <p className="text-sm font-medium mb-2">Período customizado</p>
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="flex-1 gap-1 text-xs">
+                          <CalendarIcon className="h-3 w-3" />
+                          {syncStart ? format(syncStart, "dd/MM/yy") : "Início"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={syncStart} onSelect={setSyncStart} locale={ptBR} />
+                      </PopoverContent>
+                    </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="flex-1 gap-1 text-xs">
+                          <CalendarIcon className="h-3 w-3" />
+                          {syncEnd ? format(syncEnd, "dd/MM/yy") : "Fim"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={syncEnd} onSelect={setSyncEnd} locale={ptBR} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Button size="sm" className="w-full mt-2" onClick={syncCustom}>
+                    Sincronizar período
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
             <Download className="h-4 w-4" />
