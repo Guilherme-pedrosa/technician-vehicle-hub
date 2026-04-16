@@ -86,6 +86,7 @@ type AttachmentOcr = {
   km?: number | null;
   litros?: number | null;
   valor?: number | null;
+  error?: string;
 };
 
 async function auvoLogin(apiKey: string, apiToken: string): Promise<string> {
