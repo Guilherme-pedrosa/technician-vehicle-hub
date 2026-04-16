@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,9 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
+import { useAuvoExpenses, syncAuvoExpenses, type AuvoCusto } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+type DataSource = "auvo" | "rotaexata";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
 
