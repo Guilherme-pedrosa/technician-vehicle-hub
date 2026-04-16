@@ -82,6 +82,10 @@ type ParsedVehicle = {
 type AttachmentOcr = {
   text: string;
   clues: string[];
+  placa?: string | null;
+  km?: number | null;
+  litros?: number | null;
+  valor?: number | null;
 };
 
 async function auvoLogin(apiKey: string, apiToken: string): Promise<string> {
@@ -282,12 +286,12 @@ async function extractTextFromAttachment(
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         temperature: 0,
-        max_tokens: 250,
+        max_tokens: 400,
         messages: [
           {
             role: "system",
             content:
-              'Você analisa comprovantes de despesas e extrai somente pistas visíveis para identificar o veículo. Responda APENAS em JSON válido no formato {"text":"...","clues":["..."]}. Inclua em text a transcrição resumida do que estiver legível. Em clues, liste somente referências explícitas a placa, modelo, apelido do carro, prefixo ou identificação do veículo visível na imagem. Não invente nem deduza.',
+              'Você analisa comprovantes de abastecimento/deslocamento brasileiros (cupom fiscal, NFC-e, ticket TicketLog, recibos manuais).\n\nSua única tarefa: extrair literalmente o que está IMPRESSO ou ESCRITO na imagem. NUNCA invente, NUNCA deduza.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456 (número inteiro do hodômetro/odômetro, null se ausente),"litros":12.34 (número decimal, null se ausente),"valor":123.45 (valor total, null se ausente),"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas adicionais úteis para identificar veículo: modelo, apelido, prefixo"]}\n\nRegras:\n- Placa BR tem 7 caracteres: 3 letras + 4 caracteres (Mercosul tem letra na 5ª posição). Procure perto de "PLACA", "VEICULO", em ticket TicketLog geralmente aparece sozinha em uma linha.\n- KM/Hodômetro: número grande perto de "KM", "ODOMETRO", "HODOMETRO".\n- Se houver dois comprovantes na mesma imagem, priorize a placa que aparecer no ticket de combustível/TicketLog.\n- Se a placa estiver ilegível ou ausente, retorne string vazia "".\n- NUNCA chute uma placa parecida.',
           },
           {
             role: "user",
@@ -301,7 +305,7 @@ async function extractTextFromAttachment(
               },
               {
                 type: "text",
-                text: "Extraia apenas as pistas que aparecem no comprovante e possam ajudar a identificar o veículo.",
+                text: "Extraia placa, KM do hodômetro, litros, valor e quaisquer pistas do veículo visíveis no(s) comprovante(s) desta imagem.",
               },
             ],
           },
@@ -317,9 +321,14 @@ async function extractTextFromAttachment(
     const data = await aiRes.json();
     const content = data?.choices?.[0]?.message?.content ?? "";
     const parsed = parseJsonObject(content);
+    const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     return {
       text: String(parsed?.text ?? "").trim(),
       clues: Array.isArray(parsed?.clues) ? parsed.clues.map((item: unknown) => String(item)) : [],
+      placa: placaRaw && placaRaw.length === 7 ? placaRaw : null,
+      km: typeof parsed?.km === "number" ? parsed.km : null,
+      litros: typeof parsed?.litros === "number" ? parsed.litros : null,
+      valor: typeof parsed?.valor === "number" ? parsed.valor : null,
     };
   } catch (error) {
     console.warn("Attachment OCR error:", error instanceof Error ? error.message : String(error));
@@ -430,29 +439,51 @@ Deno.serve(async (req) => {
 
     const unmatchedForAttachment = baseRows
       .map((row, index) => ({ ...row, rowIndex: index }))
-      .filter((row) => !row.vehicle_id && row.expense.attachmentUrl && looksLikeVehicleExpense(row.expense));
+      .filter((row) => !row.vehicle_id && row.expense.attachmentUrl);
 
     if (LOVABLE_API_KEY && unmatchedForAttachment.length) {
+      // Mapa placa->vehicle_id para match direto
+      const placaToVehicle = new Map<string, string>();
+      for (const v of (vehicles ?? []) as Vehicle[]) {
+        const p = normalizeCompact(v.placa);
+        if (p && !EXCLUDED_PLATES.has(p)) placaToVehicle.set(p, v.id);
+      }
+
       const ocrResults = await mapWithConcurrency(unmatchedForAttachment, 3, async (row) => {
         const attachment = row.expense.attachmentUrl!;
         const ocr = await extractTextFromAttachment(attachment, LOVABLE_API_KEY);
-        if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null };
+        if (!ocr) return { rowIndex: row.rowIndex, ocr: null, parsed: null, byPlaca: false };
 
-        const combinedText = [ocr.text, ...ocr.clues].filter(Boolean).join(" ");
+        // 1) Tenta match direto pela placa extraída
+        if (ocr.placa && placaToVehicle.has(ocr.placa)) {
+          return {
+            rowIndex: row.rowIndex,
+            ocr,
+            parsed: { vehicle_id: placaToVehicle.get(ocr.placa)!, keyword: ocr.placa, source: null, matched_by: "plate" as const },
+            byPlaca: true,
+          };
+        }
+
+        // 2) Fallback: keyword search no texto + clues
+        const combinedText = [ocr.text, ...ocr.clues, ocr.placa ?? ""].filter(Boolean).join(" ");
         const parsed = parseVehicleFromText(combinedText, index);
-        return { rowIndex: row.rowIndex, ocr, parsed };
+        return { rowIndex: row.rowIndex, ocr, parsed, byPlaca: false };
       });
 
       for (const result of ocrResults) {
-        if (!result?.ocr || !result.parsed?.vehicle_id) continue;
+        if (!result?.ocr) continue;
         const row = baseRows[result.rowIndex];
-        row.vehicle_id = result.parsed.vehicle_id;
-        row.parsed_keyword = result.parsed.keyword;
-        row.parse_status = `matched_attachment_${result.parsed.matched_by}`;
+        // Sempre salva o OCR no payload, mesmo se não bateu (auditoria)
         row.raw_payload = {
           ...(row.raw_payload ?? {}),
           attachment_ocr: result.ocr,
         };
+        if (!result.parsed?.vehicle_id) continue;
+        row.vehicle_id = result.parsed.vehicle_id;
+        row.parsed_keyword = result.parsed.keyword;
+        row.parse_status = result.byPlaca
+          ? "matched_attachment_ocr_plate"
+          : `matched_attachment_${result.parsed.matched_by}`;
       }
     }
 
