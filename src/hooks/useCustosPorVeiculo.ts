@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { isExcludedPlaca } from "@/lib/excluded-vehicles";
+import { isExcludedPlaca, normalizePlaca } from "@/lib/excluded-vehicles";
 import type { CustoRotaExata } from "@/hooks/useCustosFlota";
 
 export type VeiculoCustoRow = {
