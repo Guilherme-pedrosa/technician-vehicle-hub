@@ -126,8 +126,10 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
     custos.forEach((c) => {
       if (isExcludedPlaca(c.placa)) return;
       const placaNorm = normalizePlaca(c.placa);
-      const key = placaNorm || String(c.adesao_id ?? "");
-      if (!key) return;
+      // Ignora despesas sem placa identificada (ex.: Auvo não vinculado).
+      // Elas continuam aparecendo na lista geral de custos para revisão manual.
+      if (!placaNorm) return;
+      const key = placaNorm;
       if (!map.has(key)) {
         map.set(key, {
           adesaoId: key,
