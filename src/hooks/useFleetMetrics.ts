@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUltimaPosicaoTodos, type RotaExataPosicao } from "@/hooks/useRotaExata";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type FleetMetricRow = {
   id: string;
@@ -29,11 +30,8 @@ export function useFleetMetrics() {
 
   const positionsQuery = useUltimaPosicaoTodos();
 
-  // Plates to ignore across the entire system
-  const IGNORED_PLATES = new Set(["DIW9D20"]);
-
   const rows = useMemo<FleetMetricRow[]>(() => {
-    const vehicles = (vehiclesQuery.data ?? []).filter((v) => !IGNORED_PLATES.has(v.placa));
+    const vehicles = (vehiclesQuery.data ?? []).filter((v) => !isExcludedPlaca(v.placa));
     const positions = positionsQuery.data ?? [];
     const positionMap = new Map<string, RotaExataPosicao>();
 

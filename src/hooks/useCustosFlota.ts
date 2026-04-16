@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCustos } from "@/services/rotaexata";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type CustoRotaExata = {
   id: string;
@@ -70,7 +71,9 @@ export function useCustosFlota(where?: string) {
       } else if (raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)) {
         items = (raw as Record<string, unknown>).data as RawCusto[];
       }
-      return items.map(normalizeCusto);
+      return items
+        .filter((it) => !isExcludedPlaca(it.adesao?.vei_placa))
+        .map(normalizeCusto);
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,

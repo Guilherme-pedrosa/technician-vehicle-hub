@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getCustos } from "@/services/rotaexata";
-
-const EXCLUDED_PLACAS = new Set(["DIW9D20", "IXO3G66", "OHW9F00"]);
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type FuelMetrics = {
   custoTotal: number;
@@ -50,8 +49,7 @@ export function useFuelMetrics(inicio: Date, fim: Date) {
       }
 
       const combustiveis = items.filter((c) => {
-        const placa = c.adesao?.vei_placa;
-        if (placa && EXCLUDED_PLACAS.has(placa)) return false;
+        if (isExcludedPlaca(c.adesao?.vei_placa)) return false;
         return isCombustivel(c.tipo_custo?.nome);
       });
 
@@ -68,7 +66,7 @@ export function useFuelMetrics(inicio: Date, fim: Date) {
       if (error) throw error;
 
       const kmTotal = (kmData ?? [])
-        .filter((r) => !EXCLUDED_PLACAS.has(r.placa))
+        .filter((r) => !isExcludedPlaca(r.placa))
         .reduce((s, r) => s + Number(r.km_percorrido ?? 0), 0);
 
       const custoPorKm = kmTotal > 0 ? custoTotal / kmTotal : 0;
