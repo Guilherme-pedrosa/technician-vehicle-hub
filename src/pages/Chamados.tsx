@@ -214,6 +214,7 @@ function TicketDetailDialog({
   const [editPrioridade, setEditPrioridade] = useState("");
   const [editVehicleId, setEditVehicleId] = useState("");
   const [editDriverId, setEditDriverId] = useState("");
+  const [dupInput, setDupInput] = useState("");
 
   useEffect(() => {
     if (ticket && open) {
