@@ -32,6 +32,84 @@ export type Database = {
         }
         Relationships: []
       }
+      auvo_expenses: {
+        Row: {
+          amount: number
+          attachment_url: string | null
+          auvo_id: number
+          created_at: string
+          description: string | null
+          driver_id: string | null
+          expense_date: string
+          id: string
+          parse_status: string
+          parsed_keyword: string | null
+          raw_payload: Json | null
+          synced_at: string
+          type_id: number | null
+          type_name: string | null
+          updated_at: string
+          user_to_id: number | null
+          user_to_name: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          amount?: number
+          attachment_url?: string | null
+          auvo_id: number
+          created_at?: string
+          description?: string | null
+          driver_id?: string | null
+          expense_date: string
+          id?: string
+          parse_status?: string
+          parsed_keyword?: string | null
+          raw_payload?: Json | null
+          synced_at?: string
+          type_id?: number | null
+          type_name?: string | null
+          updated_at?: string
+          user_to_id?: number | null
+          user_to_name?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          amount?: number
+          attachment_url?: string | null
+          auvo_id?: number
+          created_at?: string
+          description?: string | null
+          driver_id?: string | null
+          expense_date?: string
+          id?: string
+          parse_status?: string
+          parsed_keyword?: string | null
+          raw_payload?: Json | null
+          synced_at?: string
+          type_id?: number | null
+          type_name?: string | null
+          updated_at?: string
+          user_to_id?: number | null
+          user_to_name?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auvo_expenses_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auvo_expenses_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_config: {
         Row: {
           config_key: string
@@ -681,6 +759,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vehicle_aliases: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          keyword: string
+          priority: number
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          keyword: string
+          priority?: number
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          keyword?: string
+          priority?: number
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_aliases_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicle_checklists: {
         Row: {
