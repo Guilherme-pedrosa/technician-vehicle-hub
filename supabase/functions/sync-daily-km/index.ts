@@ -254,85 +254,106 @@ Deno.serve(async (req) => {
     for (const vehicle of vehicles) {
       for (const day of days) {
         try {
-          // CALL 1: log_motorista — KM per driver session
+          // CALL 1: log_motorista — driving sessions per driver (with KM and time range)
           const entries = await fetchLogMotorista(rotaToken, vehicle.adesao_id!, day);
 
-          // CALL 2: resumo-dia — telemetrias + velocidade máxima (REAL endpoint)
+          // CALL 2: resumo-dia — vehicle-level totals (used only for max speed)
           const resumo = await fetchResumoDia(rotaToken, vehicle.adesao_id!, day);
 
-          if (entries.length === 0 && resumo.telemetrias === 0) {
+          // CALL 3: dirigibilidade — REAL telemetry events with timestamps (freadas/acelerações/curvas)
+          const eventos = await fetchDirigibilidade(rotaToken, vehicle.adesao_id!, day);
+
+          if (entries.length === 0 && resumo.telemetrias === 0 && eventos.length === 0) {
             await new Promise((r) => setTimeout(r, 150));
             continue;
+          }
+
+          if (eventos.length > 0) {
+            console.log(`[dirigibilidade RAW] adesao=${vehicle.adesao_id} day=${day} count=${eventos.length} keys=${Object.keys(eventos[0]).join(",")} sample=${JSON.stringify(eventos[0]).substring(0, 600)}`);
           }
 
           // Determine excessos: if max speed exceeded the limit
           const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
 
-          if (entries.length > 0) {
-            // Log raw first entry to discover available fields
-            console.log(`[log_motorista RAW] adesao=${vehicle.adesao_id} day=${day} count=${entries.length} keys=${Object.keys(entries[0] as object).join(",")} sample=${JSON.stringify(entries[0]).substring(0, 800)}`);
+          // Build session list with parsed time ranges and driver info
+          type Session = {
+            entry: Record<string, unknown>;
+            motoristaNome: string;
+            motoristaId: string | null;
+            startMs: number;
+            endMs: number;
+            telemetrias: number;
+          };
 
-            // Count sessions per driver for this vehicle+day
-            const totalSessionsThisVehicleDay = entries.length;
+          const sessions: Session[] = [];
+          for (const entry of entries as Record<string, unknown>[]) {
+            const motorista = entry.motorista as Record<string, unknown> | undefined;
+            const motoristaNome =
+              motorista?.nome && motorista.nome !== "Desconhecido"
+                ? String(motorista.nome)
+                : "Sem condutor vinculado";
+            const motoristaId = motorista?.id ? String(motorista.id) : null;
+            const { start, end } = getSessionRangeMs(entry);
+            sessions.push({ entry, motoristaNome, motoristaId, startMs: start, endMs: end, telemetrias: 0 });
+          }
+          // Sort sessions by start time for nearest-match fallback
+          sessions.sort((a, b) => a.startMs - b.startMs);
 
-            for (const entry of entries as Record<string, unknown>[]) {
-              const km = extractKm(entry);
-              if (km <= 0) continue;
-
-              const motorista = entry.motorista as Record<string, unknown> | undefined;
-              const motoristaNome =
-                motorista?.nome && motorista.nome !== "Desconhecido"
-                  ? String(motorista.nome)
-                  : "Sem condutor vinculado";
-              const motoristaId = motorista?.id ? String(motorista.id) : null;
-              const placa = (entry.placa as string) ?? vehicle.placa;
-
-              const hrVinculo =
-                (entry.hr_vinculo as string) ??
-                (entry.horario_vinculo as string) ??
-                (entry.dt_inicio as string) ??
-                (entry.hora_inicio as string) ??
-                new Date().toISOString();
-
-              // Try to extract per-entry telemetria count from log_motorista fields
-              const entryTelemetrias = Number(
-                entry.telemetrias ??
-                entry.qtd_telemetria ??
-                entry.telemetria ??
-                entry.quantidade_telemetrias ??
-                0
-              ) || 0;
-
-              // Attribution logic:
-              // 1. If log_motorista provides per-entry telemetria count → use it (real data)
-              // 2. If only 1 driver session for this vehicle+day → all vehicle telemetrias are theirs
-              // 3. Multiple sessions without per-entry data → each gets 1 (conservative)
-              let telemetriasForEntry: number;
-              if (entryTelemetrias > 0) {
-                telemetriasForEntry = entryTelemetrias;
-              } else if (totalSessionsThisVehicleDay === 1) {
-                telemetriasForEntry = resumo.telemetrias;
-              } else {
-                telemetriasForEntry = 1;
+          // Telemetry attribution: assign each event to the session containing its timestamp
+          let unattributedEvents = 0;
+          for (const ev of eventos) {
+            const evMs = getEventMs(ev);
+            if (!evMs) {
+              unattributedEvents++;
+              continue;
+            }
+            // Find session whose [start, end] contains this event time
+            let matched = sessions.find((s) => evMs >= s.startMs && evMs <= s.endMs);
+            // Fallback: nearest session within ±2h
+            if (!matched && sessions.length > 0) {
+              let best: Session | null = null;
+              let bestDelta = Infinity;
+              for (const s of sessions) {
+                const delta = Math.min(Math.abs(evMs - s.startMs), Math.abs(evMs - s.endMs));
+                if (delta < bestDelta) {
+                  bestDelta = delta;
+                  best = s;
+                }
               }
+              if (best && bestDelta <= 2 * 60 * 60 * 1000) matched = best;
+            }
+            if (matched) matched.telemetrias++;
+            else unattributedEvents++;
+          }
 
-              console.log(`[sync] driver=${motoristaNome} entry_tel=${entryTelemetrias} resumo_tel=${resumo.telemetrias} sessions=${totalSessionsThisVehicleDay} → assigned=${telemetriasForEntry}`);
+          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents}`);
+
+          if (sessions.length > 0) {
+            for (const session of sessions) {
+              const km = extractKm(session.entry);
+              const placa = (session.entry.placa as string) ?? vehicle.placa;
+              const hrVinculo =
+                (session.entry.hr_vinculo as string) ??
+                (session.entry.horario_vinculo as string) ??
+                (session.entry.dt_inicio as string) ??
+                (session.entry.hora_inicio as string) ??
+                new Date().toISOString();
 
               const { error } = await supabase.from("daily_vehicle_km").upsert(
                 {
                   adesao_id: vehicle.adesao_id!,
                   placa,
                   data: day,
-                  motorista_nome: motoristaNome,
-                  motorista_id: motoristaId,
+                  motorista_nome: session.motoristaNome,
+                  motorista_id: session.motoristaId,
                   km_percorrido: km,
-                  tempo_deslocamento: (entry.tempo_deslocamento as string) ?? null,
+                  tempo_deslocamento: (session.entry.tempo_deslocamento as string) ?? null,
                   tipo_vinculo:
-                    (entry.tipo_vinculo as string) ??
-                    ((motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
+                    (session.entry.tipo_vinculo as string) ??
+                    ((session.entry.motorista as Record<string, unknown>)?.tipo_vinculo as string) ??
                     null,
                   hr_vinculo: hrVinculo,
-                  telemetrias: telemetriasForEntry,
+                  telemetrias: session.telemetrias,
                   velocidade_maxima: resumo.velocidadeMaxima,
                   excessos_velocidade: excessos,
                   synced_at: new Date().toISOString(),
@@ -342,15 +363,34 @@ Deno.serve(async (req) => {
                   ignoreDuplicates: false,
                 }
               );
-
               if (!error) totalSynced++;
               else {
                 console.warn(`[sync] Upsert failed:`, error.message);
                 totalErrors++;
               }
             }
-          } else if (resumo.telemetrias > 0) {
-            // Vehicle had movement but no driver sessions
+
+            // Record unattributed events as "Sem condutor vinculado"
+            if (unattributedEvents > 0) {
+              await supabase.from("daily_vehicle_km").upsert(
+                {
+                  adesao_id: vehicle.adesao_id!,
+                  placa: vehicle.placa,
+                  data: day,
+                  motorista_nome: "Sem condutor vinculado",
+                  motorista_id: null,
+                  km_percorrido: 0,
+                  hr_vinculo: "00:00:00",
+                  telemetrias: unattributedEvents,
+                  velocidade_maxima: resumo.velocidadeMaxima,
+                  excessos_velocidade: excessos,
+                  synced_at: new Date().toISOString(),
+                },
+                { onConflict: "adesao_id,data,motorista_nome,hr_vinculo", ignoreDuplicates: false }
+              );
+            }
+          } else if (eventos.length > 0 || resumo.telemetrias > 0) {
+            // No driver sessions but events occurred → all unattributed
             const { error } = await supabase.from("daily_vehicle_km").upsert(
               {
                 adesao_id: vehicle.adesao_id!,
@@ -360,15 +400,12 @@ Deno.serve(async (req) => {
                 motorista_id: null,
                 km_percorrido: 0,
                 hr_vinculo: "00:00:00",
-                telemetrias: 1,
+                telemetrias: eventos.length || resumo.telemetrias,
                 velocidade_maxima: resumo.velocidadeMaxima,
                 excessos_velocidade: excessos,
                 synced_at: new Date().toISOString(),
               },
-              {
-                onConflict: "adesao_id,data,motorista_nome,hr_vinculo",
-                ignoreDuplicates: false,
-              }
+              { onConflict: "adesao_id,data,motorista_nome,hr_vinculo", ignoreDuplicates: false }
             );
             if (!error) totalSynced++;
             else totalErrors++;
