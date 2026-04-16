@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, eachDayOfInterval, differenceInCalendarDays } from "date-fns";
 import { toast } from "sonner";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type DriverPeriodRow = {
   id: string;
