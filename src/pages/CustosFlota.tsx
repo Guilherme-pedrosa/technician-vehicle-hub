@@ -428,14 +428,6 @@ export default function CustosFlota() {
           )}
         </CardContent>
       </Card>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
