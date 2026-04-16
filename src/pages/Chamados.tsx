@@ -1056,6 +1056,7 @@ export default function Chamados() {
           onDone={() => setConcluirTicket(null)}
         />
       )}
+      <KanbanConfigDialog open={configOpen} onOpenChange={setConfigOpen} />
     </div>
   );
 }
