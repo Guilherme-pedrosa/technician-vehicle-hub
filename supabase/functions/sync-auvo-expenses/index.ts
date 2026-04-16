@@ -310,6 +310,68 @@ function extractKnownPlateFromHints(
   return null;
 }
 
+async function detectKnownPlateFromImage(
+  imageBase64: string,
+  contentType: string,
+  lovableApiKey: string,
+  knownPlates: string[],
+): Promise<string | null> {
+  if (!knownPlates.length) return null;
+
+  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${lovableApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      temperature: 0,
+      max_tokens: 120,
+      messages: [
+        {
+          role: "system",
+          content:
+            `Você recebe um comprovante e deve verificar APENAS se alguma destas placas da frota WeDo aparece visualmente na imagem: ${knownPlates.join(", ")}. Responda APENAS com JSON válido no formato {"placa":"AAA0A00"} usando exatamente uma das placas da lista, ou {"placa":""} se nenhuma estiver claramente visível. Nunca invente, nunca retorne placa fora da lista.`,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${contentType};base64,${imageBase64}`,
+                detail: "high",
+              },
+            },
+            {
+              type: "text",
+              text: "Verifique se alguma placa da lista aparece visivelmente no comprovante/ticket mostrado.",
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!aiRes.ok) {
+    const errText = await aiRes.text();
+    console.warn(`[OCR] plate-match failed [${aiRes.status}] :: ${errText.slice(0, 200)}`);
+    return null;
+  }
+
+  const data = await aiRes.json();
+  const content = data?.choices?.[0]?.message?.content ?? "";
+  try {
+    const parsed = parseJsonObject(content);
+    const placa = normalizeCompact(String(parsed?.placa ?? ""));
+    return knownPlates.includes(placa) ? placa : null;
+  } catch (error) {
+    console.warn(`[OCR] plate-match parse error content=${content.slice(0, 200)}`);
+    return null;
+  }
+}
+
 async function extractTextFromAttachment(
   imageUrl: string,
   lovableApiKey: string,
@@ -390,10 +452,14 @@ async function extractTextFromAttachment(
 
     const clues = Array.isArray(parsed?.clues) ? (parsed.clues as unknown[]).map((item) => String(item)) : [];
     const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const knownPlate = extractKnownPlateFromHints(
+    let knownPlate = extractKnownPlateFromHints(
       [placaRaw, String(parsed?.text ?? ""), ...clues],
       knownPlates,
     );
+
+    if (!knownPlate && knownPlates.length) {
+      knownPlate = await detectKnownPlateFromImage(imageBase64, contentType, lovableApiKey, knownPlates);
+    }
 
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
