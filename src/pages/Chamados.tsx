@@ -330,6 +330,46 @@ function TicketDetailDialog({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
+                {/* Duplicate section */}
+                {(ticket as any).duplicate_of ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 gap-1">
+                      <Copy className="w-3 h-3" /> Duplicado de #{allTickets.find(t => t.id === (ticket as any).duplicate_of)?.ticket_number ?? "?"}
+                    </Badge>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { onRemoveDuplicate(ticket.id); onOpenChange(false); }}>
+                      Desfazer
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="Nº do chamado original"
+                      value={dupInput}
+                      onChange={(e) => setDupInput(e.target.value)}
+                      className="h-8 w-[180px] text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1"
+                      disabled={!dupInput.trim()}
+                      onClick={() => {
+                        const num = parseInt(dupInput);
+                        if (isNaN(num)) { toast.error("Número inválido"); return; }
+                        const target = allTickets.find(t => (t as any).ticket_number === num);
+                        if (!target) { toast.error(`Chamado #${num} não encontrado`); return; }
+                        if (target.id === ticket.id) { toast.error("Não pode duplicar consigo mesmo"); return; }
+                        onMarkDuplicate(ticket.id, num);
+                        setDupInput("");
+                        onOpenChange(false);
+                      }}
+                    >
+                      <Copy className="w-3 h-3" /> Marcar Duplicado
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <Separator />
