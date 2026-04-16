@@ -1,0 +1,9 @@
+---
+name: Telemetria Attribution Fix
+description: Telemetrias = real driving sessions from log_motorista (1 per entry), NOT pro-rated from vehicle-level resumo-dia
+type: feature
+---
+Cada entrada do `log_motorista` = 1 telemetria real do motorista (1 sessão de condução).
+O sistema NÃO rateia mais as telemetrias do `resumo-dia` (que são do veículo inteiro) entre motoristas.
+O `resumo-dia` ainda é usado apenas para `velocidade_maxima` e `excessos_velocidade`.
+Motivo: motoristas recebem bonificação baseada em metas — dados precisam ser reais, não estimados.
