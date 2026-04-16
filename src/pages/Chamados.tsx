@@ -896,9 +896,16 @@ export default function Chamados() {
           <h1 className="text-2xl font-bold tracking-tight">Chamados de Manutenção</h1>
           <p className="text-muted-foreground text-sm">Arraste os cards para alterar o status</p>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="shrink-0">
-          <Plus className="w-4 h-4 mr-2" /> Novo Chamado
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setConfigOpen(true)}>
+              <Settings className="w-4 h-4 mr-2" /> Configurar Kanban
+            </Button>
+          )}
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" /> Novo Chamado
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
