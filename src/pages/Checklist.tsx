@@ -216,7 +216,7 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string): Promise<ValidationResult> {
+async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string): Promise<ValidationResult> {
   try {
     const base64 = await fileToBase64(file);
     const { data: { session } } = await supabase.auth.getSession();
@@ -224,6 +224,16 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const body: Record<string, any> = {
+      image_base64: base64,
+      category,
+      vehicle_marca: vehicleMarca || null,
+      vehicle_modelo: vehicleModelo || null,
+    };
+    if (category === "interior" && limpezaClaim) {
+      body.limpeza_claim = limpezaClaim;
+    }
 
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-checklist-photo`,
@@ -234,12 +244,7 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          image_base64: base64,
-          category,
-          vehicle_marca: vehicleMarca || null,
-          vehicle_modelo: vehicleModelo || null,
-        }),
+        body: JSON.stringify(body),
       }
     );
 
