@@ -1014,6 +1014,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       <Textarea placeholder={`Descreva o problema...`}
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                      <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
+                        onCapture={async (_, files) => {
+                          const compressed = await prepareCapturedImages(files);
+                          setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
+                          return compressed;
+                        }}
+                        onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
                     </div>
                   )}
                 </div>
@@ -1091,6 +1098,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       <Textarea placeholder={`Descreva o problema...`}
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                      <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
+                        onCapture={async (_, files) => {
+                          const compressed = await prepareCapturedImages(files);
+                          setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
+                          return compressed;
+                        }}
+                        onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
                     </div>
                   )}
                 </div>
