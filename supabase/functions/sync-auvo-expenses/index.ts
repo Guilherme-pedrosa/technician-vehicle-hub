@@ -82,6 +82,10 @@ type ParsedVehicle = {
 type AttachmentOcr = {
   text: string;
   clues: string[];
+  placa?: string | null;
+  km?: number | null;
+  litros?: number | null;
+  valor?: number | null;
 };
 
 async function auvoLogin(apiKey: string, apiToken: string): Promise<string> {
