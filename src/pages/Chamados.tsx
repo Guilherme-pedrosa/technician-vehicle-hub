@@ -898,8 +898,14 @@ export default function Chamados() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isAdmin && (
-            <Button variant="outline" onClick={() => setConfigOpen(true)}>
-              <Settings className="w-4 h-4 mr-2" /> Configurar Kanban
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setConfigOpen(true)}
+              title="Adicionar / configurar quadro Kanban"
+              aria-label="Adicionar quadro Kanban"
+            >
+              <Plus className="w-4 h-4" />
             </Button>
           )}
           <Button onClick={() => setNewOpen(true)}>
