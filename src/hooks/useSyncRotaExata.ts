@@ -269,7 +269,10 @@ export function useSyncDriversFromRotaExata() {
     mutationFn: syncDrivers,
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
-      toast.success(`Condutores: ${r.created} criados, ${r.updated} atualizados`);
+      const parts = [`${r.created} criados`, `${r.updated} atualizados`];
+      if (r.deactivated > 0) parts.push(`${r.deactivated} inativados`);
+      if (r.reactivated > 0) parts.push(`${r.reactivated} reativados`);
+      toast.success(`Condutores: ${parts.join(", ")}`);
     },
     onError: (e: Error) => toast.error(`Erro condutores: ${e.message}`),
   });
@@ -309,6 +312,8 @@ export function useSyncAllFromRotaExata() {
       if (r.vehicleResult.updated > 0) msgs.push(`${r.vehicleResult.updated} veículos atualizados`);
       if (r.driverResult.created > 0) msgs.push(`${r.driverResult.created} condutores criados`);
       if (r.driverResult.updated > 0) msgs.push(`${r.driverResult.updated} condutores atualizados`);
+      if (r.driverResult.deactivated > 0) msgs.push(`${r.driverResult.deactivated} condutores inativados`);
+      if (r.driverResult.reactivated > 0) msgs.push(`${r.driverResult.reactivated} condutores reativados`);
       if (r.assignmentsCreated > 0) msgs.push(`${r.assignmentsCreated} vínculos criados`);
       if (r.kmUpdated > 0) msgs.push(`${r.kmUpdated} KMs atualizados`);
       toast.success(msgs.length > 0 ? `Sincronização: ${msgs.join(", ")}` : "Tudo já está sincronizado!");
