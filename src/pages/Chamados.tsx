@@ -88,10 +88,13 @@ function TicketCard({
       draggable
       onDragStart={(e) => onDragStart(e, ticket.id)}
       onClick={onClick}
-      className="group bg-white rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2"
+      className={`group bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2 ${isDuplicate ? "border-muted-foreground/30 opacity-75" : "border-border"}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-xs font-mono text-muted-foreground shrink-0">#{(ticket as any).ticket_number ?? "?"}</span>
+          <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+        </div>
         <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
       </div>
 
