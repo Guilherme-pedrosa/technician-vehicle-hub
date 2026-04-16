@@ -439,7 +439,7 @@ Deno.serve(async (req) => {
 
     const unmatchedForAttachment = baseRows
       .map((row, index) => ({ ...row, rowIndex: index }))
-      .filter((row) => !row.vehicle_id && row.expense.attachmentUrl && looksLikeVehicleExpense(row.expense));
+      .filter((row) => !row.vehicle_id && row.expense.attachmentUrl);
 
     if (LOVABLE_API_KEY && unmatchedForAttachment.length) {
       // Mapa placa->vehicle_id para match direto
