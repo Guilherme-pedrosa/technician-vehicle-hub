@@ -163,6 +163,7 @@ function KanbanColumn({
   onDragStart,
   onDragOver,
   onTicketClick,
+  deadlinesByTicket,
 }: {
   column: (typeof COLUMNS)[number];
   tickets: Ticket[];
@@ -170,6 +171,7 @@ function KanbanColumn({
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onTicketClick: (t: Ticket) => void;
+  deadlinesByTicket: Record<string, string>;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -195,7 +197,13 @@ function KanbanColumn({
             </div>
           )}
           {tickets.map((t) => (
-            <TicketCard key={t.id} ticket={t} onDragStart={onDragStart} onClick={() => onTicketClick(t)} />
+            <TicketCard
+              key={t.id}
+              ticket={t}
+              onDragStart={onDragStart}
+              onClick={() => onTicketClick(t)}
+              earliestDeadline={deadlinesByTicket[t.id] ?? null}
+            />
           ))}
         </div>
       </ScrollArea>
