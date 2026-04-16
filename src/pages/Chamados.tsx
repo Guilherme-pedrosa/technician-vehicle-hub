@@ -166,6 +166,7 @@ function KanbanColumn({
   onDragOver,
   onTicketClick,
   deadlinesByTicket,
+  onEdit,
 }: {
   column: (typeof COLUMNS)[number];
   tickets: Ticket[];
@@ -174,6 +175,7 @@ function KanbanColumn({
   onDragOver: (e: React.DragEvent) => void;
   onTicketClick: (t: Ticket) => void;
   deadlinesByTicket: Record<string, string>;
+  onEdit?: () => void;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -190,6 +192,18 @@ function KanbanColumn({
         <Badge variant="secondary" className="ml-auto text-xs h-5 min-w-[24px] justify-center">
           {tickets.length}
         </Badge>
+        {onEdit && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6 opacity-60 hover:opacity-100"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            title="Editar colunas do Kanban"
+            aria-label="Editar coluna"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
       <ScrollArea className="flex-1 px-2 pb-2" style={{ maxHeight: "calc(100vh - 260px)" }}>
         <div className="space-y-2 p-1">
@@ -898,8 +912,14 @@ export default function Chamados() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isAdmin && (
-            <Button variant="outline" onClick={() => setConfigOpen(true)}>
-              <Settings className="w-4 h-4 mr-2" /> Configurar Kanban
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setConfigOpen(true)}
+              title="Adicionar / configurar quadro Kanban"
+              aria-label="Adicionar quadro Kanban"
+            >
+              <Plus className="w-4 h-4" />
             </Button>
           )}
           <Button onClick={() => setNewOpen(true)}>
@@ -984,6 +1004,7 @@ export default function Chamados() {
               onDragOver={handleDragOver}
               onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
               deadlinesByTicket={deadlinesByTicket}
+              onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
             />
           ))}
         </div>
