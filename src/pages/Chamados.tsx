@@ -188,8 +188,11 @@ function TicketDetailDialog({
   onUpdate,
   onDelete,
   onConcluirPreventiva,
+  onMarkDuplicate,
+  onRemoveDuplicate,
   vehicles,
   drivers,
+  allTickets,
 }: {
   ticket: Ticket | null;
   open: boolean;
@@ -198,8 +201,11 @@ function TicketDetailDialog({
   onUpdate: (id: string, data: any) => void;
   onDelete: (id: string) => void;
   onConcluirPreventiva: (ticket: Ticket) => void;
+  onMarkDuplicate: (ticketId: string, duplicateOfNumber: number) => void;
+  onRemoveDuplicate: (ticketId: string) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
+  allTickets: Ticket[];
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
