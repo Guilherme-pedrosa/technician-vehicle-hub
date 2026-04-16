@@ -69,7 +69,7 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_vehicle_km")
-        .select("placa, adesao_id, km_percorrido")
+        .select("placa, adesao_id, km_percorrido, data")
         .gte("data", startDate)
         .lte("data", endDate);
       if (error) throw error;
@@ -82,26 +82,45 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
     const map = new Map<string, VeiculoCustoRow>();
 
     // 1. Inicia com KM rodado por veículo
+    // IMPORTANTE: daily_vehicle_km pode ter múltiplos registros por placa+dia
+    // (1 por motorista/sessão). Para evitar contagem duplicada, pegamos
+    // o MAX(km_percorrido) por placa+dia (a API já entrega o acumulado do dia
+    // em cada registro de motorista).
+    const kmPorPlacaDia = new Map<string, number>(); // key: placa|data → maxKm
+    const placaToAdesao = new Map<string, string>();
     (kmQuery.data ?? []).forEach((r) => {
       if (isExcludedPlaca(r.placa)) return;
-      const key = String(r.adesao_id ?? r.placa);
-      if (!map.has(key)) {
-        map.set(key, {
-          adesaoId: String(r.adesao_id ?? ""),
-          placa: r.placa,
-          modelo: "",
-          kmRodado: 0,
-          custoTotal: 0,
-          custoCombustivel: 0,
-          custoManutencao: 0,
-          custoOutros: 0,
-          litros: 0,
-          custoPorKm: 0,
-          kmPorLitro: 0,
-          registros: 0,
-        });
-      }
-      map.get(key)!.kmRodado += Number(r.km_percorrido ?? 0);
+      const dataStr = String((r as { data?: string }).data ?? "");
+      const dayKey = `${r.placa}|${dataStr}`;
+      const km = Number(r.km_percorrido ?? 0);
+      const prev = kmPorPlacaDia.get(dayKey) ?? 0;
+      if (km > prev) kmPorPlacaDia.set(dayKey, km);
+      if (r.adesao_id) placaToAdesao.set(r.placa, String(r.adesao_id));
+    });
+
+    // Agrega KM por placa (somando MAX de cada dia)
+    const kmPorPlaca = new Map<string, number>();
+    kmPorPlacaDia.forEach((km, key) => {
+      const placa = key.split("|")[0];
+      kmPorPlaca.set(placa, (kmPorPlaca.get(placa) ?? 0) + km);
+    });
+
+    kmPorPlaca.forEach((kmTotal, placa) => {
+      const adesaoId = placaToAdesao.get(placa) ?? placa;
+      map.set(adesaoId, {
+        adesaoId,
+        placa,
+        modelo: "",
+        kmRodado: kmTotal,
+        custoTotal: 0,
+        custoCombustivel: 0,
+        custoManutencao: 0,
+        custoOutros: 0,
+        litros: 0,
+        custoPorKm: 0,
+        kmPorLitro: 0,
+        registros: 0,
+      });
     });
 
     // 2. Acumula custos
