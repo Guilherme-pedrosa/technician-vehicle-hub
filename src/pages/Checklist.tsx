@@ -664,6 +664,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
   const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
 
+  // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
+  const KM_DISCREPANCY_THRESHOLD = 50_000;
+  const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
+    ? (kmTrocaNum - selectedVehicle.km_atual) > KM_DISCREPANCY_THRESHOLD
+    : false;
+
   const nonConformeFields = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
