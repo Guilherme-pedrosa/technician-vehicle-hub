@@ -1,0 +1,1 @@
+ALTER TABLE public.ticket_actions ADD COLUMN IF NOT EXISTS prazo date;

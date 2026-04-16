@@ -74,14 +74,35 @@ function TicketCard({
   onDragStart,
   onClick,
   isDuplicate,
+  earliestDeadline,
 }: {
   ticket: Ticket;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: () => void;
   isDuplicate?: boolean;
+  earliestDeadline?: string | null;
 }) {
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
+
+  // Compute deadline status
+  let deadlineBadge: { label: string; className: string } | null = null;
+  if (earliestDeadline) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(earliestDeadline + "T00:00:00");
+    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const dateLabel = format(due, "dd/MM");
+    if (diffDays < 0) {
+      deadlineBadge = { label: `⚠ Atrasado ${Math.abs(diffDays)}d (${dateLabel})`, className: "bg-red-100 text-red-800 border-red-300" };
+    } else if (diffDays === 0) {
+      deadlineBadge = { label: `⏰ Vence hoje (${dateLabel})`, className: "bg-orange-100 text-orange-800 border-orange-300" };
+    } else if (diffDays <= 2) {
+      deadlineBadge = { label: `⏱ ${diffDays}d (${dateLabel})`, className: "bg-amber-100 text-amber-800 border-amber-300" };
+    } else {
+      deadlineBadge = { label: `📅 Prazo ${dateLabel} (${diffDays}d)`, className: "bg-slate-100 text-slate-700 border-slate-200" };
+    }
+  }
 
   return (
     <div
@@ -102,6 +123,12 @@ function TicketCard({
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${prio.className}`}>{prio.label}</Badge>
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${tipo.className}`}>{tipo.label}</Badge>
       </div>
+
+      {deadlineBadge && (
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 w-full justify-center ${deadlineBadge.className}`}>
+          {deadlineBadge.label}
+        </Badge>
+      )}
 
       {ticket.vehicles && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -136,6 +163,7 @@ function KanbanColumn({
   onDragStart,
   onDragOver,
   onTicketClick,
+  deadlinesByTicket,
 }: {
   column: (typeof COLUMNS)[number];
   tickets: Ticket[];
@@ -143,6 +171,7 @@ function KanbanColumn({
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onTicketClick: (t: Ticket) => void;
+  deadlinesByTicket: Record<string, string>;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -168,7 +197,13 @@ function KanbanColumn({
             </div>
           )}
           {tickets.map((t) => (
-            <TicketCard key={t.id} ticket={t} onDragStart={onDragStart} onClick={() => onTicketClick(t)} />
+            <TicketCard
+              key={t.id}
+              ticket={t}
+              onDragStart={onDragStart}
+              onClick={() => onTicketClick(t)}
+              earliestDeadline={deadlinesByTicket[t.id] ?? null}
+            />
           ))}
         </div>
       </ScrollArea>
@@ -632,6 +667,27 @@ export default function Chamados() {
     },
   });
 
+  // Fetch earliest pending deadline per ticket
+  const { data: deadlinesByTicket = {} } = useQuery({
+    queryKey: ["ticket-actions-deadlines"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ticket_actions")
+        .select("ticket_id, prazo, concluida")
+        .eq("concluida", false)
+        .not("prazo", "is", null);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of (data ?? []) as any[]) {
+        if (!row.prazo) continue;
+        if (!map[row.ticket_id] || row.prazo < map[row.ticket_id]) {
+          map[row.ticket_id] = row.prazo;
+        }
+      }
+      return map;
+    },
+  });
+
   // Fetch vehicles & drivers for new ticket form
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -917,6 +973,7 @@ export default function Chamados() {
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
+              deadlinesByTicket={deadlinesByTicket}
             />
           ))}
         </div>

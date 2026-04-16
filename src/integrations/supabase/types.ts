@@ -534,6 +534,7 @@ export type Database = {
           created_by: string
           descricao: string
           id: string
+          prazo: string | null
           sort_order: number
           ticket_id: string
         }
@@ -544,6 +545,7 @@ export type Database = {
           created_by: string
           descricao: string
           id?: string
+          prazo?: string | null
           sort_order?: number
           ticket_id: string
         }
@@ -554,6 +556,7 @@ export type Database = {
           created_by?: string
           descricao?: string
           id?: string
+          prazo?: string | null
           sort_order?: number
           ticket_id?: string
         }

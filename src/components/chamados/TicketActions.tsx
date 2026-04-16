@@ -6,8 +6,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, ListChecks } from "lucide-react";
+import { Plus, Trash2, ListChecks, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
+import { format, differenceInCalendarDays, parseISO } from "date-fns";
 
 interface TicketAction {
   id: string;
@@ -18,6 +19,7 @@ interface TicketAction {
   created_at: string;
   completed_at: string | null;
   sort_order: number;
+  prazo: string | null;
 }
 
 export function TicketActions({ ticketId }: { ticketId: string }) {
@@ -39,6 +41,11 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
     },
   });
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["ticket-actions", ticketId] });
+    queryClient.invalidateQueries({ queryKey: ["ticket-actions-deadlines"] });
+  };
+
   const addMutation = useMutation({
     mutationFn: async (descricao: string) => {
       const { error } = await supabase.from("ticket_actions").insert({
@@ -50,7 +57,7 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ticket-actions", ticketId] });
+      invalidate();
       setNewAction("");
     },
     onError: () => toast.error("Erro ao adicionar ação"),
@@ -67,8 +74,20 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ticket-actions", ticketId] }),
+    onSuccess: invalidate,
     onError: () => toast.error("Erro ao atualizar ação"),
+  });
+
+  const prazoMutation = useMutation({
+    mutationFn: async ({ id, prazo }: { id: string; prazo: string | null }) => {
+      const { error } = await supabase
+        .from("ticket_actions")
+        .update({ prazo } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: () => toast.error("Erro ao salvar prazo"),
   });
 
   const deleteMutation = useMutation({
@@ -76,7 +95,7 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
       const { error } = await supabase.from("ticket_actions").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ticket-actions", ticketId] }),
+    onSuccess: invalidate,
     onError: () => toast.error("Erro ao remover ação"),
   });
 
@@ -95,6 +114,15 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
 
   const doneCount = actions.filter((a) => a.concluida).length;
   const totalCount = actions.length;
+
+  const getPrazoStatus = (prazo: string | null, concluida: boolean) => {
+    if (!prazo || concluida) return null;
+    const days = differenceInCalendarDays(parseISO(prazo), new Date());
+    if (days < 0) return { label: `Atrasado ${Math.abs(days)}d`, className: "text-destructive font-semibold" };
+    if (days === 0) return { label: "Vence hoje", className: "text-orange-600 font-semibold" };
+    if (days <= 2) return { label: `${days}d restantes`, className: "text-amber-600" };
+    return { label: `${days}d restantes`, className: "text-muted-foreground" };
+  };
 
   return (
     <div className="space-y-3">
@@ -123,34 +151,64 @@ export function TicketActions({ ticketId }: { ticketId: string }) {
         <p className="text-xs text-muted-foreground">Carregando...</p>
       ) : (
         <div className="space-y-1">
-          {actions.map((action) => (
-            <div
-              key={action.id}
-              className="flex items-center gap-2 group rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors"
-            >
-              <Checkbox
-                checked={action.concluida}
-                onCheckedChange={(checked) =>
-                  toggleMutation.mutate({ id: action.id, concluida: Boolean(checked) })
-                }
-              />
-              <span
-                className={`flex-1 text-sm ${
-                  action.concluida ? "line-through text-muted-foreground" : ""
-                }`}
+          {actions.map((action) => {
+            const prazoStatus = getPrazoStatus(action.prazo, action.concluida);
+            return (
+              <div
+                key={action.id}
+                className="group rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors space-y-1"
               >
-                {action.descricao}
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                onClick={() => deleteMutation.mutate(action.id)}
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={action.concluida}
+                    onCheckedChange={(checked) =>
+                      toggleMutation.mutate({ id: action.id, concluida: Boolean(checked) })
+                    }
+                  />
+                  <span
+                    className={`flex-1 text-sm ${
+                      action.concluida ? "line-through text-muted-foreground" : ""
+                    }`}
+                  >
+                    {action.descricao}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
+                    onClick={() => deleteMutation.mutate(action.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 pl-6">
+                  <CalendarClock className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <Label className="text-[10px] text-muted-foreground shrink-0">Prazo:</Label>
+                  <Input
+                    type="date"
+                    value={action.prazo ?? ""}
+                    onChange={(e) =>
+                      prazoMutation.mutate({
+                        id: action.id,
+                        prazo: e.target.value || null,
+                      })
+                    }
+                    className="h-6 text-xs w-36 px-2"
+                  />
+                  {prazoStatus && (
+                    <span className={`text-[10px] ${prazoStatus.className}`}>
+                      {prazoStatus.label}
+                    </span>
+                  )}
+                  {action.prazo && (
+                    <span className="text-[10px] text-muted-foreground">
+                      ({format(parseISO(action.prazo), "dd/MM/yy")})
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
