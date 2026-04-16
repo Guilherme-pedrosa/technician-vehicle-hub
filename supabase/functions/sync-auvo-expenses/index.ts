@@ -457,9 +457,8 @@ async function extractTextFromAttachment(
       knownPlates,
     );
 
-    if (!knownPlate && knownPlates.length) {
-      knownPlate = await detectKnownPlateFromImage(imageBase64, contentType, lovableApiKey, knownPlates);
-    }
+    // 2ª chamada Gemini removida (custo de CPU dobrava sem ganho — a 1ª já recebe a lista de placas)
+
 
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
