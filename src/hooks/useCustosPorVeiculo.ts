@@ -37,7 +37,8 @@ function isCombustivel(nome?: string) {
     n.includes("abastec") ||
     n.includes("gasolin") ||
     n.includes("etanol") ||
-    n.includes("diesel")
+    n.includes("diesel") ||
+    n.includes("deslocamento")
   );
 }
 
