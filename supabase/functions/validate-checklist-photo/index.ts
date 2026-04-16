@@ -95,13 +95,13 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   danos: {
     label: "Dano/avaria",
-    criterio: "Deve mostrar claramente o dano, avaria ou defeito no veículo. O dano deve ser visível.",
-    has_critical: true,
+    criterio: "Esta foto documenta um dano, avaria, defeito ou irregularidade no veículo. ACEITE a foto se ela mostrar QUALQUER parte do veículo (interior ou exterior) que possa estar sendo documentada como problema — isso inclui: peças quebradas, soltas, faltando, mal encaixadas, rachadas, amassadas, riscadas, sujas em excesso, fora de posição, com mau funcionamento aparente, ou qualquer componente que o técnico julgou necessário registrar (ex: quebra-sol danificado, maçaneta solta, forro rasgado, calotas faltando, parafusos expostos, peças improvisadas). NÃO exija que o dano seja óbvio ou dramático — muitos defeitos são sutis. Se a foto mostra uma parte do veículo em close-up ou contexto, ACEITE. Só REJEITE se a foto claramente NÃO for de um veículo (ex: foto de pessoa, paisagem, objeto não automotivo).",
+    has_critical: false,
   },
   avaria: {
     label: "Dano/avaria",
-    criterio: "Deve mostrar claramente o dano, avaria ou defeito no veículo. O dano deve ser visível.",
-    has_critical: true,
+    criterio: "Esta foto documenta um dano, avaria, defeito ou irregularidade no veículo. ACEITE a foto se ela mostrar QUALQUER parte do veículo (interior ou exterior) que possa estar sendo documentada como problema — isso inclui: peças quebradas, soltas, faltando, mal encaixadas, rachadas, amassadas, riscadas, sujas em excesso, fora de posição, com mau funcionamento aparente, ou qualquer componente que o técnico julgou necessário registrar (ex: quebra-sol danificado, maçaneta solta, forro rasgado, calotas faltando, parafusos expostos, peças improvisadas). NÃO exija que o dano seja óbvio ou dramático — muitos defeitos são sutis. Se a foto mostra uma parte do veículo em close-up ou contexto, ACEITE. Só REJEITE se a foto claramente NÃO for de um veículo (ex: foto de pessoa, paisagem, objeto não automotivo).",
+    has_critical: false,
   },
 };
 
