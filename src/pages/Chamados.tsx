@@ -1004,6 +1004,7 @@ export default function Chamados() {
               onDragOver={handleDragOver}
               onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
               deadlinesByTicket={deadlinesByTicket}
+              onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
             />
           ))}
         </div>
