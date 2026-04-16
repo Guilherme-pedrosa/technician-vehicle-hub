@@ -451,8 +451,6 @@ Deno.serve(async (req) => {
             if (!error) totalSynced++;
             else totalErrors++;
           }
-
-          await new Promise((r) => setTimeout(r, 150));
         } catch (err) {
           console.warn(
             `[sync-daily-km] Failed: vehicle=${vehicle.adesao_id} day=${day}:`,
@@ -460,7 +458,12 @@ Deno.serve(async (req) => {
           );
           totalErrors++;
         }
-      }
+    };
+
+    // Process jobs in parallel batches to fit within edge function timeout
+    for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+      const batch = jobs.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(processJob));
     }
 
     return new Response(
