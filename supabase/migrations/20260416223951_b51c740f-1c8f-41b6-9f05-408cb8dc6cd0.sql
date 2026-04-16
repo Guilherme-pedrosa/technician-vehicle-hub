@@ -1,0 +1,1 @@
+SELECT expense_date, description, vehicle_id, parse_status FROM public.auvo_expenses ORDER BY updated_at DESC LIMIT 10;
