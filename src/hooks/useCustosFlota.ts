@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getCustos } from "@/services/rotaexata";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 export type CustoRotaExata = {
   id: string;
