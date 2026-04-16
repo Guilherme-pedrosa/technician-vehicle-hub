@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Users, Truck, Wrench, AlertTriangle, CheckCircle, Clock, MapPin,
   Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull, Download,
+  Fuel, DollarSign, TrendingUp, Droplet,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { isPast, format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
