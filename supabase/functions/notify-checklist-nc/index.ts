@@ -37,7 +37,17 @@ serve(async (req) => {
       avaria_descricao,
     } = body;
 
-    // Get all user emails from auth.users via admin API
+    // Get only ADMIN users
+    const { data: adminRoles, error: rolesError } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (rolesError) {
+      console.error("Error fetching admin roles:", rolesError);
+      throw new Error("Failed to fetch admin roles");
+    }
+    const adminUserIds = new Set((adminRoles ?? []).map((r: any) => r.user_id));
+
     const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers();
     if (usersError) {
       console.error("Error listing users:", usersError);
@@ -45,6 +55,7 @@ serve(async (req) => {
     }
 
     const emails = usersData.users
+      .filter((u: any) => adminUserIds.has(u.id))
       .map((u: any) => u.email)
       .filter((e: string | undefined) => !!e);
 
