@@ -29,6 +29,8 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { TicketActions } from "@/components/chamados/TicketActions";
 import { ConcluirPreventivaDialog } from "@/components/chamados/ConcluirPreventivaDialog";
+import { KanbanConfigDialog } from "@/components/chamados/KanbanConfigDialog";
+import { Settings } from "lucide-react";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -643,9 +645,10 @@ function NewTicketDialog({
 // ═══════════════════════════════════════════
 
 export default function Chamados() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
@@ -893,9 +896,16 @@ export default function Chamados() {
           <h1 className="text-2xl font-bold tracking-tight">Chamados de Manutenção</h1>
           <p className="text-muted-foreground text-sm">Arraste os cards para alterar o status</p>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="shrink-0">
-          <Plus className="w-4 h-4 mr-2" /> Novo Chamado
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setConfigOpen(true)}>
+              <Settings className="w-4 h-4 mr-2" /> Configurar Kanban
+            </Button>
+          )}
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" /> Novo Chamado
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -1046,6 +1056,7 @@ export default function Chamados() {
           onDone={() => setConcluirTicket(null)}
         />
       )}
+      <KanbanConfigDialog open={configOpen} onOpenChange={setConfigOpen} />
     </div>
   );
 }

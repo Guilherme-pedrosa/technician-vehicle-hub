@@ -292,6 +292,80 @@ export type Database = {
         }
         Relationships: []
       }
+      kanban_boards: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kanban_columns: {
+        Row: {
+          board_id: string
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          mapped_status: Database["public"]["Enums"]["ticket_status"] | null
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          mapped_status?: Database["public"]["Enums"]["ticket_status"] | null
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          mapped_status?: Database["public"]["Enums"]["ticket_status"] | null
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_columns_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenance_executions: {
         Row: {
           cost: number | null
@@ -417,6 +491,8 @@ export type Database = {
           duplicate_of: string | null
           fotos: string[] | null
           id: string
+          kanban_board_id: string | null
+          kanban_column_id: string | null
           maintenance_plan_id: string | null
           prioridade: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
@@ -435,6 +511,8 @@ export type Database = {
           duplicate_of?: string | null
           fotos?: string[] | null
           id?: string
+          kanban_board_id?: string | null
+          kanban_column_id?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -453,6 +531,8 @@ export type Database = {
           duplicate_of?: string | null
           fotos?: string[] | null
           id?: string
+          kanban_board_id?: string | null
+          kanban_column_id?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -475,6 +555,20 @@ export type Database = {
             columns: ["duplicate_of"]
             isOneToOne: false
             referencedRelation: "maintenance_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_kanban_board_id_fkey"
+            columns: ["kanban_board_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_tickets_kanban_column_id_fkey"
+            columns: ["kanban_column_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
             referencedColumns: ["id"]
           },
           {
