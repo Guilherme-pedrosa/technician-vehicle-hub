@@ -462,6 +462,61 @@ export default function Veiculos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Odometer Correction Dialog */}
+      <Dialog open={odoDialogOpen} onOpenChange={setOdoDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gauge className="w-5 h-5" /> Corrigir Odômetro no Rota Exata
+            </DialogTitle>
+          </DialogHeader>
+          {odoVehicle && (
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                <p className="text-sm"><span className="text-muted-foreground">Veículo:</span> <strong>{odoVehicle.placa}</strong> — {odoVehicle.marca} {odoVehicle.modelo}</p>
+                <p className="text-sm"><span className="text-muted-foreground">KM atual no sistema:</span> <strong className="tabular-nums">{odoVehicle.km_atual.toLocaleString("pt-BR")} km</strong></p>
+                <p className="text-sm"><span className="text-muted-foreground">Adesão ID:</span> <span className="font-mono text-xs">{odoVehicle.adesao_id}</span></p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Novo KM (odômetro real)</Label>
+                <Input
+                  type="number"
+                  value={odoNewKm}
+                  onChange={(e) => setOdoNewKm(e.target.value)}
+                  placeholder="Ex: 276822"
+                  className="tabular-nums"
+                />
+                {odoNewKm && Number(odoNewKm) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Diferença: <strong className="tabular-nums">{(Number(odoNewKm) - odoVehicle.km_atual).toLocaleString("pt-BR")} km</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOdoDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!odoVehicle?.adesao_id || !odoNewKm || Number(odoNewKm) <= 0) {
+                  toast.error("Informe um KM válido");
+                  return;
+                }
+                odoMutation.mutate({
+                  adesaoId: Number(odoVehicle.adesao_id),
+                  km: Number(odoNewKm),
+                  vehicleId: odoVehicle.id,
+                });
+              }}
+              disabled={odoMutation.isPending}
+            >
+              {odoMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Corrigindo...</> : "Corrigir Odômetro"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
