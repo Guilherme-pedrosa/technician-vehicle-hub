@@ -47,6 +47,7 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     const groups = new Map<string, { nome: string; km: number; telemetrias: number; excessos: number; velMax: number; placas: Set<string> }>();
 
     for (const row of rows) {
+      if (isExcludedPlaca(row.placa)) continue;
       const km = Number(row.km_percorrido) || 0;
       if (km <= 0 && !(Number((row as Record<string, unknown>).telemetrias) > 0)) continue;
       const isSemCondutor = !row.motorista_id || row.motorista_nome === "Sem condutor vinculado";
