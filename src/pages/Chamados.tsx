@@ -645,9 +645,10 @@ function NewTicketDialog({
 // ═══════════════════════════════════════════
 
 export default function Chamados() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [newOpen, setNewOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
