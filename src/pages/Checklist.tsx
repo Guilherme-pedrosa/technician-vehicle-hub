@@ -564,8 +564,8 @@ const STEPS = [
   { id: "info", title: "Identificação", icon: ClipboardCheck },
   { id: "painel", title: "Foto do Painel", icon: Gauge },
   { id: "capo", title: "Capô (carro desligado)", icon: Wrench },
-  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot },
-  { id: "exterior_360", title: "360° e Exterior", icon: Car },
+  { id: "calibracao", title: "Calibração e Segurança", icon: Gauge },
+  { id: "exterior_360", title: "Exterior e Pneus", icon: Car },
   { id: "interior", title: "Interior", icon: Shield },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
@@ -573,7 +573,7 @@ const STEPS = [
 
 const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
   capo: ["Capô"],
-  pneus: ["Pneus"],
+  calibracao: ["Pneus"],
   exterior_360: ["Exterior"],
   interior: ["Interior"],
   danos: ["Danos"],
@@ -582,8 +582,8 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
   capo: ["motor", "nivel_oleo", "reservatorio_agua"],
-  pneus: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"],
-  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"],
+  calibracao: ["calibracao", "estepe", "itens_seguranca"],
+  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
   interior: ["interior"],
 };
 
