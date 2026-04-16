@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
+import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
+import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { cn } from "@/lib/utils";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
@@ -65,6 +67,13 @@ export default function CustosFlota() {
     if (placaFilter === "todos") return custos;
     return custos.filter((c) => c.placa === placaFilter);
   }, [custos, placaFilter]);
+
+  // Aggregate per vehicle (cost + KM + R$/km + km/L)
+  const { rows: porVeiculo, isLoading: loadingPorVeiculo } = useCustosPorVeiculo(
+    filteredCustos,
+    start,
+    end
+  );
 
   // Summary cards
   const summary = useMemo(() => {
@@ -252,7 +261,10 @@ export default function CustosFlota() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Per-vehicle breakdown: ranking + detalhamento */}
+      <CustosPorVeiculoTable rows={porVeiculo} isLoading={isLoading || loadingPorVeiculo} />
+
+      {/* Tabela bruta de lançamentos */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
