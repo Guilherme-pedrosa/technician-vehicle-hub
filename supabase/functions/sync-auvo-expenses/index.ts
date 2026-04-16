@@ -86,6 +86,7 @@ type AttachmentOcr = {
   km?: number | null;
   litros?: number | null;
   valor?: number | null;
+  error?: string;
 };
 
 async function auvoLogin(apiKey: string, apiToken: string): Promise<string> {
@@ -263,6 +264,33 @@ function parseJsonObject(content: string) {
   return JSON.parse(match[0]);
 }
 
+function inferMimeFromBytes(bytes: Uint8Array, fallback = "image/jpeg"): string {
+  if (bytes.length >= 4) {
+    // PNG: 89 50 4E 47
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+    // JPEG: FF D8 FF
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+    // GIF
+    if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif";
+    // WEBP: RIFF....WEBP
+    if (
+      bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+      bytes.length >= 12 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+    ) return "image/webp";
+  }
+  return fallback;
+}
+
+function inferMimeFromUrl(url: string): string | null {
+  const lower = url.toLowerCase().split("?")[0];
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic";
+  return null;
+}
+
 async function extractTextFromAttachment(
   imageUrl: string,
   lovableApiKey: string,
@@ -270,12 +298,23 @@ async function extractTextFromAttachment(
   try {
     const imageRes = await fetch(imageUrl);
     if (!imageRes.ok) {
-      console.warn(`Attachment fetch failed [${imageRes.status}] for ${imageUrl}`);
-      return null;
+      console.warn(`[OCR] fetch failed [${imageRes.status}] ${imageUrl}`);
+      return { text: "", clues: [], placa: null, km: null, litros: null, valor: null, error: `fetch_${imageRes.status}` } as AttachmentOcr;
     }
 
-    const contentType = imageRes.headers.get("content-type") || "image/png";
-    const imageBase64 = toBase64(await imageRes.arrayBuffer());
+    const headerType = imageRes.headers.get("content-type") || "";
+    const buffer = await imageRes.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    // Auvo S3 entrega muitas vezes como "binary/octet-stream" — Gemini rejeita.
+    // Detectamos o tipo real por magic bytes (fallback) e por extensão da URL.
+    let contentType = headerType.startsWith("image/") ? headerType : (inferMimeFromUrl(imageUrl) ?? inferMimeFromBytes(bytes));
+    if (contentType === "image/heic" || contentType === "image/heif") {
+      // Gemini não aceita HEIC; força jpeg (alguns devices entregam .heic mas bytes JPEG)
+      contentType = inferMimeFromBytes(bytes, "image/jpeg");
+    }
+
+    const imageBase64 = toBase64(buffer);
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -314,25 +353,35 @@ async function extractTextFromAttachment(
     });
 
     if (!aiRes.ok) {
-      console.warn(`Attachment OCR failed [${aiRes.status}] for ${imageUrl}`);
-      return null;
+      const errText = await aiRes.text();
+      console.warn(`[OCR] gemini failed [${aiRes.status}] mime=${contentType} url=${imageUrl} :: ${errText.slice(0, 300)}`);
+      return { text: "", clues: [], placa: null, km: null, litros: null, valor: null, error: `gemini_${aiRes.status}: ${errText.slice(0, 200)}` } as AttachmentOcr;
     }
 
     const data = await aiRes.json();
     const content = data?.choices?.[0]?.message?.content ?? "";
-    const parsed = parseJsonObject(content);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseJsonObject(content);
+    } catch (e) {
+      console.warn(`[OCR] parse error url=${imageUrl} content=${content.slice(0, 200)}`);
+      return { text: content.slice(0, 300), clues: [], placa: null, km: null, litros: null, valor: null, error: `parse: ${e instanceof Error ? e.message : String(e)}` } as AttachmentOcr;
+    }
     const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    return {
+    const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
-      clues: Array.isArray(parsed?.clues) ? parsed.clues.map((item: unknown) => String(item)) : [],
+      clues: Array.isArray(parsed?.clues) ? (parsed.clues as unknown[]).map((item) => String(item)) : [],
       placa: placaRaw && placaRaw.length === 7 ? placaRaw : null,
-      km: typeof parsed?.km === "number" ? parsed.km : null,
-      litros: typeof parsed?.litros === "number" ? parsed.litros : null,
-      valor: typeof parsed?.valor === "number" ? parsed.valor : null,
+      km: typeof parsed?.km === "number" ? (parsed.km as number) : null,
+      litros: typeof parsed?.litros === "number" ? (parsed.litros as number) : null,
+      valor: typeof parsed?.valor === "number" ? (parsed.valor as number) : null,
     };
+    console.log(`[OCR] ok placa=${result.placa ?? "-"} km=${result.km ?? "-"} url=${imageUrl}`);
+    return result;
   } catch (error) {
-    console.warn("Attachment OCR error:", error instanceof Error ? error.message : String(error));
-    return null;
+    const msg = error instanceof Error ? error.message : String(error);
+    console.warn(`[OCR] exception ${imageUrl}: ${msg}`);
+    return { text: "", clues: [], placa: null, km: null, litros: null, valor: null, error: `exception: ${msg}` } as AttachmentOcr;
   }
 }
 
