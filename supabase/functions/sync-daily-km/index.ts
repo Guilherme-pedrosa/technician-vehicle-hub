@@ -71,6 +71,62 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
   return [];
 }
 
+/** Fetch raw driving events (freadas/acelerações/curvas bruscas) with timestamps */
+async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
+  const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+  try {
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json", Authorization: token },
+    });
+    if (res.status === 404 || !res.ok) return [];
+    const json = await res.json();
+    const arr = Array.isArray(json) ? json : (json?.data && Array.isArray(json.data) ? json.data : []);
+    return arr as Record<string, unknown>[];
+  } catch {
+    return [];
+  }
+}
+
+/** Parse a date string like "2026-04-01 02:09:53" or ISO into ms */
+function parseDateMs(s: unknown): number {
+  if (!s) return 0;
+  const str = String(s).trim();
+  // Try ISO first
+  const iso = Date.parse(str);
+  if (!isNaN(iso)) return iso;
+  // Try "YYYY-MM-DD HH:MM:SS"
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (m) {
+    return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+  }
+  // Try "DD/MM/YYYY HH:MM:SS"
+  const m2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (m2) {
+    return Date.UTC(Number(m2[3]), Number(m2[2]) - 1, Number(m2[1]), Number(m2[4]), Number(m2[5]), Number(m2[6]));
+  }
+  return 0;
+}
+
+/** Extract event timestamp from dirigibilidade entry */
+function getEventMs(ev: Record<string, unknown>): number {
+  return parseDateMs(
+    ev.data_evento ?? ev.dt_evento ?? ev.data_horario ?? ev.dt_horario ??
+    ev.horario ?? ev.data ?? ev.dt ?? ev.timestamp
+  );
+}
+
+/** Get session start/end ms for a log_motorista entry */
+function getSessionRangeMs(s: Record<string, unknown>): { start: number; end: number } {
+  const start = parseDateMs(
+    s.dt_inicio ?? s.hr_vinculo ?? s.horario_vinculo ?? s.hora_inicio ?? s.dt_inicio_vinculo
+  );
+  const end = parseDateMs(
+    s.dt_fim ?? s.dt_fim_vinculo ?? s.hr_desvinculo ?? s.horario_desvinculo ?? s.hora_fim
+  ) || (start + 24 * 60 * 60 * 1000); // fallback: open session = end of day
+  return { start, end };
+}
+
 async function fetchResumoDia(token: string, adesaoId: string | number, data: string): Promise<{
   telemetrias: number;
   velocidadeMaxima: number;
