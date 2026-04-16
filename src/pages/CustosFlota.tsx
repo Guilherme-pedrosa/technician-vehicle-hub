@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,9 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
+import { useAuvoExpenses, syncAuvoExpenses, type AuvoCusto } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+type DataSource = "auvo" | "rotaexata";
 
 type PeriodFilter = "hoje" | "semana" | "mes" | "custom";
 
@@ -43,10 +47,12 @@ export default function CustosFlota() {
   const [placaFilter, setPlacaFilter] = useState("todos");
   const [customStart, setCustomStart] = useState<Date>();
   const [customEnd, setCustomEnd] = useState<Date>();
+  const [source, setSource] = useState<DataSource>("auvo");
+  const [syncing, setSyncing] = useState(false);
 
   const { start, end } = getDateRange(period, customStart, customEnd);
 
-  // Build where clause
+  // Build where clause for Rota Exata
   const where = useMemo(() => {
     const filter: Record<string, unknown> = {
       dt_lancamento: {
@@ -60,13 +66,41 @@ export default function CustosFlota() {
     return JSON.stringify(filter);
   }, [start, end, tipoCusto]);
 
-  const { data: custos = [], isLoading } = useCustosFlota(where);
+  const rotaQuery = useCustosFlota(source === "rotaexata" ? where : undefined);
+  const auvoQuery = useAuvoExpenses(start, end);
 
-  // Filter by placa client-side (placa comes from API directly)
+  const custos: (CustoRotaExata | AuvoCusto)[] =
+    source === "auvo" ? auvoQuery.data ?? [] : rotaQuery.data ?? [];
+  const isLoading = source === "auvo" ? auvoQuery.isLoading : rotaQuery.isLoading;
+
+  // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
-    if (placaFilter === "todos") return custos;
-    return custos.filter((c) => c.placa === placaFilter);
-  }, [custos, placaFilter]);
+    let list = custos;
+    if (source === "auvo" && tipoCusto !== "todos") {
+      list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
+    }
+    if (placaFilter !== "todos") {
+      list = list.filter((c) => c.placa === placaFilter);
+    }
+    return list;
+  }, [custos, placaFilter, tipoCusto, source]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const startStr = start.toISOString().slice(0, 10);
+      const endStr = end.toISOString().slice(0, 10);
+      const r = await syncAuvoExpenses(startStr, endStr);
+      toast.success(
+        `Sync Auvo: ${r.fetched} despesas (${r.matched} vinculadas, ${r.unmatched} sem placa)`,
+      );
+      auvoQuery.refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na sincronização");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Aggregate per vehicle (cost + KM + R$/km + km/L)
   const { rows: porVeiculo, isLoading: loadingPorVeiculo } = useCustosPorVeiculo(
@@ -138,10 +172,33 @@ export default function CustosFlota() {
             Acompanhe os custos operacionais de toda a frota
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
-          <Download className="h-4 w-4" />
-          Exportar CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Select value={source} onValueChange={(v) => setSource(v as DataSource)}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auvo">Auvo (despesas)</SelectItem>
+              <SelectItem value="rotaexata">Rota Exata</SelectItem>
+            </SelectContent>
+          </Select>
+          {source === "auvo" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+              className="gap-2"
+            >
+              <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+              {syncing ? "Sincronizando…" : "Sincronizar Auvo"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -291,6 +348,7 @@ export default function CustosFlota() {
                     <TableHead>Criado por</TableHead>
                     <TableHead className="text-right">Custo</TableHead>
                     <TableHead className="text-center">Parcelado</TableHead>
+                    {source === "auvo" && <TableHead className="text-center">Anexo</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -307,7 +365,15 @@ export default function CustosFlota() {
                           : "—"}
                       </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {custo.placa ?? `ID ${custo.adesao_id}`}
+                        {custo.placa ? (
+                          custo.placa
+                        ) : source === "auvo" ? (
+                          <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
+                            <AlertCircle className="h-3 w-3" /> Sem placa
+                          </Badge>
+                        ) : (
+                          `ID ${custo.adesao_id}`
+                        )}
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                         {custo.descricao ?? custo.veiculo_descricao ?? "—"}
@@ -338,6 +404,22 @@ export default function CustosFlota() {
                           "Não"
                         )}
                       </TableCell>
+                      {source === "auvo" && (
+                        <TableCell className="text-center">
+                          {(custo as AuvoCusto).attachment_url ? (
+                            <a
+                              href={(custo as AuvoCusto).attachment_url ?? "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center text-primary hover:underline"
+                            >
+                              <Paperclip className="h-4 w-4" />
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
