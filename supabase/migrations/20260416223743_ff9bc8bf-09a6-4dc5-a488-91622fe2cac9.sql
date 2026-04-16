@@ -1,0 +1,1 @@
+SELECT expense_date, description, attachment_url, parse_status, parsed_keyword, raw_payload->'attachment_ocr' AS attachment_ocr FROM public.auvo_expenses WHERE vehicle_id IS NULL ORDER BY expense_date DESC, created_at DESC LIMIT 15;
