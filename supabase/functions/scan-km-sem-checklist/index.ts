@@ -36,17 +36,34 @@ Deno.serve(async (req) => {
 
     console.log(`[scan-km-sem-checklist] Iniciando para ${today}`);
 
-    // KM total por placa hoje
+    // KM total por placa hoje + motorista que mais rodou
     const { data: kmRows } = await supabase
       .from("daily_vehicle_km")
-      .select("placa, km_percorrido")
+      .select("placa, km_percorrido, motorista_nome")
       .eq("data", today);
 
     const kmByPlaca = new Map<string, number>();
+    // placa -> Map<motorista_nome, km_acumulado>
+    const motoristasPorPlaca = new Map<string, Map<string, number>>();
     for (const row of kmRows ?? []) {
       const p = String(row.placa);
       if (EXCLUDED_PLACAS.has(p)) continue;
-      kmByPlaca.set(p, (kmByPlaca.get(p) ?? 0) + Number(row.km_percorrido ?? 0));
+      const km = Number(row.km_percorrido ?? 0);
+      kmByPlaca.set(p, (kmByPlaca.get(p) ?? 0) + km);
+
+      const nome = String(row.motorista_nome ?? "").trim();
+      if (nome && nome.toLowerCase() !== "desconhecido") {
+        if (!motoristasPorPlaca.has(p)) motoristasPorPlaca.set(p, new Map());
+        const m = motoristasPorPlaca.get(p)!;
+        m.set(nome, (m.get(nome) ?? 0) + km);
+      }
+    }
+
+    // Para cada placa, escolhe o motorista que mais rodou no dia
+    const motoristaPrincipalPorPlaca = new Map<string, string>();
+    for (const [placa, motMap] of motoristasPorPlaca.entries()) {
+      const top = [...motMap.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top) motoristaPrincipalPorPlaca.set(placa, top[0]);
     }
 
     // Placas com checklist hoje
