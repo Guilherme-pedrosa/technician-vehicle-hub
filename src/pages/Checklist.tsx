@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 
 // ═══════════════════════════════════════════
 // PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
@@ -171,8 +172,9 @@ type ValidationResult = {
   km_legivel?: boolean;
 };
 
-// Diferença máxima tolerada entre o KM lido na foto do painel e o KM cadastrado do veículo (Rota Exata).
-const KM_PAINEL_DIVERGENCE_THRESHOLD = 5000;
+// Comparação KM painel × cadastro: feita sob demanda na exibição
+// (helper em src/lib/km-painel-divergence.ts) para não atrasar o submit do
+// checklist e refletir sempre o `km_atual` mais recente do veículo.
 
 type PhotoValidation = {
   status: "idle" | "validating" | "valid" | "invalid" | "forced";
@@ -769,8 +771,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
-          km_painel: (() => {
-            // Pega o maior km_lido entre as fotos do painel (caso tenha mais de uma)
+          // Salvamos APENAS o número lido pela IA (extração já feita durante
+          // a validação da foto, sem custo extra). A comparação com o
+          // `km_atual` do veículo é feita SOB DEMANDA na exibição — assim
+          // não atrasa o submit e sempre reflete o cadastro mais recente.
+          km_lido_painel: (() => {
             const painelValidations = photoValidations.painel ?? [];
             let lidoNum: number | null = null;
             for (const v of painelValidations) {
@@ -780,16 +785,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                 if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
               }
             }
-            if (lidoNum === null || !selectedVehicle) return null;
-            const esperado = selectedVehicle.km_atual ?? 0;
-            const diff = lidoNum - esperado;
-            return {
-              lido: lidoNum,
-              esperado,
-              diferenca: diff,
-              divergente: Math.abs(diff) > KM_PAINEL_DIVERGENCE_THRESHOLD,
-              comparado_em: new Date().toISOString(),
-            };
+            return lidoNum;
           })(),
         },
         ...persistedAnswers,
@@ -2117,7 +2113,8 @@ export default function Checklist() {
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
-                  const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                  // Comparação sob demanda usando km_atual mais recente do veículo
+                  const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                   const kmDivergente = !!kmPainel?.divergente;
                   return (
                     <button
@@ -2202,7 +2199,8 @@ export default function Checklist() {
                       const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
-                      const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                      // Comparação sob demanda usando km_atual mais recente do veículo
+                      const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                       const kmDivergente = !!kmPainel?.divergente;
                       const rowFlagged = hasBadPhotos || kmDivergente;
                       return (

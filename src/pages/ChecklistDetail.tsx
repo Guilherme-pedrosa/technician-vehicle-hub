@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
@@ -724,21 +725,21 @@ export default function ChecklistDetail() {
         </Card>
       )}
 
-      {/* KM do painel × Cadastro (Rota Exata) */}
-      {detalhes?.km_painel && (() => {
-        const kp = detalhes.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean };
-        const divergente = !!kp.divergente;
+      {/* KM do painel × Cadastro (Rota Exata) — calculado SOB DEMANDA */}
+      {(() => {
+        const kp = computeKmPainelDivergence(detalhes, vehicle?.km_atual);
+        if (!kp) return null;
+        const divergente = kp.divergente;
         return (
           <Card className={divergente ? "border-destructive/40" : ""}>
             <CardContent className="p-4 sm:p-6 space-y-2">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <Gauge className="w-4 h-4 text-primary" /> KM do Painel × Cadastro
-                {divergente && (
+                {divergente ? (
                   <Badge variant="destructive" className="text-[10px] gap-1 ml-auto">
                     <AlertTriangle className="w-3 h-3" /> Divergente
                   </Badge>
-                )}
-                {!divergente && (
+                ) : (
                   <Badge className="text-[10px] gap-1 ml-auto bg-success/10 text-success border-success/30">
                     <CheckCircle className="w-3 h-3" /> Bate
                   </Badge>
@@ -749,7 +750,7 @@ export default function ChecklistDetail() {
                 <span className="text-sm font-semibold tabular-nums">{kp.lido.toLocaleString("pt-BR")} km</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Cadastro do veículo (Rota Exata)</span>
+                <span className="text-sm text-muted-foreground">Cadastro do veículo (Rota Exata, atual)</span>
                 <span className="text-sm font-semibold tabular-nums">{kp.esperado.toLocaleString("pt-BR")} km</span>
               </div>
               <div className="flex items-center justify-between border-t pt-2 mt-1">
@@ -763,6 +764,9 @@ export default function ChecklistDetail() {
                   ⚠️ Diferença acima de 5.000 km. Pode indicar foto trocada, painel ilegível, KM cadastrado desatualizado ou falha de leitura da IA. Revise a foto do painel.
                 </p>
               )}
+              <p className="text-[10px] text-muted-foreground italic mt-1">
+                Comparação recalculada agora com o KM mais recente do veículo.
+              </p>
             </CardContent>
           </Card>
         );
