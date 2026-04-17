@@ -641,6 +641,25 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
   const [kmProximaTroca, setKmProximaTroca] = useState("");
+  // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
+  // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
+  const [kmPainelManual, setKmPainelManual] = useState("");
+  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
+
+  // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
+  useEffect(() => {
+    if (kmPainelEditadoManualmente) return;
+    const painelValidations = photoValidations.painel ?? [];
+    let lidoNum: number | null = null;
+    for (const v of painelValidations) {
+      const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
+      if (raw.length >= 3 && v?.result?.km_legivel) {
+        const n = parseInt(raw, 10);
+        if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
+      }
+    }
+    if (lidoNum !== null) setKmPainelManual(String(lidoNum));
+  }, [photoValidations, kmPainelEditadoManualmente]);
 
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
@@ -676,6 +695,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
     setKmProximaTroca("");
+    setKmPainelManual("");
+    setKmPainelEditadoManualmente(false);
   };
 
   // Troca de óleo: auto-detecta NC quando faltam ≤ 1000 km para a próxima troca
@@ -779,6 +800,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           // `km_atual` do veículo é feita SOB DEMANDA na exibição — assim
           // não atrasa o submit e sempre reflete o cadastro mais recente.
           km_lido_painel: (() => {
+            // 1) Prioriza o KM informado/confirmado pelo técnico (campo obrigatório)
+            const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
+            if (!isNaN(manualNum) && manualNum >= 100) return manualNum;
+            // 2) Fallback: maior valor lido pela IA com km_legivel=true
             const painelValidations = photoValidations.painel ?? [];
             let lidoNum: number | null = null;
             for (const v of painelValidations) {
@@ -953,6 +978,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       }
       if (missing.length > 0) return false;
     }
+    // PAINEL: KM atual é OBRIGATÓRIO (impacta a programação da troca de óleo)
+    if (currentStep.id === "painel") {
+      const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
+      if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
+      // Bloqueia retrocesso de odômetro além da margem de 50 km
+      if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
+    }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
@@ -1009,10 +1041,47 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
     // ── PAINEL (dentro do veículo, ligado) ──
     if (currentStep.id === "painel") {
+      const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
+      const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
+      const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
           <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+
+          {/* KM atual do painel — OBRIGATÓRIO. Auto-preenchido pela IA, editável pelo técnico. */}
+          <div className="space-y-2 rounded-xl border-2 border-primary/30 bg-primary/5 p-3">
+            <Label className="text-sm font-bold flex items-center gap-1.5">
+              <Gauge className="w-4 h-4 text-primary" />
+              KM atual do painel <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="Ex: 176803"
+              value={kmPainelManual}
+              onChange={(e) => {
+                setKmPainelManual(e.target.value);
+                setKmPainelEditadoManualmente(true);
+              }}
+              className="h-12 text-base font-semibold tabular-nums"
+            />
+            {!kmManualValido && (
+              <p className="text-[11px] text-destructive font-medium">
+                ⚠ Informe o KM exato exibido no painel (mínimo 3 dígitos). Sem isso a programação da troca de óleo fica comprometida.
+              </p>
+            )}
+            {kmManualValido && selectedVehicle && (
+              <p className="text-[11px] text-muted-foreground">
+                Cadastro: {selectedVehicle.km_atual.toLocaleString("pt-BR")} km · Diferença: {(kmManualNum - selectedVehicle.km_atual > 0 ? "+" : "")}{(kmManualNum - selectedVehicle.km_atual).toLocaleString("pt-BR")} km
+              </p>
+            )}
+            {kmRegredido && (
+              <p className="text-[11px] text-destructive font-bold">
+                ⚠ KM informado é MENOR que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira o painel — odômetros não retrocedem.
+              </p>
+            )}
+          </div>
         </div>
       );
     }
