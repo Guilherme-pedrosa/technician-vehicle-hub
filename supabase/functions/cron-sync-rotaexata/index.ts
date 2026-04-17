@@ -218,6 +218,9 @@ Deno.serve(async (req) => {
     // e disponível sob demanda no Dashboard (admin).
 
     // Also sync vehicle positions (update km_atual)
+    // PROTEÇÃO: nunca diminuir o KM cadastrado e nunca aceitar um KM > 5000 km
+    // menor que o atual (sinal de que o Rota Exata está com odômetro
+    // dessincronizado e o admin já corrigiu manualmente).
     try {
       const posRes = await fetch(`${ROTAEXATA_API}/ultima-posicao/todos`, {
         headers: { "Content-Type": "application/json", Authorization: rotaToken },
@@ -225,17 +228,47 @@ Deno.serve(async (req) => {
       if (posRes.ok) {
         const posData = await posRes.json();
         const items = Array.isArray(posData) ? posData : (posData?.data ?? []);
+
+        // Carrega KM atual de todos os veículos pra comparar antes de atualizar
+        const { data: vehiclesKm } = await supabase
+          .from("vehicles")
+          .select("adesao_id, km_atual, placa")
+          .not("adesao_id", "is", null);
+        const kmAtualMap = new Map<string, { km: number; placa: string }>();
+        for (const v of vehiclesKm ?? []) {
+          if (v.adesao_id) kmAtualMap.set(String(v.adesao_id), { km: v.km_atual ?? 0, placa: v.placa });
+        }
+
+        const REGRESSION_THRESHOLD = 5000;
+        let updated = 0;
+        let skippedRegression = 0;
         for (const item of items) {
           const pos = item?.posicao;
           if (!pos?.adesao_id) continue;
           const adesaoId = String(pos.adesao_id);
           const odometro = pos.odometro_original ?? pos.odometro_gps ?? 0;
           const newKm = Math.round(Number(odometro) / 1000);
-          if (newKm > 0) {
-            await supabase.from("vehicles").update({ km_atual: newKm }).eq("adesao_id", adesaoId);
+          if (newKm <= 0) continue;
+
+          const current = kmAtualMap.get(adesaoId);
+          if (current) {
+            // Nunca regredir o KM cadastrado
+            if (newKm < current.km) {
+              const diff = current.km - newKm;
+              if (diff > REGRESSION_THRESHOLD) {
+                console.warn(`[cron-sync] Ignorando regressão grande de KM para ${current.placa}: cadastro=${current.km}, RotaExata=${newKm} (diff=${diff}km). Provavelmente o Rota Exata está dessincronizado e o admin corrigiu manualmente.`);
+                skippedRegression++;
+                continue;
+              }
+              // Regressão pequena (<5000km) também é ignorada — KM só sobe
+              continue;
+            }
           }
+
+          await supabase.from("vehicles").update({ km_atual: newKm }).eq("adesao_id", adesaoId);
+          updated++;
         }
-        console.log(`[cron-sync] Vehicle positions updated`);
+        console.log(`[cron-sync] Vehicle positions updated: ${updated}, regressões ignoradas: ${skippedRegression}`);
       }
     } catch (err) {
       console.warn("[cron-sync] Position sync error:", (err as Error).message);
