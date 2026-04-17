@@ -2117,10 +2117,12 @@ export default function Checklist() {
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
+                  const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                  const kmDivergente = !!kmPainel?.divergente;
                   return (
                     <button
                       key={cl.id}
-                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos ? "bg-destructive/5" : ""}`}
+                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
                       onClick={() => navigate(`/checklist/${cl.id}`)}
                     >
                       <div className="flex items-center justify-between gap-3">
