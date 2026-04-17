@@ -325,6 +325,34 @@ export default function ChecklistDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
+  const [scanningKm, setScanningKm] = useState(false);
+
+  const handleScanKm = async () => {
+    setScanningKm(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-km-divergence", { body: {} });
+      if (error) throw error;
+      const r = data as any;
+      if (r?.ticketsCriados > 0) {
+        toast.success(`Verificação concluída — ${r.ticketsCriados} chamado(s) criado(s)`, {
+          description: `${r.scanned} checklist(s) escaneado(s) hoje, ${r.divergentes} com KM divergente.`,
+        });
+      } else if (r?.divergentes > 0) {
+        toast.warning(`${r.divergentes} divergência(s) encontrada(s), mas já existe(m) chamado(s) aberto(s)`, {
+          description: `${r.scanned} checklist(s) escaneado(s) hoje.`,
+        });
+      } else {
+        toast.success("Nenhuma divergência de KM encontrada hoje", {
+          description: `${r?.scanned ?? 0} checklist(s) escaneado(s).`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    } catch (e: any) {
+      toast.error("Erro ao verificar KM", { description: e.message ?? String(e) });
+    } finally {
+      setScanningKm(false);
+    }
+  };
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [editObs, setEditObs] = useState<Record<string, string>>({});
   const [editObsGeral, setEditObsGeral] = useState("");
@@ -586,6 +614,10 @@ export default function ChecklistDetail() {
               <Button variant="outline" size="sm" className="gap-1.5" onClick={handleRevalidatePhotos} disabled={revalidating}>
                 {revalidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 {revalidating ? "Revalidando..." : "Revalidar Fotos"}
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleScanKm} disabled={scanningKm}>
+                {scanningKm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gauge className="w-4 h-4" />}
+                {scanningKm ? "Verificando..." : "Verificar KM"}
               </Button>
             </>
           )}
