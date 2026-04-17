@@ -984,6 +984,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
       // Bloqueia retrocesso de odômetro além da margem de 50 km
       if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
+    }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
