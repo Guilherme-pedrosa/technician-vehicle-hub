@@ -36,17 +36,34 @@ Deno.serve(async (req) => {
 
     console.log(`[scan-km-sem-checklist] Iniciando para ${today}`);
 
-    // KM total por placa hoje
+    // KM total por placa hoje + motorista que mais rodou
     const { data: kmRows } = await supabase
       .from("daily_vehicle_km")
-      .select("placa, km_percorrido")
+      .select("placa, km_percorrido, motorista_nome")
       .eq("data", today);
 
     const kmByPlaca = new Map<string, number>();
+    // placa -> Map<motorista_nome, km_acumulado>
+    const motoristasPorPlaca = new Map<string, Map<string, number>>();
     for (const row of kmRows ?? []) {
       const p = String(row.placa);
       if (EXCLUDED_PLACAS.has(p)) continue;
-      kmByPlaca.set(p, (kmByPlaca.get(p) ?? 0) + Number(row.km_percorrido ?? 0));
+      const km = Number(row.km_percorrido ?? 0);
+      kmByPlaca.set(p, (kmByPlaca.get(p) ?? 0) + km);
+
+      const nome = String(row.motorista_nome ?? "").trim();
+      if (nome && nome.toLowerCase() !== "desconhecido") {
+        if (!motoristasPorPlaca.has(p)) motoristasPorPlaca.set(p, new Map());
+        const m = motoristasPorPlaca.get(p)!;
+        m.set(nome, (m.get(nome) ?? 0) + km);
+      }
+    }
+
+    // Para cada placa, escolhe o motorista que mais rodou no dia
+    const motoristaPrincipalPorPlaca = new Map<string, string>();
+    for (const [placa, motMap] of motoristasPorPlaca.entries()) {
+      const top = [...motMap.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (top) motoristaPrincipalPorPlaca.set(placa, top[0]);
     }
 
     // Placas com checklist hoje
@@ -75,6 +92,19 @@ Deno.serve(async (req) => {
       .select("id, placa, modelo")
       .in("placa", placasList);
 
+    // Resolve driver_id pelos nomes detectados na telemetria
+    const nomesUnicos = [...new Set([...motoristaPrincipalPorPlaca.values()])];
+    const driverByNome = new Map<string, { id: string; full_name: string }>();
+    if (nomesUnicos.length > 0) {
+      const { data: driversData } = await supabase
+        .from("drivers")
+        .select("id, full_name")
+        .in("full_name", nomesUnicos);
+      for (const d of driversData ?? []) {
+        driverByNome.set(d.full_name, { id: d.id, full_name: d.full_name });
+      }
+    }
+
     const { data: admins } = await supabase
       .from("user_roles")
       .select("user_id")
@@ -95,6 +125,8 @@ Deno.serve(async (req) => {
 
     for (const v of vehiclesData ?? []) {
       const km = kmByPlaca.get(v.placa) ?? 0;
+      const motoristaNome = motoristaPrincipalPorPlaca.get(v.placa) ?? null;
+      const driver = motoristaNome ? driverByNome.get(motoristaNome) : null;
 
       // Deduplicação: já existe ticket aberto hoje p/ esse veículo c/ esse motivo?
       const { data: existing } = await supabase
@@ -109,12 +141,16 @@ Deno.serve(async (req) => {
       if (existing && existing.length > 0) continue;
 
       const titulo = `Veículo rodou ${km.toFixed(0)}km sem checklist — ${v.placa}`;
-      const descricao = `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.`;
+      const tecnicoLinha = motoristaNome
+        ? `Condutor identificado pela telemetria: ${motoristaNome}.`
+        : `Sem condutor identificado pela telemetria.`;
+      const descricao = `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.\n\n${tecnicoLinha}`;
 
       const { data: novoTicket, error: insertErr } = await supabase
         .from("maintenance_tickets")
         .insert({
           vehicle_id: v.id,
+          driver_id: driver?.id ?? null,
           titulo,
           descricao,
           tipo: "nao_conformidade",
@@ -132,7 +168,7 @@ Deno.serve(async (req) => {
 
       createdCount++;
       ticketsCriados.push({ placa: v.placa, km, ticket_id: novoTicket?.id ?? "" });
-      console.log(`[scan-km-sem-checklist] Ticket criado: ${v.placa} (${km.toFixed(1)}km)`);
+      console.log(`[scan-km-sem-checklist] Ticket criado: ${v.placa} (${km.toFixed(1)}km) — motorista: ${motoristaNome ?? "—"}`);
 
       try {
         await supabase.functions.invoke("notify-checklist-nc", {
@@ -140,7 +176,7 @@ Deno.serve(async (req) => {
             checklist_id: novoTicket?.id ?? null,
             placa: v.placa,
             modelo: v.modelo,
-            tecnico: "— (sem checklist registrado)",
+            tecnico: motoristaNome ?? "— (sem condutor identificado)",
             data: today,
             resultado: `KM SEM CHECKLIST (${km.toFixed(1)}km)`,
             itens_problema: [
