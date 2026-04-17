@@ -35,11 +35,10 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
     return arr;
   }, [rows, sortKey, sortDesc]);
 
-  // Ranking quem gasta mais/menos (apenas veículos com custo > 0)
+  // Ranking de gasto absoluto (top gastador)
   const comGasto = rows.filter((r) => r.custoTotal > 0);
   const maiorGasto = comGasto[0];
-  const menorGasto = [...comGasto].sort((a, b) => a.custoTotal - b.custoTotal)[0];
-  // Pior eficiência custo/km (apenas com KM rodado)
+  // Eficiência real (R$/km) — só faz sentido quando há KM rodado
   const comKm = rows.filter((r) => r.kmRodado > 0 && r.custoTotal > 0);
   const piorEficiencia = [...comKm].sort((a, b) => b.custoPorKm - a.custoPorKm)[0];
   const melhorEficiencia = [...comKm].sort((a, b) => a.custoPorKm - b.custoPorKm)[0];
