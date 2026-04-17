@@ -541,11 +541,14 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
                 {v?.status === "invalid" && v.result && (
                   <div className="w-16">
                     <p className="text-[9px] text-destructive leading-tight">{v.result.reason}</p>
-                    <button type="button"
-                      className="text-[9px] text-warning font-bold underline mt-0.5"
-                      onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
-                      Forçar
-                    </button>
+                    {/* PAINEL: NÃO permite forçar — sem hodômetro legível, veículo não sai */}
+                    {category !== "painel" && (
+                      <button type="button"
+                        className="text-[9px] text-warning font-bold underline mt-0.5"
+                        onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
+                        Forçar
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -978,8 +981,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       }
       if (missing.length > 0) return false;
     }
-    // PAINEL: KM atual é OBRIGATÓRIO (impacta a programação da troca de óleo)
+    // PAINEL: foto válida + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
     if (currentStep.id === "painel") {
+      const painelVals = photoValidations.painel ?? [];
+      // Precisa ter PELO MENOS UMA foto aprovada com hodômetro legível.
+      // Status "forced" NÃO conta — não permitimos forçar foto do painel.
+      const temFotoValida = painelVals.some(
+        (v) => v?.status === "valid" && v?.result?.km_legivel === true
+      );
+      if (!temFotoValida) return false;
+      // Se ainda há validação em andamento, espera (não trava se houver outra válida)
+      const temPendente = painelVals.some((v) => v?.status === "validating");
+      if (temPendente && !temFotoValida) return false;
+
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
       // Bloqueia retrocesso de odômetro além da margem de 50 km
@@ -1044,13 +1058,30 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
+      const painelVals = photoValidations.painel ?? [];
+      const temFotoValida = painelVals.some((v) => v?.status === "valid" && v?.result?.km_legivel === true);
+      const validandoAgora = painelVals.some((v) => v?.status === "validating");
+      const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
           <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
 
-          {/* KM atual do painel — OBRIGATÓRIO. Auto-preenchido pela IA, editável pelo técnico. */}
-          <div className="space-y-2 rounded-xl border-2 border-primary/30 bg-primary/5 p-3">
+          {/* BANNER de bloqueio: foto inválida = veículo NÃO sai */}
+          {temFotoInvalida && !temFotoValida && (
+            <div className="rounded-xl border-2 border-destructive bg-destructive/10 p-3 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-destructive">Foto do painel rejeitada</p>
+                <p className="text-xs text-destructive/90">
+                  O hodômetro precisa estar nítido e legível. Aproxime-se do painel, enquadre o display do KM e tire outra foto. <strong>Sem foto válida o veículo não pode seguir viagem.</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* KM atual do painel — só liberado após foto válida */}
+          <div className={`space-y-2 rounded-xl border-2 p-3 transition-opacity ${temFotoValida ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/30 opacity-60"}`}>
             <Label className="text-sm font-bold flex items-center gap-1.5">
               <Gauge className="w-4 h-4 text-primary" />
               KM atual do painel <span className="text-destructive">*</span>
@@ -1058,20 +1089,31 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Input
               type="number"
               inputMode="numeric"
-              placeholder="Ex: 176803"
+              placeholder={temFotoValida ? "Ex: 176803" : "Tire a foto do painel primeiro"}
               value={kmPainelManual}
+              disabled={!temFotoValida}
               onChange={(e) => {
                 setKmPainelManual(e.target.value);
                 setKmPainelEditadoManualmente(true);
               }}
               className="h-12 text-base font-semibold tabular-nums"
             />
-            {!kmManualValido && (
-              <p className="text-[11px] text-destructive font-medium">
-                ⚠ Informe o KM exato exibido no painel (mínimo 3 dígitos). Sem isso a programação da troca de óleo fica comprometida.
+            {!temFotoValida && !validandoAgora && (
+              <p className="text-[11px] text-muted-foreground font-medium">
+                Bloqueado até a IA confirmar que o hodômetro está legível.
               </p>
             )}
-            {kmManualValido && selectedVehicle && (
+            {validandoAgora && (
+              <p className="text-[11px] text-primary font-medium flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" /> Validando foto…
+              </p>
+            )}
+            {temFotoValida && !kmManualValido && (
+              <p className="text-[11px] text-destructive font-medium">
+                ⚠ Confirme/digite o KM exato do painel (mínimo 3 dígitos). Sem isso a programação da troca de óleo fica comprometida.
+              </p>
+            )}
+            {temFotoValida && kmManualValido && selectedVehicle && (
               <p className="text-[11px] text-muted-foreground">
                 Cadastro: {selectedVehicle.km_atual.toLocaleString("pt-BR")} km · Diferença: {(kmManualNum - selectedVehicle.km_atual > 0 ? "+" : "")}{(kmManualNum - selectedVehicle.km_atual).toLocaleString("pt-BR")} km
               </p>
