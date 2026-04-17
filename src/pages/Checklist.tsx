@@ -1987,9 +1987,9 @@ export default function Checklist() {
         console.error("Checklist validation backfill error:", error);
       }
     })).finally(() => {
-      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists", filterDate] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd] });
     });
-  }, [checklists, filterDate, queryClient]);
+  }, [checklists, effectiveStart, effectiveEnd, queryClient]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
