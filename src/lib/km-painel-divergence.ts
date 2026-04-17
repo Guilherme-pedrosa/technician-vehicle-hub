@@ -6,7 +6,7 @@
 // que reflita o `km_atual` mais recente do veículo — o cadastro pode ter sido
 // atualizado depois do checklist via sync automático.
 
-export const KM_PAINEL_DIVERGENCE_THRESHOLD = 5000;
+export const KM_PAINEL_DIVERGENCE_THRESHOLD = 50;
 
 export type KmPainelComparison = {
   lido: number;
