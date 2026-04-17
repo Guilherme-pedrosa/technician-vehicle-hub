@@ -1902,7 +1902,12 @@ export default function Checklist() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [filterStart, setFilterStart] = useState(today);
+  const [filterEnd, setFilterEnd] = useState(today);
+  // Auto-invert if start > end
+  const effectiveStart = filterStart <= filterEnd ? filterStart : filterEnd;
+  const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
 
@@ -1925,11 +1930,13 @@ export default function Checklist() {
   });
 
   const { data: checklists = [], isLoading } = useQuery({
-    queryKey: ["vehicle-checklists", filterDate],
+    queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicle_checklists").select("*")
-        .eq("checklist_date", filterDate)
+        .gte("checklist_date", effectiveStart)
+        .lte("checklist_date", effectiveEnd)
+        .order("checklist_date", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -1980,9 +1987,9 @@ export default function Checklist() {
         console.error("Checklist validation backfill error:", error);
       }
     })).finally(() => {
-      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists", filterDate] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd] });
     });
-  }, [checklists, filterDate, queryClient]);
+  }, [checklists, effectiveStart, effectiveEnd, queryClient]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -2038,11 +2045,28 @@ export default function Checklist() {
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-primary" /> Checklists do Dia
+            <CalendarDays className="w-4 h-4 text-primary" /> Checklists
+            <span className="text-xs text-muted-foreground font-normal">({checklists.length})</span>
             {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
-            className="w-full sm:w-40 h-8 text-xs" max={format(new Date(), "yyyy-MM-dd")} />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+              <Label className="text-[10px] text-muted-foreground">Início</Label>
+              <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
+                className="w-full sm:w-36 h-8 text-xs" max={today} />
+            </div>
+            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+              <Label className="text-[10px] text-muted-foreground">Fim</Label>
+              <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
+                className="w-full sm:w-36 h-8 text-xs" max={today} />
+            </div>
+            {(filterStart !== today || filterEnd !== today) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
+                onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
+                Hoje
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
           {checklists.length === 0 ? (
