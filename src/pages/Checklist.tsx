@@ -978,8 +978,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       }
       if (missing.length > 0) return false;
     }
-    // PAINEL: KM atual é OBRIGATÓRIO (impacta a programação da troca de óleo)
+    // PAINEL: foto válida + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
     if (currentStep.id === "painel") {
+      const painelVals = photoValidations.painel ?? [];
+      // Precisa ter PELO MENOS UMA foto aprovada com hodômetro legível.
+      // Status "forced" NÃO conta — não permitimos forçar foto do painel.
+      const temFotoValida = painelVals.some(
+        (v) => v?.status === "valid" && v?.result?.km_legivel === true
+      );
+      if (!temFotoValida) return false;
+      // Se ainda há validação em andamento, espera (não trava se houver outra válida)
+      const temPendente = painelVals.some((v) => v?.status === "validating");
+      if (temPendente && !temFotoValida) return false;
+
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
       // Bloqueia retrocesso de odômetro além da margem de 50 km
