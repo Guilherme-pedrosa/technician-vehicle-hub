@@ -382,7 +382,7 @@ export default function ChecklistDetail() {
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
-    queryFn: async () => { const { data } = await supabase.from("vehicles").select("id, placa, modelo, marca, km_atual").order("placa"); return data ?? []; },
+    queryFn: async () => { const { data } = await supabase.from("vehicles").select("id, placa, modelo, marca, km_atual, adesao_id").order("placa"); return data ?? []; },
   });
 
   const { data: drivers = [] } = useQuery({
