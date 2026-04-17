@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
+import { updateOdometro } from "@/services/rotaexata";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
@@ -338,6 +339,7 @@ export default function ChecklistDetail() {
   const [saving, setSaving] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [scanningKm, setScanningKm] = useState(false);
+  const [syncingKmRota, setSyncingKmRota] = useState(false);
 
   const handleScanKm = async () => {
     setScanningKm(true);
@@ -365,6 +367,66 @@ export default function ChecklistDetail() {
       setScanningKm(false);
     }
   };
+
+  const handleSyncKmRotaExata = async (kmLido: number) => {
+    if (!cl || !vehicle) return;
+    if (!vehicle.adesao_id) {
+      toast.error("Veículo sem adesão Rota Exata", {
+        description: "Não é possível atualizar o odômetro remotamente sem o vínculo da adesão.",
+      });
+      return;
+    }
+    setSyncingKmRota(true);
+    try {
+      // 1. Atualiza o odômetro no Rota Exata (em km, conforme API)
+      await updateOdometro({
+        adesao_id: Number(vehicle.adesao_id),
+        odometro_adesao: kmLido,
+      });
+
+      // 2. Atualiza o cadastro local imediatamente (não espera o cron horário)
+      const { error: errVeh } = await supabase
+        .from("vehicles")
+        .update({ km_atual: kmLido })
+        .eq("id", vehicle.id);
+      if (errVeh) throw errVeh;
+
+      // 3. Fecha tickets abertos de "KM divergente" desse veículo
+      const { data: ticketsAbertos } = await supabase
+        .from("maintenance_tickets")
+        .select("id, titulo")
+        .eq("vehicle_id", vehicle.id)
+        .in("status", ["aberto", "em_andamento", "aguardando_peca"])
+        .ilike("titulo", "%KM divergente%");
+
+      let ticketsFechados = 0;
+      if (ticketsAbertos && ticketsAbertos.length > 0) {
+        const ids = ticketsAbertos.map((t) => t.id);
+        const { error: errTk } = await supabase
+          .from("maintenance_tickets")
+          .update({ status: "concluido" })
+          .in("id", ids);
+        if (!errTk) ticketsFechados = ids.length;
+      }
+
+      toast.success("✅ KM corrigido no Rota Exata", {
+        description: `Cadastro atualizado para ${kmLido.toLocaleString("pt-BR")} km.${
+          ticketsFechados > 0 ? ` ${ticketsFechados} chamado(s) de KM divergente fechado(s).` : ""
+        }`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles-list"] });
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    } catch (e: any) {
+      console.error("Erro ao corrigir KM Rota Exata:", e);
+      toast.error("Erro ao corrigir KM no Rota Exata", {
+        description: e?.message ?? String(e),
+      });
+    } finally {
+      setSyncingKmRota(false);
+    }
+  };
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [editObs, setEditObs] = useState<Record<string, string>>({});
   const [editObsGeral, setEditObsGeral] = useState("");
@@ -382,7 +444,7 @@ export default function ChecklistDetail() {
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
-    queryFn: async () => { const { data } = await supabase.from("vehicles").select("id, placa, modelo, marca, km_atual").order("placa"); return data ?? []; },
+    queryFn: async () => { const { data } = await supabase.from("vehicles").select("id, placa, modelo, marca, km_atual, adesao_id").order("placa"); return data ?? []; },
   });
 
   const { data: drivers = [] } = useQuery({
@@ -812,6 +874,54 @@ export default function ChecklistDetail() {
               {divergente && (
                 <p className="text-xs text-destructive bg-destructive/10 rounded-md p-2 mt-2">
                   ⚠️ Diferença acima de 5.000 km. Pode indicar foto trocada, painel ilegível, KM cadastrado desatualizado ou falha de leitura da IA. Revise a foto do painel.
+                </p>
+              )}
+              {divergente && isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="w-full mt-2 gap-1.5"
+                      disabled={syncingKmRota || !vehicle?.adesao_id}
+                    >
+                      {syncingKmRota ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Corrigir KM no Rota Exata ({kp.lido.toLocaleString("pt-BR")} km)
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Corrigir odômetro no Rota Exata?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        O odômetro do veículo <strong>{vehicle?.placa}</strong> será atualizado de{" "}
+                        <strong>{kp.esperado.toLocaleString("pt-BR")} km</strong> para{" "}
+                        <strong>{kp.lido.toLocaleString("pt-BR")} km</strong> diretamente no Rota Exata.
+                        <br />
+                        <br />
+                        Use somente se a foto do painel estiver correta. Esta ação:
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Atualiza o odômetro no Rota Exata</li>
+                          <li>Atualiza o cadastro local imediatamente</li>
+                          <li>Conclui chamados abertos de "KM divergente" deste veículo</li>
+                        </ul>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleSyncKmRotaExata(kp.lido)}>
+                        Confirmar correção
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {divergente && isAdmin && !vehicle?.adesao_id && (
+                <p className="text-[10px] text-muted-foreground italic mt-1">
+                  Veículo sem adesão Rota Exata cadastrada — correção remota indisponível.
                 </p>
               )}
               <p className="text-[10px] text-muted-foreground italic mt-1">
