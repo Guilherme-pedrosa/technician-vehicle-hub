@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -431,6 +432,7 @@ export default function ChecklistDetail() {
   const [editObs, setEditObs] = useState<Record<string, string>>({});
   const [editObsGeral, setEditObsGeral] = useState("");
   const [editResultado, setEditResultado] = useState("");
+  const [editKmProximaTroca, setEditKmProximaTroca] = useState<string>("");
 
   const { data: cl, isLoading } = useQuery({
     queryKey: ["checklist-detail", id],
@@ -471,6 +473,9 @@ export default function ChecklistDetail() {
     setEditObs(obs);
     setEditObsGeral((cl as any)?.observacoes ?? "");
     setEditResultado((cl as any)?.resultado ?? "liberado");
+    setEditKmProximaTroca(
+      detalhes?.km_proxima_troca != null ? String(detalhes.km_proxima_troca) : "",
+    );
     setEditing(true);
   };
 
@@ -478,6 +483,7 @@ export default function ChecklistDetail() {
     setEditing(false);
     setEditFields({});
     setEditObs({});
+    setEditKmProximaTroca("");
   };
 
   const saveEditing = async () => {
@@ -490,7 +496,7 @@ export default function ChecklistDetail() {
       });
 
       // Build updated detalhes
-      const newDetalhes = {
+      const newDetalhes: any = {
         ...detalhes,
         observacoes_itens: { ...detalhes?.observacoes_itens },
       };
@@ -498,6 +504,17 @@ export default function ChecklistDetail() {
         if (val.trim()) newDetalhes.observacoes_itens[key] = val.trim();
         else delete newDetalhes.observacoes_itens[key];
       });
+
+      // KM próxima troca: aceita número ou limpa o campo se vazio
+      const kmTrim = editKmProximaTroca.trim();
+      if (kmTrim === "") {
+        delete newDetalhes.km_proxima_troca;
+      } else {
+        const kmNum = parseInt(kmTrim.replace(/\D/g, ""), 10);
+        if (!Number.isNaN(kmNum) && kmNum > 0) {
+          newDetalhes.km_proxima_troca = kmNum;
+        }
+      }
 
       const { error } = await supabase.from("vehicle_checklists").update({
         ...fieldUpdates,
@@ -817,7 +834,7 @@ export default function ChecklistDetail() {
       </Card>
 
       {/* Troca de óleo */}
-      {((cl as any).troca_oleo || detalhes?.km_proxima_troca) && (
+      {((cl as any).troca_oleo || detalhes?.km_proxima_troca || editing) && (
         <Card>
           <CardContent className="p-4 sm:p-6 space-y-2">
             <h3 className="text-sm font-bold flex items-center gap-2"><Droplets className="w-4 h-4 text-primary" /> Troca de Óleo</h3>
@@ -827,12 +844,23 @@ export default function ChecklistDetail() {
                 {(cl as any).troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
               </span>
             </div>
-            {detalhes?.km_proxima_troca && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm">KM próxima troca</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm">KM próxima troca</span>
+              {editing ? (
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={editKmProximaTroca}
+                  onChange={(e) => setEditKmProximaTroca(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Ex: 180000"
+                  className="w-[160px] h-8 text-xs text-right tabular-nums"
+                />
+              ) : detalhes?.km_proxima_troca ? (
                 <span className="text-sm font-semibold tabular-nums">{Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km</span>
-              </div>
-            )}
+              ) : (
+                <span className="text-sm text-muted-foreground italic">—</span>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
