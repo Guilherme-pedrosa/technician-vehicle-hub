@@ -92,6 +92,19 @@ Deno.serve(async (req) => {
       .select("id, placa, modelo")
       .in("placa", placasList);
 
+    // Resolve driver_id pelos nomes detectados na telemetria
+    const nomesUnicos = [...new Set([...motoristaPrincipalPorPlaca.values()])];
+    const driverByNome = new Map<string, { id: string; full_name: string }>();
+    if (nomesUnicos.length > 0) {
+      const { data: driversData } = await supabase
+        .from("drivers")
+        .select("id, full_name")
+        .in("full_name", nomesUnicos);
+      for (const d of driversData ?? []) {
+        driverByNome.set(d.full_name, { id: d.id, full_name: d.full_name });
+      }
+    }
+
     const { data: admins } = await supabase
       .from("user_roles")
       .select("user_id")
