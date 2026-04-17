@@ -1109,10 +1109,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
                         : "bg-success/10 text-success border border-success/30"
                     }`}>
-                      {trocaOleoVencida
-                        ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
-                        : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
-                      }
+                      {(() => {
+                        const restante = parseInt(kmProximaTroca) - selectedVehicle.km_atual;
+                        if (restante <= 0) {
+                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
+                        }
+                        if (restante <= KM_OLEO_ALERTA_MARGEM) {
+                          return `⚠️ ATENÇÃO — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto.`;
+                        }
+                        return `✅ OK — Faltam ${restante.toLocaleString("pt-BR")} km para a próxima troca.`;
+                      })()}
                     </div>
                     {odoDiscrepancy && (
                       <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
