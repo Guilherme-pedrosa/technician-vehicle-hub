@@ -541,11 +541,14 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
                 {v?.status === "invalid" && v.result && (
                   <div className="w-16">
                     <p className="text-[9px] text-destructive leading-tight">{v.result.reason}</p>
-                    <button type="button"
-                      className="text-[9px] text-warning font-bold underline mt-0.5"
-                      onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
-                      Forçar
-                    </button>
+                    {/* PAINEL: NÃO permite forçar — sem hodômetro legível, veículo não sai */}
+                    {category !== "painel" && (
+                      <button type="button"
+                        className="text-[9px] text-warning font-bold underline mt-0.5"
+                        onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
+                        Forçar
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
