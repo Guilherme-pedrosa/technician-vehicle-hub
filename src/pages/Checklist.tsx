@@ -2045,11 +2045,28 @@ export default function Checklist() {
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-primary" /> Checklists do Dia
+            <CalendarDays className="w-4 h-4 text-primary" /> Checklists
+            <span className="text-xs text-muted-foreground font-normal">({checklists.length})</span>
             {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
-            className="w-full sm:w-40 h-8 text-xs" max={format(new Date(), "yyyy-MM-dd")} />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+              <Label className="text-[10px] text-muted-foreground">Início</Label>
+              <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
+                className="w-full sm:w-36 h-8 text-xs" max={today} />
+            </div>
+            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+              <Label className="text-[10px] text-muted-foreground">Fim</Label>
+              <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
+                className="w-full sm:w-36 h-8 text-xs" max={today} />
+            </div>
+            {(filterStart !== today || filterEnd !== today) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
+                onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
+                Hoje
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
           {checklists.length === 0 ? (
