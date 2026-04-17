@@ -367,6 +367,66 @@ export default function ChecklistDetail() {
       setScanningKm(false);
     }
   };
+
+  const handleSyncKmRotaExata = async (kmLido: number) => {
+    if (!cl || !vehicle) return;
+    if (!vehicle.adesao_id) {
+      toast.error("Veículo sem adesão Rota Exata", {
+        description: "Não é possível atualizar o odômetro remotamente sem o vínculo da adesão.",
+      });
+      return;
+    }
+    setSyncingKmRota(true);
+    try {
+      // 1. Atualiza o odômetro no Rota Exata (em km, conforme API)
+      await updateOdometro({
+        adesao_id: Number(vehicle.adesao_id),
+        odometro_adesao: kmLido,
+      });
+
+      // 2. Atualiza o cadastro local imediatamente (não espera o cron horário)
+      const { error: errVeh } = await supabase
+        .from("vehicles")
+        .update({ km_atual: kmLido })
+        .eq("id", vehicle.id);
+      if (errVeh) throw errVeh;
+
+      // 3. Fecha tickets abertos de "KM divergente" desse veículo
+      const { data: ticketsAbertos } = await supabase
+        .from("maintenance_tickets")
+        .select("id, titulo")
+        .eq("vehicle_id", vehicle.id)
+        .in("status", ["aberto", "em_andamento", "aguardando_peca"])
+        .ilike("titulo", "%KM divergente%");
+
+      let ticketsFechados = 0;
+      if (ticketsAbertos && ticketsAbertos.length > 0) {
+        const ids = ticketsAbertos.map((t) => t.id);
+        const { error: errTk } = await supabase
+          .from("maintenance_tickets")
+          .update({ status: "concluido" })
+          .in("id", ids);
+        if (!errTk) ticketsFechados = ids.length;
+      }
+
+      toast.success("✅ KM corrigido no Rota Exata", {
+        description: `Cadastro atualizado para ${kmLido.toLocaleString("pt-BR")} km.${
+          ticketsFechados > 0 ? ` ${ticketsFechados} chamado(s) de KM divergente fechado(s).` : ""
+        }`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles-list"] });
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    } catch (e: any) {
+      console.error("Erro ao corrigir KM Rota Exata:", e);
+      toast.error("Erro ao corrigir KM no Rota Exata", {
+        description: e?.message ?? String(e),
+      });
+    } finally {
+      setSyncingKmRota(false);
+    }
+  };
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [editObs, setEditObs] = useState<Record<string, string>>({});
   const [editObsGeral, setEditObsGeral] = useState("");
