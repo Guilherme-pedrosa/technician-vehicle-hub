@@ -834,7 +834,7 @@ export default function ChecklistDetail() {
       </Card>
 
       {/* Troca de óleo */}
-      {((cl as any).troca_oleo || detalhes?.km_proxima_troca) && (
+      {((cl as any).troca_oleo || detalhes?.km_proxima_troca || editing) && (
         <Card>
           <CardContent className="p-4 sm:p-6 space-y-2">
             <h3 className="text-sm font-bold flex items-center gap-2"><Droplets className="w-4 h-4 text-primary" /> Troca de Óleo</h3>
@@ -844,12 +844,23 @@ export default function ChecklistDetail() {
                 {(cl as any).troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
               </span>
             </div>
-            {detalhes?.km_proxima_troca && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm">KM próxima troca</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm">KM próxima troca</span>
+              {editing ? (
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={editKmProximaTroca}
+                  onChange={(e) => setEditKmProximaTroca(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Ex: 180000"
+                  className="w-[160px] h-8 text-xs text-right tabular-nums"
+                />
+              ) : detalhes?.km_proxima_troca ? (
                 <span className="text-sm font-semibold tabular-nums">{Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km</span>
-              </div>
-            )}
+              ) : (
+                <span className="text-sm text-muted-foreground italic">—</span>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
