@@ -339,6 +339,7 @@ export default function ChecklistDetail() {
   const [saving, setSaving] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
   const [scanningKm, setScanningKm] = useState(false);
+  const [syncingKmRota, setSyncingKmRota] = useState(false);
 
   const handleScanKm = async () => {
     setScanningKm(true);
