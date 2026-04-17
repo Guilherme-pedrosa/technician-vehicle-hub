@@ -2113,7 +2113,8 @@ export default function Checklist() {
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
-                  const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                  // Comparação sob demanda usando km_atual mais recente do veículo
+                  const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                   const kmDivergente = !!kmPainel?.divergente;
                   return (
                     <button
