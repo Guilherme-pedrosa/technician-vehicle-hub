@@ -48,15 +48,27 @@ function parseVehiclesFromPositions(rawItems: any[]) {
 async function syncVehiclesFromData(vehiclesToSync: ReturnType<typeof parseVehiclesFromPositions>) {
   if (vehiclesToSync.length === 0) return { created: 0, updated: 0 };
 
-  const { data: existing } = await supabase.from("vehicles").select("id, adesao_id, placa");
+  const { data: existing } = await supabase.from("vehicles").select("id, adesao_id, placa, km_atual");
   const existingByAdesao = new Map((existing ?? []).filter((v) => v.adesao_id).map((v) => [v.adesao_id!, v]));
   const existingByPlaca = new Map((existing ?? []).map((v) => [v.placa, v]));
 
+  const REGRESSION_THRESHOLD = 5000;
   let created = 0, updated = 0;
   for (const vehicle of vehiclesToSync) {
     const match = existingByAdesao.get(vehicle.adesao_id) ?? existingByPlaca.get(vehicle.placa);
     if (match) {
-      const { error } = await supabase.from("vehicles").update(vehicle).eq("id", match.id);
+      // PROTEÇÃO: nunca regredir o km_atual. Se o KM da Rota Exata for menor
+      // que o cadastrado, mantemos o cadastrado (admin pode ter corrigido).
+      const matchKm = (match as any).km_atual ?? 0;
+      const payload: any = { ...vehicle };
+      if (vehicle.km_atual < matchKm) {
+        const diff = matchKm - vehicle.km_atual;
+        if (diff > REGRESSION_THRESHOLD) {
+          console.warn(`[sync] Ignorando regressão grande de KM para ${vehicle.placa}: cadastro=${matchKm}, RotaExata=${vehicle.km_atual} (diff=${diff}km)`);
+        }
+        delete payload.km_atual;
+      }
+      const { error } = await supabase.from("vehicles").update(payload).eq("id", match.id);
       if (!error) updated++;
     } else {
       const { error } = await supabase.from("vehicles").insert({ ...vehicle, status: "disponivel" as const });
