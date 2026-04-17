@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { VeiculoCustoRow } from "@/hooks/useCustosPorVeiculo";
 
-type SortKey = "custoTotal" | "kmRodado" | "custoPorKm" | "kmPorLitro" | "custoCombustivel" | "custoManutencao";
+type SortKey = "custoTotal" | "kmRodado" | "custoPorKm" | "custoCombustivel" | "custoManutencao";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -176,10 +176,6 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                     <TableHead className="text-right">
                       <SortBtn k="custoPorKm" label="R$/km" align="right" />
                     </TableHead>
-                    <TableHead className="text-right">
-                      <SortBtn k="kmPorLitro" label="km/L" align="right" />
-                    </TableHead>
-                    <TableHead className="text-right">Litros</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -212,18 +208,6 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                         ) : (
                           "—"
                         )}
-                      </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums">
-                        {r.kmPorLitro > 0 ? (
-                          <Badge variant="secondary" className="font-mono text-xs">
-                            {formatNumber(r.kmPorLitro, 1)}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                        {r.litros > 0 ? `${formatNumber(r.litros, 1)} L` : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
