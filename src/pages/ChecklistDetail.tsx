@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
