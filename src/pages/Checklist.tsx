@@ -1930,11 +1930,13 @@ export default function Checklist() {
   });
 
   const { data: checklists = [], isLoading } = useQuery({
-    queryKey: ["vehicle-checklists", filterDate],
+    queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vehicle_checklists").select("*")
-        .eq("checklist_date", filterDate)
+        .gte("checklist_date", effectiveStart)
+        .lte("checklist_date", effectiveEnd)
+        .order("checklist_date", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
