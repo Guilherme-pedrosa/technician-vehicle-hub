@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 
 // ═══════════════════════════════════════════
 // PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
