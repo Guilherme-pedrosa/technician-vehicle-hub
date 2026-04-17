@@ -769,6 +769,28 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
+          km_painel: (() => {
+            // Pega o maior km_lido entre as fotos do painel (caso tenha mais de uma)
+            const painelValidations = photoValidations.painel ?? [];
+            let lidoNum: number | null = null;
+            for (const v of painelValidations) {
+              const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
+              if (raw.length >= 3 && v?.result?.km_legivel) {
+                const n = parseInt(raw, 10);
+                if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
+              }
+            }
+            if (lidoNum === null || !selectedVehicle) return null;
+            const esperado = selectedVehicle.km_atual ?? 0;
+            const diff = lidoNum - esperado;
+            return {
+              lido: lidoNum,
+              esperado,
+              diferenca: diff,
+              divergente: Math.abs(diff) > KM_PAINEL_DIVERGENCE_THRESHOLD,
+              comparado_em: new Date().toISOString(),
+            };
+          })(),
         },
         ...persistedAnswers,
       } as any).select("id").single();
