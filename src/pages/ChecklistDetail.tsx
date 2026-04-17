@@ -289,6 +289,17 @@ async function revalidatePhotos(
         if (!valResponse.ok) throw new Error("Validation request failed");
         const result = await valResponse.json();
 
+        // Capturar KM lido da foto do painel (mesma lógica do submit do checklist)
+        if (category === "painel" && result?.km_legivel === true && typeof result?.km_lido === "string") {
+          const digits = result.km_lido.replace(/[^\d]/g, "");
+          if (digits.length >= 3) {
+            const n = parseInt(digits, 10);
+            if (!isNaN(n) && n > 0 && (kmLidoPainel === null || n > kmLidoPainel)) {
+              kmLidoPainel = n;
+            }
+          }
+        }
+
         if (result.ai_error) {
           const existing = erros.find((e) => e.categoria === category);
           const reason = result.reason || "Erro na validação";
@@ -309,7 +320,7 @@ async function revalidatePhotos(
     }
   }
 
-  return { invalidas, erros };
+  return { invalidas, erros, kmLidoPainel };
 }
 
 // ═══════════════════════════════════════════
