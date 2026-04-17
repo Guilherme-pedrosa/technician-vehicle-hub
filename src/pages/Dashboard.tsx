@@ -217,6 +217,38 @@ function SyncKmHistoricoDialog() {
   );
 }
 
+function ScanKmSemChecklistButton() {
+  const [running, setRunning] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleScan = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-km-sem-checklist", { body: {} });
+      if (error) throw error;
+      const r = data as { created: number; checked: number; tickets?: { placa: string; km: number }[] };
+      if (r.created === 0) {
+        toast.success(`✓ Verificado: nenhuma divergência (${r.checked} veículos)`);
+      } else {
+        const placas = (r.tickets ?? []).map((t) => `${t.placa} (${t.km.toFixed(0)}km)`).join(", ");
+        toast.warning(`${r.created} chamado(s) aberto(s): ${placas}`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    } catch (err: any) {
+      toast.error(`Erro: ${err.message ?? "Falha ao varrer"}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" onClick={handleScan} disabled={running} className="flex-1 sm:flex-none">
+      {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
+      Verificar KM sem checklist
+    </Button>
+  );
+}
+
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -410,11 +442,12 @@ export default function Dashboard() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">KM rodado e telemetria da frota</p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="flex-1 sm:flex-none">
             {syncMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Sincronizar Rota Exata
           </Button>
+          {isAdmin && <ScanKmSemChecklistButton />}
           <SyncKmHistoricoDialog />
         </div>
       </div>

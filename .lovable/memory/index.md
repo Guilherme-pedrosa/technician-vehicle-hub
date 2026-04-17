@@ -56,6 +56,7 @@
 - [Completion Workflow](mem://logic/maintenance-completion-workflow) — Confirming items and capturing odometer on completion
 - [Automatic Ticket Recovery](mem://features/maintenance/automatic-ticket-recovery) — Recreate tickets if edited checklist is non-compliant
 - [Dashboard Filters](mem://ui/preventive-dashboard-filters-logic) — Filters clear selections on change
+- [KM sem checklist scan](mem://features/maintenance/km-sem-checklist-scan) — Daily 10:30 + on-demand scan; opens NC ticket if vehicle ran >30km without checklist
 
 ### UI & Features
 - [Dashboard Technician Report](mem://features/dashboard-technician-report) — Metrics consolidation, defaults to 'Mês'
