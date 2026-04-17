@@ -431,6 +431,7 @@ export default function ChecklistDetail() {
   const [editObs, setEditObs] = useState<Record<string, string>>({});
   const [editObsGeral, setEditObsGeral] = useState("");
   const [editResultado, setEditResultado] = useState("");
+  const [editKmProximaTroca, setEditKmProximaTroca] = useState<string>("");
 
   const { data: cl, isLoading } = useQuery({
     queryKey: ["checklist-detail", id],
