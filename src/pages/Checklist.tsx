@@ -1902,7 +1902,12 @@ export default function Checklist() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [filterDate, setFilterDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [filterStart, setFilterStart] = useState(today);
+  const [filterEnd, setFilterEnd] = useState(today);
+  // Auto-invert if start > end
+  const effectiveStart = filterStart <= filterEnd ? filterStart : filterEnd;
+  const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
 
