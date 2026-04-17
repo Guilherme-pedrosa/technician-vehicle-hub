@@ -2115,8 +2115,9 @@ export default function Checklist() {
                           {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
                            res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
                            <ShieldAlert className="w-4 h-4 text-destructive" />}
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          <span className="text-xs text-muted-foreground tabular-nums flex flex-col items-end leading-tight">
+                            <span>{new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</span>
+                            <span className="text-[10px] opacity-80">{new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
                           </span>
                         </div>
                       </div>
@@ -2145,7 +2146,7 @@ export default function Checklist() {
                       <th className="text-left p-3 font-medium">Técnico</th>
                       <th className="text-center p-3 font-medium">Fotos</th>
                       <th className="text-center p-3 font-medium">Resultado</th>
-                      <th className="text-center p-3 font-medium">Hora</th>
+                      <th className="text-center p-3 font-medium">Data / Hora</th>
                       <th className="text-center p-3 font-medium">Ações</th>
                     </tr>
                   </thead>
@@ -2204,7 +2205,10 @@ export default function Checklist() {
                             </Badge>
                           </td>
                           <td className="p-3 text-center text-xs text-muted-foreground tabular-nums">
-                            {new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            <div className="flex flex-col leading-tight">
+                              <span>{new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })}</span>
+                              <span className="text-[10px] opacity-80">{new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                            </div>
                           </td>
                           <td className="p-3 text-center">
                             <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
