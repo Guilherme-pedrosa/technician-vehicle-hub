@@ -316,7 +316,7 @@ Critério esperado: ${finalCriterio}`;
     const content = data.choices?.[0]?.message?.content || "";
     console.log(`OpenAI response for ${category}:`, content);
 
-    let result;
+    let result: any;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -332,7 +332,24 @@ Critério esperado: ${finalCriterio}`;
           reason: parsed.reason || "Sem motivo informado",
           confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
+          km_lido: typeof parsed.km_lido === "string" ? parsed.km_lido.replace(/[^\d]/g, "") : "",
+          km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
         };
+
+        // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)
+        if (category === "painel") {
+          const kmDigits = result.km_lido || "";
+          const kmOk = result.km_legivel === true && kmDigits.length >= 3;
+          if (!kmOk) {
+            console.log(`[painel] Rejeitado por falta de leitura do KM. km_lido="${kmDigits}", km_legivel=${result.km_legivel}`);
+            result.valid = false;
+            result.target_match = false;
+            result.critical_visible = false;
+            result.reason = `Hodômetro (KM) não legível na foto. Aproxime-se do painel e enquadre o display do KM. (IA leu: "${kmDigits || "nada"}")`;
+          } else {
+            console.log(`[painel] KM lido com sucesso: "${kmDigits}"`);
+          }
+        }
       } else {
         result = {
           valid: false, vehicle_match: false, target_match: false, focus_ok: false,
