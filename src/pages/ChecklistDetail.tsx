@@ -243,9 +243,10 @@ async function revalidatePhotos(
   fotosData: Record<string, string[]>,
   vehicleMarca?: string,
   vehicleModelo?: string
-): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[] }> {
+): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null }> {
   const invalidas: RevalidationResult[] = [];
   const erros: RevalidationResult[] = [];
+  let kmLidoPainel: number | null = null;
 
   for (const [category, urls] of Object.entries(fotosData)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
