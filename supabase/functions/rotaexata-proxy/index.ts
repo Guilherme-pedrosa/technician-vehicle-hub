@@ -38,16 +38,28 @@ async function doLogin(): Promise<string> {
   if (!password) throw new Error("ROTAEXATA_PASSWORD is not configured");
 
   const loginBody = { email, password };
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 5;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     console.log(`Login attempt ${attempt}/${MAX_RETRIES} with email: ${email}`);
 
-    const res = await fetch(`${ROTAEXATA_API}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(loginBody),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${ROTAEXATA_API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginBody),
+      });
+    } catch (err) {
+      // Network failure — retry
+      console.log(`Login network error: ${err instanceof Error ? err.message : String(err)}`);
+      if (attempt < MAX_RETRIES) {
+        const delay = Math.min(attempt * 3000, 15000); // 3s, 6s, 9s, 12s, 15s
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw new Error(`Rota Exata login network error after ${MAX_RETRIES} attempts: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const responseText = await res.text();
     console.log(`Login response status: ${res.status}`);
@@ -66,17 +78,18 @@ async function doLogin(): Promise<string> {
       return token;
     }
 
-    // Retry on 502/503/429, fail immediately on other errors
-    if (res.status !== 502 && res.status !== 503 && res.status !== 429) {
+    // Retry on 502/503/504/429, fail immediately on other errors (e.g., 401 = bad creds)
+    const isRetryable = res.status === 502 || res.status === 503 || res.status === 504 || res.status === 429;
+    if (!isRetryable) {
       throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
     }
 
     if (attempt < MAX_RETRIES) {
-      const delay = attempt * 2000; // 2s, 4s
+      const delay = Math.min(attempt * 3000, 15000); // 3s, 6s, 9s, 12s, 15s
       console.log(`Retrying login in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));
     } else {
-      throw new Error(`Rota Exata login failed after ${MAX_RETRIES} attempts [${res.status}]: ${responseText}`);
+      throw new Error(`Rota Exata API instável (${res.status}). Tente novamente em alguns minutos.`);
     }
   }
 
