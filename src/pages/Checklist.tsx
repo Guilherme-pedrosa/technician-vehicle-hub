@@ -678,9 +678,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setKmProximaTroca("");
   };
 
-  // Troca de óleo: auto-detecta NC comparando KM próxima troca vs KM atual
+  // Troca de óleo: auto-detecta NC quando faltam ≤ 1000 km para a próxima troca
+  // (ou já passou). Antes de 1000 km de margem, está OK.
+  const KM_OLEO_ALERTA_MARGEM = 1000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
-  const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
+  const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
+  const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
   const KM_DISCREPANCY_THRESHOLD = 50_000;
@@ -801,7 +804,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
         }).join("\n");
-        const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
+        const oleoStatusLabel = kmRestanteOleo !== null && kmRestanteOleo <= 0 ? "vencida" : `faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
+        const oilLine = trocaOleoVencida ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
         
         // Include photo validation issues
         const photoIssueLines: string[] = [];
@@ -853,7 +857,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           if (trocaOleoVencida) {
             actions.push({
               ticket_id: ticketData.id,
-              descricao: "Realizar troca de óleo (vencida)",
+              descricao: kmRestanteOleo !== null && kmRestanteOleo <= 0
+                ? "Realizar troca de óleo (vencida)"
+                : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`,
               created_by: userId,
               sort_order: sortOrder++,
             });
@@ -1103,10 +1109,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
                         : "bg-success/10 text-success border border-success/30"
                     }`}>
-                      {trocaOleoVencida
-                        ? `⚠️ VENCIDA — KM atual: ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`
-                        : `✅ OK — Faltam ${(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km para a próxima troca.`
-                      }
+                      {(() => {
+                        const restante = parseInt(kmProximaTroca) - selectedVehicle.km_atual;
+                        if (restante <= 0) {
+                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
+                        }
+                        if (restante <= KM_OLEO_ALERTA_MARGEM) {
+                          return `⚠️ ATENÇÃO — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto.`;
+                        }
+                        return `✅ OK — Faltam ${restante.toLocaleString("pt-BR")} km para a próxima troca.`;
+                      })()}
                     </div>
                     {odoDiscrepancy && (
                       <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
@@ -1190,7 +1202,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   {trocaOleoVencida && (
                     <li className="flex items-center gap-1">
                       <XCircle className="w-3 h-3 text-destructive shrink-0" />
-                      Troca de óleo vencida (próxima: {kmTrocaNum?.toLocaleString("pt-BR")} km)
+                      {kmRestanteOleo !== null && kmRestanteOleo <= 0
+                        ? `Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km)`
+                        : `Troca de óleo próxima (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`}
                     </li>
                   )}
                 </ul>
