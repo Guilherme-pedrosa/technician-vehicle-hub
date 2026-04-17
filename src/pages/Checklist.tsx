@@ -1202,7 +1202,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   {trocaOleoVencida && (
                     <li className="flex items-center gap-1">
                       <XCircle className="w-3 h-3 text-destructive shrink-0" />
-                      Troca de óleo vencida (próxima: {kmTrocaNum?.toLocaleString("pt-BR")} km)
+                      {kmRestanteOleo !== null && kmRestanteOleo <= 0
+                        ? `Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km)`
+                        : `Troca de óleo próxima (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`}
                     </li>
                   )}
                 </ul>
