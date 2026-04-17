@@ -35,11 +35,10 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
     return arr;
   }, [rows, sortKey, sortDesc]);
 
-  // Ranking quem gasta mais/menos (apenas veículos com custo > 0)
+  // Ranking de gasto absoluto (top gastador)
   const comGasto = rows.filter((r) => r.custoTotal > 0);
   const maiorGasto = comGasto[0];
-  const menorGasto = [...comGasto].sort((a, b) => a.custoTotal - b.custoTotal)[0];
-  // Pior eficiência custo/km (apenas com KM rodado)
+  // Eficiência real (R$/km) — só faz sentido quando há KM rodado
   const comKm = rows.filter((r) => r.kmRodado > 0 && r.custoTotal > 0);
   const piorEficiencia = [...comKm].sort((a, b) => b.custoPorKm - a.custoPorKm)[0];
   const melhorEficiencia = [...comKm].sort((a, b) => a.custoPorKm - b.custoPorKm)[0];
@@ -79,22 +78,6 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
                     <p className="text-sm font-bold text-foreground truncate">{maiorGasto.modelo || maiorGasto.placa}</p>
                     <p className="text-base font-bold text-rose-700 dark:text-rose-400">
                       {formatCurrency(maiorGasto.custoTotal)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {menorGasto && menorGasto !== maiorGasto && (
-            <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <TrendingDown className="h-5 w-5 text-emerald-600 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted-foreground">Quem gastou menos</p>
-                    <p className="text-sm font-bold text-foreground truncate">{menorGasto.modelo || menorGasto.placa}</p>
-                    <p className="text-base font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatCurrency(menorGasto.custoTotal)}
                     </p>
                   </div>
                 </div>
