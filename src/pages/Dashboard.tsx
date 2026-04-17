@@ -217,6 +217,38 @@ function SyncKmHistoricoDialog() {
   );
 }
 
+function ScanKmSemChecklistButton() {
+  const [running, setRunning] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleScan = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-km-sem-checklist", { body: {} });
+      if (error) throw error;
+      const r = data as { created: number; checked: number; tickets?: { placa: string; km: number }[] };
+      if (r.created === 0) {
+        toast.success(`✓ Verificado: nenhuma divergência (${r.checked} veículos)`);
+      } else {
+        const placas = (r.tickets ?? []).map((t) => `${t.placa} (${t.km.toFixed(0)}km)`).join(", ");
+        toast.warning(`${r.created} chamado(s) aberto(s): ${placas}`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    } catch (err: any) {
+      toast.error(`Erro: ${err.message ?? "Falha ao varrer"}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" onClick={handleScan} disabled={running} className="flex-1 sm:flex-none">
+      {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Shield className="w-4 h-4 mr-2" />}
+      Verificar KM sem checklist
+    </Button>
+  );
+}
+
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
