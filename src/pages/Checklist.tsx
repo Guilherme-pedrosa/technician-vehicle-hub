@@ -167,7 +167,12 @@ type ValidationResult = {
   confidence?: number;
   ai_error?: boolean;
   detected_elements?: string[];
+  km_lido?: string;
+  km_legivel?: boolean;
 };
+
+// Diferença máxima tolerada entre o KM lido na foto do painel e o KM cadastrado do veículo (Rota Exata).
+const KM_PAINEL_DIVERGENCE_THRESHOLD = 5000;
 
 type PhotoValidation = {
   status: "idle" | "validating" | "valid" | "invalid" | "forced";
