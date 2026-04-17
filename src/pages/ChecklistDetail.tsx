@@ -495,7 +495,7 @@ export default function ChecklistDetail() {
       });
 
       // Build updated detalhes
-      const newDetalhes = {
+      const newDetalhes: any = {
         ...detalhes,
         observacoes_itens: { ...detalhes?.observacoes_itens },
       };
@@ -503,6 +503,17 @@ export default function ChecklistDetail() {
         if (val.trim()) newDetalhes.observacoes_itens[key] = val.trim();
         else delete newDetalhes.observacoes_itens[key];
       });
+
+      // KM próxima troca: aceita número ou limpa o campo se vazio
+      const kmTrim = editKmProximaTroca.trim();
+      if (kmTrim === "") {
+        delete newDetalhes.km_proxima_troca;
+      } else {
+        const kmNum = parseInt(kmTrim.replace(/\D/g, ""), 10);
+        if (!Number.isNaN(kmNum) && kmNum > 0) {
+          newDetalhes.km_proxima_troca = kmNum;
+        }
+      }
 
       const { error } = await supabase.from("vehicle_checklists").update({
         ...fieldUpdates,
