@@ -167,7 +167,12 @@ type ValidationResult = {
   confidence?: number;
   ai_error?: boolean;
   detected_elements?: string[];
+  km_lido?: string;
+  km_legivel?: boolean;
 };
+
+// Diferença máxima tolerada entre o KM lido na foto do painel e o KM cadastrado do veículo (Rota Exata).
+const KM_PAINEL_DIVERGENCE_THRESHOLD = 5000;
 
 type PhotoValidation = {
   status: "idle" | "validating" | "valid" | "invalid" | "forced";
@@ -764,6 +769,28 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
+          km_painel: (() => {
+            // Pega o maior km_lido entre as fotos do painel (caso tenha mais de uma)
+            const painelValidations = photoValidations.painel ?? [];
+            let lidoNum: number | null = null;
+            for (const v of painelValidations) {
+              const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
+              if (raw.length >= 3 && v?.result?.km_legivel) {
+                const n = parseInt(raw, 10);
+                if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
+              }
+            }
+            if (lidoNum === null || !selectedVehicle) return null;
+            const esperado = selectedVehicle.km_atual ?? 0;
+            const diff = lidoNum - esperado;
+            return {
+              lido: lidoNum,
+              esperado,
+              diferenca: diff,
+              divergente: Math.abs(diff) > KM_PAINEL_DIVERGENCE_THRESHOLD,
+              comparado_em: new Date().toISOString(),
+            };
+          })(),
         },
         ...persistedAnswers,
       } as any).select("id").single();
@@ -2090,10 +2117,12 @@ export default function Checklist() {
                   const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
+                  const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                  const kmDivergente = !!kmPainel?.divergente;
                   return (
                     <button
                       key={cl.id}
-                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos ? "bg-destructive/5" : ""}`}
+                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
                       onClick={() => navigate(`/checklist/${cl.id}`)}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -2132,6 +2161,17 @@ export default function Checklist() {
                           </p>
                         </div>
                       )}
+
+                      {kmDivergente && kmPainel && (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                            <Gauge className="w-3.5 h-3.5" /> KM divergente do cadastro
+                          </p>
+                          <p className="mt-1 text-[11px] text-destructive/90">
+                            Painel: {kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: {kmPainel.esperado.toLocaleString("pt-BR")} km · Δ {kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km
+                          </p>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -2162,14 +2202,22 @@ export default function Checklist() {
                       const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
+                      const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                      const kmDivergente = !!kmPainel?.divergente;
+                      const rowFlagged = hasBadPhotos || kmDivergente;
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${hasBadPhotos ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"}</p>
                               {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
+                                </div>
+                              )}
+                              {kmDivergente && kmPainel && (
+                                <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive" title={`Painel: ${kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: ${kmPainel.esperado.toLocaleString("pt-BR")} km`}>
+                                  <Gauge className="w-3 h-3" /> KM divergente ({kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km)
                                 </div>
                               )}
                             </div>
