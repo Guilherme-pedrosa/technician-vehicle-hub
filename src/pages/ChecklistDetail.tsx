@@ -901,7 +901,7 @@ export default function ChecklistDetail() {
               </div>
               {divergente && (
                 <p className="text-xs text-destructive bg-destructive/10 rounded-md p-2 mt-2">
-                  ⚠️ Diferença acima de 5.000 km. Pode indicar foto trocada, painel ilegível, KM cadastrado desatualizado ou falha de leitura da IA. Revise a foto do painel.
+                  ⚠️ Diferença acima de 50 km. Pode impactar o cálculo de troca de óleo. Revise a foto do painel ou corrija o KM no Rota Exata.
                 </p>
               )}
               {divergente && isAdmin && (
