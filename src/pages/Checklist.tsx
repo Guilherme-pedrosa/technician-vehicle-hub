@@ -2161,6 +2161,17 @@ export default function Checklist() {
                           </p>
                         </div>
                       )}
+
+                      {kmDivergente && kmPainel && (
+                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                            <Gauge className="w-3.5 h-3.5" /> KM divergente do cadastro
+                          </p>
+                          <p className="mt-1 text-[11px] text-destructive/90">
+                            Painel: {kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: {kmPainel.esperado.toLocaleString("pt-BR")} km · Δ {kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km
+                          </p>
+                        </div>
+                      )}
                     </button>
                   );
                 })}
