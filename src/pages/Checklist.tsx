@@ -678,9 +678,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setKmProximaTroca("");
   };
 
-  // Troca de óleo: auto-detecta NC comparando KM próxima troca vs KM atual
+  // Troca de óleo: auto-detecta NC quando faltam ≤ 1000 km para a próxima troca
+  // (ou já passou). Antes de 1000 km de margem, está OK.
+  const KM_OLEO_ALERTA_MARGEM = 1000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
-  const trocaOleoVencida = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum <= selectedVehicle.km_atual : false;
+  const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
+  const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
   const KM_DISCREPANCY_THRESHOLD = 50_000;
