@@ -2202,14 +2202,22 @@ export default function Checklist() {
                       const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
+                      const kmPainel = det?.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean } | null | undefined;
+                      const kmDivergente = !!kmPainel?.divergente;
+                      const rowFlagged = hasBadPhotos || kmDivergente;
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${hasBadPhotos ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"}</p>
                               {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
+                                </div>
+                              )}
+                              {kmDivergente && kmPainel && (
+                                <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive" title={`Painel: ${kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: ${kmPainel.esperado.toLocaleString("pt-BR")} km`}>
+                                  <Gauge className="w-3 h-3" /> KM divergente ({kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km)
                                 </div>
                               )}
                             </div>
