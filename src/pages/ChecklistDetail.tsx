@@ -472,6 +472,9 @@ export default function ChecklistDetail() {
     setEditObs(obs);
     setEditObsGeral((cl as any)?.observacoes ?? "");
     setEditResultado((cl as any)?.resultado ?? "liberado");
+    setEditKmProximaTroca(
+      detalhes?.km_proxima_troca != null ? String(detalhes.km_proxima_troca) : "",
+    );
     setEditing(true);
   };
 
@@ -479,6 +482,7 @@ export default function ChecklistDetail() {
     setEditing(false);
     setEditFields({});
     setEditObs({});
+    setEditKmProximaTroca("");
   };
 
   const saveEditing = async () => {
