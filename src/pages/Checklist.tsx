@@ -804,7 +804,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
         }).join("\n");
-        const oilLine = trocaOleoVencida ? `\n• Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual: ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km)` : "";
+        const oleoStatusLabel = kmRestanteOleo !== null && kmRestanteOleo <= 0 ? "vencida" : `faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
+        const oilLine = trocaOleoVencida ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
         
         // Include photo validation issues
         const photoIssueLines: string[] = [];
