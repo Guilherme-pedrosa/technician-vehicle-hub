@@ -857,7 +857,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           if (trocaOleoVencida) {
             actions.push({
               ticket_id: ticketData.id,
-              descricao: "Realizar troca de óleo (vencida)",
+              descricao: kmRestanteOleo !== null && kmRestanteOleo <= 0
+                ? "Realizar troca de óleo (vencida)"
+                : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`,
               created_by: userId,
               sort_order: sortOrder++,
             });
