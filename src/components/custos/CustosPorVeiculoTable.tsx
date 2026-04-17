@@ -84,22 +84,6 @@ export function CustosPorVeiculoTable({ rows, isLoading }: Props) {
               </CardContent>
             </Card>
           )}
-          {menorGasto && menorGasto !== maiorGasto && (
-            <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <TrendingDown className="h-5 w-5 text-emerald-600 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted-foreground">Quem gastou menos</p>
-                    <p className="text-sm font-bold text-foreground truncate">{menorGasto.modelo || menorGasto.placa}</p>
-                    <p className="text-base font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatCurrency(menorGasto.custoTotal)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
           {piorEficiencia && (
             <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20">
               <CardContent className="p-4">
