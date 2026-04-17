@@ -641,6 +641,25 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
   const [kmProximaTroca, setKmProximaTroca] = useState("");
+  // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
+  // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
+  const [kmPainelManual, setKmPainelManual] = useState("");
+  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
+
+  // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
+  useEffect(() => {
+    if (kmPainelEditadoManualmente) return;
+    const painelValidations = photoValidations.painel ?? [];
+    let lidoNum: number | null = null;
+    for (const v of painelValidations) {
+      const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
+      if (raw.length >= 3 && v?.result?.km_legivel) {
+        const n = parseInt(raw, 10);
+        if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
+      }
+    }
+    if (lidoNum !== null) setKmPainelManual(String(lidoNum));
+  }, [photoValidations, kmPainelEditadoManualmente]);
 
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
