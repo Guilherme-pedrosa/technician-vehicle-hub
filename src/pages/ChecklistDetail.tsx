@@ -724,6 +724,50 @@ export default function ChecklistDetail() {
         </Card>
       )}
 
+      {/* KM do painel × Cadastro (Rota Exata) */}
+      {detalhes?.km_painel && (() => {
+        const kp = detalhes.km_painel as { lido: number; esperado: number; diferenca: number; divergente: boolean };
+        const divergente = !!kp.divergente;
+        return (
+          <Card className={divergente ? "border-destructive/40" : ""}>
+            <CardContent className="p-4 sm:p-6 space-y-2">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-primary" /> KM do Painel × Cadastro
+                {divergente && (
+                  <Badge variant="destructive" className="text-[10px] gap-1 ml-auto">
+                    <AlertTriangle className="w-3 h-3" /> Divergente
+                  </Badge>
+                )}
+                {!divergente && (
+                  <Badge className="text-[10px] gap-1 ml-auto bg-success/10 text-success border-success/30">
+                    <CheckCircle className="w-3 h-3" /> Bate
+                  </Badge>
+                )}
+              </h3>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Lido na foto do painel (IA)</span>
+                <span className="text-sm font-semibold tabular-nums">{kp.lido.toLocaleString("pt-BR")} km</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Cadastro do veículo (Rota Exata)</span>
+                <span className="text-sm font-semibold tabular-nums">{kp.esperado.toLocaleString("pt-BR")} km</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2 mt-1">
+                <span className="text-sm font-medium">Diferença</span>
+                <span className={`text-sm font-bold tabular-nums ${divergente ? "text-destructive" : "text-success"}`}>
+                  {kp.diferenca > 0 ? "+" : ""}{kp.diferenca.toLocaleString("pt-BR")} km
+                </span>
+              </div>
+              {divergente && (
+                <p className="text-xs text-destructive bg-destructive/10 rounded-md p-2 mt-2">
+                  ⚠️ Diferença acima de 5.000 km. Pode indicar foto trocada, painel ilegível, KM cadastrado desatualizado ou falha de leitura da IA. Revise a foto do painel.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Sections: Photos + Fields together */}
       {DETAIL_SECTIONS.map((section) => {
         const sectionPhotos = section.photos.filter((cat) => fotosData[cat]?.length > 0);
