@@ -82,28 +82,19 @@ export function useCustosPorVeiculo(custos: CustoRotaExata[], inicio: Date, fim:
   const rows = useMemo<VeiculoCustoRow[]>(() => {
     const map = new Map<string, VeiculoCustoRow>();
 
-    // 1. KM rodado por veículo — agrupa por placa NORMALIZADA + dia, pegando MAX
-    // (daily_vehicle_km tem 1 registro por motorista/sessão; a API entrega o
-    // acumulado do dia em cada registro, então MAX evita contagem duplicada).
-    const kmPorPlacaDia = new Map<string, number>(); // key: placaNorm|data → maxKm
-    const placaOriginal = new Map<string, string>(); // placaNorm → placa exibição
+    // 1. KM rodado por veículo no período.
+    // daily_vehicle_km tem 1 registro por sessão de motorista por dia, e cada
+    // registro contém o KM rodado naquela sessão (não o acumulado do dia).
+    // Portanto, basta SOMAR todos os registros do período por placa.
+    const kmPorPlaca = new Map<string, number>();
+    const placaOriginal = new Map<string, string>();
     (kmQuery.data ?? []).forEach((r) => {
       if (isExcludedPlaca(r.placa)) return;
       const placaNorm = normalizePlaca(r.placa);
       if (!placaNorm) return;
-      const dataStr = String((r as { data?: string }).data ?? "");
-      const dayKey = `${placaNorm}|${dataStr}`;
       const km = Number(r.km_percorrido ?? 0);
-      const prev = kmPorPlacaDia.get(dayKey) ?? 0;
-      if (km > prev) kmPorPlacaDia.set(dayKey, km);
-      if (!placaOriginal.has(placaNorm)) placaOriginal.set(placaNorm, r.placa);
-    });
-
-    // Agrega KM por placa normalizada (somando MAX de cada dia)
-    const kmPorPlaca = new Map<string, number>();
-    kmPorPlacaDia.forEach((km, key) => {
-      const placaNorm = key.split("|")[0];
       kmPorPlaca.set(placaNorm, (kmPorPlaca.get(placaNorm) ?? 0) + km);
+      if (!placaOriginal.has(placaNorm)) placaOriginal.set(placaNorm, r.placa);
     });
 
     kmPorPlaca.forEach((kmTotal, placaNorm) => {
