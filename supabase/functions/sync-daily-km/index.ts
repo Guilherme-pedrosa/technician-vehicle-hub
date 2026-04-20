@@ -276,10 +276,9 @@ Deno.serve(async (req) => {
             console.log(`[dirigibilidade RAW] adesao=${vehicle.adesao_id} day=${day} count=${eventos.length} keys=${Object.keys(eventos[0]).join(",")} sample=${JSON.stringify(eventos[0]).substring(0, 600)}`);
           }
 
-          // Determine excessos: if max speed exceeded the limit
-          const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
-
           // Build session list with parsed time ranges and driver info
+          // velocidade_maxima e excessos_velocidade serão atribuídos POR SESSÃO,
+          // não replicados do dia inteiro do veículo.
           type Session = {
             entry: Record<string, unknown>;
             motoristaNome: string;
@@ -287,6 +286,8 @@ Deno.serve(async (req) => {
             startMs: number;
             endMs: number;
             telemetrias: number;
+            velocidadeMaxima: number;
+            excessosVelocidade: number;
           };
 
           const sessions: Session[] = [];
@@ -298,7 +299,16 @@ Deno.serve(async (req) => {
                 : "Sem condutor vinculado";
             const motoristaId = motorista?.id ? String(motorista.id) : null;
             const { start, end } = getSessionRangeMs(entry);
-            sessions.push({ entry, motoristaNome, motoristaId, startMs: start, endMs: end, telemetrias: 0 });
+            sessions.push({
+              entry,
+              motoristaNome,
+              motoristaId,
+              startMs: start,
+              endMs: end,
+              telemetrias: 0,
+              velocidadeMaxima: 0,
+              excessosVelocidade: 0,
+            });
           }
           // Sort sessions by start time for nearest-match fallback
           sessions.sort((a, b) => a.startMs - b.startMs);
@@ -367,7 +377,63 @@ Deno.serve(async (req) => {
             }
           }
 
-          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} resumoTel=${resumo.telemetrias} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents} strategy=${eventos.length > 0 ? 'timestamp' : (resumo.telemetrias > 0 ? 'prorate-km' : 'none')}`);
+          // ===== Atribuição de VELOCIDADE MÁXIMA e EXCESSOS por sessão =====
+          // Estratégia 1: usar timestamps de /dirigibilidade quando há campo velocidade
+          // Estratégia 2 (fallback): atribuir o pico do /resumo-dia à sessão de maior KM
+          let velAtribuidaPorEvento = false;
+          if (eventos.length > 0) {
+            for (const ev of eventos) {
+              const velCandidates = [
+                ev.velocidade, ev.vel, ev.velocidade_maxima, ev.vel_max,
+                ev.velocidadeMaxima, ev.speed, ev.velocidade_pico,
+                (ev as Record<string, unknown>).valor,
+              ];
+              let vel = 0;
+              for (const v of velCandidates) {
+                if (v == null) continue;
+                const n = parseFloat(String(v).replace(",", "."));
+                if (!isNaN(n) && n > 0) { vel = n; break; }
+              }
+              if (vel <= 0) continue;
+
+              const evMs = getEventMs(ev);
+              if (!evMs) continue;
+
+              let matched = sessions.find((s) => evMs >= s.startMs && evMs <= s.endMs);
+              if (!matched && sessions.length > 0) {
+                let best: Session | null = null;
+                let bestDelta = Infinity;
+                for (const s of sessions) {
+                  const delta = Math.min(Math.abs(evMs - s.startMs), Math.abs(evMs - s.endMs));
+                  if (delta < bestDelta) { bestDelta = delta; best = s; }
+                }
+                if (best && bestDelta <= 2 * 60 * 60 * 1000) matched = best;
+              }
+              if (!matched) continue;
+
+              if (vel > matched.velocidadeMaxima) matched.velocidadeMaxima = vel;
+              if (vel > limiteVelocidade) matched.excessosVelocidade++;
+              velAtribuidaPorEvento = true;
+            }
+          }
+
+          // Fallback: se nenhum evento trouxe velocidade, usar pico do dia
+          // mas atribuir APENAS à sessão com maior KM (provável dona do pico),
+          // em vez de replicar para todos os motoristas.
+          if (!velAtribuidaPorEvento && resumo.velocidadeMaxima > 0 && sessions.length > 0) {
+            let dona: Session | null = null;
+            let maiorKm = -1;
+            for (const s of sessions) {
+              const km = extractKm(s.entry);
+              if (km > maiorKm) { maiorKm = km; dona = s; }
+            }
+            if (dona) {
+              dona.velocidadeMaxima = resumo.velocidadeMaxima;
+              dona.excessosVelocidade = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
+            }
+          }
+
+          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} resumoTel=${resumo.telemetrias} velPico=${resumo.velocidadeMaxima} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents} velStrategy=${velAtribuidaPorEvento ? 'evento-timestamp' : 'fallback-maior-km'}`);
 
           if (sessions.length > 0) {
             for (const session of sessions) {
@@ -395,8 +461,8 @@ Deno.serve(async (req) => {
                     null,
                   hr_vinculo: hrVinculo,
                   telemetrias: session.telemetrias,
-                  velocidade_maxima: resumo.velocidadeMaxima,
-                  excessos_velocidade: excessos,
+                  velocidade_maxima: session.velocidadeMaxima,
+                  excessos_velocidade: session.excessosVelocidade,
                   synced_at: new Date().toISOString(),
                 },
                 {
@@ -423,8 +489,8 @@ Deno.serve(async (req) => {
                   km_percorrido: 0,
                   hr_vinculo: "00:00:00",
                   telemetrias: unattributedEvents,
-                  velocidade_maxima: resumo.velocidadeMaxima,
-                  excessos_velocidade: excessos,
+                  velocidade_maxima: 0,
+                  excessos_velocidade: 0,
                   synced_at: new Date().toISOString(),
                 },
                 { onConflict: "adesao_id,data,motorista_nome,hr_vinculo", ignoreDuplicates: false }
@@ -443,7 +509,7 @@ Deno.serve(async (req) => {
                 hr_vinculo: "00:00:00",
                 telemetrias: eventos.length || resumo.telemetrias,
                 velocidade_maxima: resumo.velocidadeMaxima,
-                excessos_velocidade: excessos,
+                excessos_velocidade: resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0,
                 synced_at: new Date().toISOString(),
               },
               { onConflict: "adesao_id,data,motorista_nome,hr_vinculo", ignoreDuplicates: false }
