@@ -124,7 +124,14 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 };
 
 type FormData = Record<string, string>;
-type PhotosMap = Record<string, File[]>;
+type LocalPhoto = {
+  file: File;
+  previewUrl: string;
+  uploadStatus: "uploading" | "uploaded" | "error";
+  uploadedUrl?: string;
+  storagePath?: string;
+};
+type PhotosMap = Record<string, LocalPhoto[]>;
 
 type ValidationSummaryItem = {
   categoria: string;
@@ -136,6 +143,12 @@ type PersistedPhotoValidationMetadata = {
   fotos_forcadas: ValidationSummaryItem[];
   fotos_invalidas: ValidationSummaryItem[];
   fotos_erro_validacao: ValidationSummaryItem[];
+};
+
+type UploadSummaryItem = {
+  categoria: string;
+  label: string;
+  status: "uploading" | "error";
 };
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
@@ -153,9 +166,35 @@ function isCriticalNonConforme(key: string, val: string) {
   return isNonConforme(key, val);
 }
 
-// ═══════════════════════════════════════════
-// AI PHOTO VALIDATION
-// ═══════════════════════════════════════════
+function summarizePhotoUploads(photos: PhotosMap) {
+  const statusMap = new Map<string, UploadSummaryItem>();
+
+  const ensureItem = (category: string, status: "uploading" | "error") => {
+    if (!statusMap.has(category)) {
+      statusMap.set(category, {
+        categoria: category,
+        label: PHOTO_META[category as PhotoCategory]?.label ?? category,
+        status,
+      });
+    }
+
+    return statusMap.get(category)!;
+  };
+
+  Object.entries(photos).forEach(([category, items]) => {
+    items.forEach((photo) => {
+      if (photo.uploadStatus === "uploading") ensureItem(category, "uploading");
+      if (photo.uploadStatus === "error") ensureItem(category, "error");
+    });
+  });
+
+  const items = Array.from(statusMap.values());
+  return {
+    items,
+    hasPending: items.some((item) => item.status === "uploading"),
+    hasErrors: items.some((item) => item.status === "error"),
+  };
+}
 
 type ValidationResult = {
   valid: boolean;
