@@ -358,15 +358,23 @@ export function useSyncAllFromRotaExata() {
       const rawItems = await fetchRotaExata("/ultima-posicao/todos");
       const positionsArray = Array.isArray(rawItems) ? rawItems : [];
 
+      // Busca correções de odômetro pra todos os adesoes presentes
+      const adesoesIds = positionsArray
+        .map((it: any) => String(it?.posicao?.adesao_id ?? ""))
+        .filter((id: string) => !!id);
+      const correcoes = positionsArray.length > 0
+        ? await fetchUltimasCorrecoesOdometro(adesoesIds)
+        : new Map<string, { adesaoKm: number; rastreadorKm: number }>();
+
       // Run vehicles + drivers in parallel (independent data)
       const [vehicleResult, driverResult] = await Promise.all([
-        syncVehiclesFromData(parseVehiclesFromPositions(positionsArray)),
+        syncVehiclesFromData(parseVehiclesFromPositions(positionsArray, correcoes)),
         syncDrivers(),
       ]);
 
       // Assignments + KM depend on vehicles being synced first
       const { assignmentsCreated, kmUpdated } = positionsArray.length > 0
-        ? await syncAssignmentsAndKm(positionsArray)
+        ? await syncAssignmentsAndKm(positionsArray, correcoes)
         : { assignmentsCreated: 0, kmUpdated: 0 };
 
       // KM daily sync is done manually by the user in the Dashboard
