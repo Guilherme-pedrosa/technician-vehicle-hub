@@ -299,7 +299,16 @@ Deno.serve(async (req) => {
                 : "Sem condutor vinculado";
             const motoristaId = motorista?.id ? String(motorista.id) : null;
             const { start, end } = getSessionRangeMs(entry);
-            sessions.push({ entry, motoristaNome, motoristaId, startMs: start, endMs: end, telemetrias: 0 });
+            sessions.push({
+              entry,
+              motoristaNome,
+              motoristaId,
+              startMs: start,
+              endMs: end,
+              telemetrias: 0,
+              velocidadeMaxima: 0,
+              excessosVelocidade: 0,
+            });
           }
           // Sort sessions by start time for nearest-match fallback
           sessions.sort((a, b) => a.startMs - b.startMs);
