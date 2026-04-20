@@ -276,10 +276,9 @@ Deno.serve(async (req) => {
             console.log(`[dirigibilidade RAW] adesao=${vehicle.adesao_id} day=${day} count=${eventos.length} keys=${Object.keys(eventos[0]).join(",")} sample=${JSON.stringify(eventos[0]).substring(0, 600)}`);
           }
 
-          // Determine excessos: if max speed exceeded the limit
-          const excessos = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
-
           // Build session list with parsed time ranges and driver info
+          // velocidade_maxima e excessos_velocidade serão atribuídos POR SESSÃO,
+          // não replicados do dia inteiro do veículo.
           type Session = {
             entry: Record<string, unknown>;
             motoristaNome: string;
@@ -287,6 +286,8 @@ Deno.serve(async (req) => {
             startMs: number;
             endMs: number;
             telemetrias: number;
+            velocidadeMaxima: number;
+            excessosVelocidade: number;
           };
 
           const sessions: Session[] = [];
