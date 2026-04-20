@@ -93,9 +93,75 @@ function extractKm(entry: Record<string, unknown>): number {
   return 0;
 }
 
-function extractOdometerKm(pos: Record<string, unknown>): number {
+/**
+ * Extrai o odômetro do RASTREADOR (GPS) em km da posição.
+ * Esse valor SOZINHO não reflete o KM real do veículo — é só a distância
+ * percorrida pelo rastreador desde a instalação. Use combineKmAtual().
+ */
+function extractRastreadorKm(pos: Record<string, unknown>): number {
   const odometro = pos.odometro_original ?? pos.odometro_gps ?? pos.odometro ?? 0;
   return Math.round(Number(odometro) / 1000);
+}
+
+/**
+ * Busca a última correção manual de odômetro (`/odometro`) por adesão.
+ * O endpoint retorna todo o histórico — pegamos o registro mais recente
+ * (maior `created`) por adesao_id.
+ */
+async function fetchUltimasCorrecoesOdometro(
+  token: string,
+  adesoesIds: string[]
+): Promise<Map<string, { adesaoKm: number; rastreadorKm: number }>> {
+  const result = new Map<string, { adesaoKm: number; rastreadorKm: number }>();
+  // Busca em lotes para não sobrecarregar
+  for (const adesaoId of adesoesIds) {
+    try {
+      const where = encodeURIComponent(JSON.stringify({ adesao_id: Number(adesaoId) }));
+      const url = `${ROTAEXATA_API}/odometro?where=${where}&limit=1000`;
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json", Authorization: token },
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const items: Array<Record<string, unknown>> = Array.isArray(json) ? json : (json?.data ?? []);
+      if (!items.length) continue;
+      // Pega o registro com maior `created`
+      let latest: Record<string, unknown> | null = null;
+      let latestTs = 0;
+      for (const item of items) {
+        const ts = new Date(String(item.created ?? item.updated ?? 0)).getTime();
+        if (ts > latestTs) {
+          latestTs = ts;
+          latest = item;
+        }
+      }
+      if (!latest) continue;
+      const adesaoKm = Math.round(Number(latest.odometro_adesao ?? 0) / 1000);
+      const rastreadorKm = Math.round(Number(latest.odometro_rastreador ?? 0) / 1000);
+      if (adesaoKm > 0) {
+        result.set(adesaoId, { adesaoKm, rastreadorKm });
+      }
+    } catch {
+      /* skip */
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return result;
+}
+
+/**
+ * Calcula o KM REAL do veículo combinando:
+ *   última correção manual (odometro_adesao) + delta percorrido pelo
+ *   rastreador desde aquela correção.
+ * Espelha o cálculo exibido no painel do Rota Exata.
+ */
+function combineKmAtual(
+  rastreadorAtualKm: number,
+  correcao: { adesaoKm: number; rastreadorKm: number } | undefined
+): number {
+  if (!correcao || correcao.adesaoKm <= 0) return rastreadorAtualKm;
+  const delta = Math.max(0, rastreadorAtualKm - correcao.rastreadorKm);
+  return correcao.adesaoKm + delta;
 }
 
 Deno.serve(async (req) => {
