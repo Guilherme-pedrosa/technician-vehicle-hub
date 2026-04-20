@@ -24,6 +24,11 @@ async function fetchRotaExata(path: string, extraParams?: Record<string, string>
   return json?.data ?? json;
 }
 
+function getOdometerKm(source: Record<string, any> | undefined) {
+  const rawOdometer = source?.odometro_original ?? source?.odometro_gps ?? source?.odometro ?? 0;
+  return Math.round(Number(rawOdometer) / 1000);
+}
+
 // ========== SYNC VEHICLES ==========
 function parseVehiclesFromPositions(rawItems: any[]) {
   return rawItems
@@ -31,7 +36,6 @@ function parseVehiclesFromPositions(rawItems: any[]) {
     .map((item: any) => {
       const adesao = item.posicao.adesao;
       const pos = item.posicao;
-      const odometro = pos.odometro_original ?? pos.odometro_gps ?? 0;
       return {
         adesao_id: String(adesao.id ?? pos.adesao_id ?? ""),
         placa: adesao.vei_placa ?? "",
@@ -39,7 +43,7 @@ function parseVehiclesFromPositions(rawItems: any[]) {
         modelo: adesao.modelo?.modelo ?? adesao.vei_descricao ?? "",
         ano: adesao.vei_ano ? parseInt(adesao.vei_ano) : null,
         tipo: adesao.tipo_veiculo ?? null,
-        km_atual: Math.round(Number(odometro) / 1000),
+        km_atual: getOdometerKm(pos),
       };
     })
     .filter((v: any) => v.placa && v.adesao_id);
@@ -227,7 +231,7 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     if (!vehicle) continue;
 
     // Update KM
-    const newKm = Math.round(Number(pos.odometro_original ?? pos.odometro_gps ?? 0) / 1000);
+    const newKm = getOdometerKm(pos);
     if (newKm > vehicle.km_atual) {
       await supabase.from("vehicles").update({ km_atual: newKm }).eq("id", vehicle.id);
       kmUpdated++;
