@@ -430,6 +430,7 @@ async function extractTextFromAttachment(
     }
 
     const imageBase64 = toBase64(buffer);
+    const imageDataUrl = `data:${contentType};base64,${imageBase64}`;
     const knownPlatesPrompt = knownPlates.length
       ? `Placas válidas da frota WeDo. Retorne o campo \"placa\" APENAS se enxergar exatamente uma destas placas na imagem:\n- ${knownPlates.join("\n- ")}`
       : "";
@@ -456,7 +457,7 @@ async function extractTextFromAttachment(
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:${contentType};base64,${imageBase64}`,
+                  url: imageDataUrl,
                   detail: "high",
                 },
               },
@@ -488,10 +489,61 @@ async function extractTextFromAttachment(
 
     const clues = Array.isArray(parsed?.clues) ? (parsed.clues as unknown[]).map((item) => String(item)) : [];
     const placaRaw = String(parsed?.placa ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const knownPlate = extractKnownPlateFromHints(
+    let knownPlate = extractKnownPlateFromHints(
       [placaRaw, String(parsed?.text ?? ""), ...clues],
       knownPlates,
     );
+
+    if (!knownPlate && knownPlates.length) {
+      const verifyRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 80,
+          messages: [
+            {
+              role: "system",
+              content: 'Verifique visualmente a placa do veículo em um comprovante brasileiro. Responda APENAS com JSON válido no formato {"placa":"AAA0A00"} ou {"placa":""}. Escolha somente uma placa da lista fornecida se ela estiver visível no comprovante. Ignore números de cartão, códigos, CNPJ, QR code e qualquer texto que não seja a placa do veículo.',
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: "high",
+                  },
+                },
+                {
+                  type: "text",
+                  text: `Texto OCR preliminar: ${String(parsed?.text ?? "").slice(0, 300)}\nPistas: ${clues.join(" | ")}\nCandidato OCR: ${placaRaw || "nenhum"}\nEscolha somente entre estas placas válidas: ${knownPlates.join(", ")}`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        const verifyContent = verifyData?.choices?.[0]?.message?.content ?? "";
+        try {
+          const verifyParsed = parseJsonObject(verifyContent);
+          const verifiedPlate = normalizeCompact(String(verifyParsed?.placa ?? ""));
+          if (verifiedPlate && knownPlates.includes(verifiedPlate)) {
+            knownPlate = verifiedPlate;
+          }
+        } catch {
+          console.warn(`[OCR] verify parse error url=${imageUrl} content=${verifyContent.slice(0, 120)}`);
+        }
+      }
+    }
 
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
