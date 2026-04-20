@@ -93,6 +93,11 @@ function extractKm(entry: Record<string, unknown>): number {
   return 0;
 }
 
+function extractOdometerKm(pos: Record<string, unknown>): number {
+  const odometro = pos.odometro_original ?? pos.odometro_gps ?? pos.odometro ?? 0;
+  return Math.round(Number(odometro) / 1000);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -246,8 +251,7 @@ Deno.serve(async (req) => {
           const pos = item?.posicao;
           if (!pos?.adesao_id) continue;
           const adesaoId = String(pos.adesao_id);
-          const odometro = pos.odometro_original ?? pos.odometro_gps ?? 0;
-          const newKm = Math.round(Number(odometro) / 1000);
+          const newKm = extractOdometerKm(pos);
           if (newKm <= 0) continue;
 
           const current = kmAtualMap.get(adesaoId);
