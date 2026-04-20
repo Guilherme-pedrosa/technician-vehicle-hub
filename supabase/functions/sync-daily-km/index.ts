@@ -377,7 +377,63 @@ Deno.serve(async (req) => {
             }
           }
 
-          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} resumoTel=${resumo.telemetrias} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents} strategy=${eventos.length > 0 ? 'timestamp' : (resumo.telemetrias > 0 ? 'prorate-km' : 'none')}`);
+          // ===== Atribuição de VELOCIDADE MÁXIMA e EXCESSOS por sessão =====
+          // Estratégia 1: usar timestamps de /dirigibilidade quando há campo velocidade
+          // Estratégia 2 (fallback): atribuir o pico do /resumo-dia à sessão de maior KM
+          let velAtribuidaPorEvento = false;
+          if (eventos.length > 0) {
+            for (const ev of eventos) {
+              const velCandidates = [
+                ev.velocidade, ev.vel, ev.velocidade_maxima, ev.vel_max,
+                ev.velocidadeMaxima, ev.speed, ev.velocidade_pico,
+                (ev as Record<string, unknown>).valor,
+              ];
+              let vel = 0;
+              for (const v of velCandidates) {
+                if (v == null) continue;
+                const n = parseFloat(String(v).replace(",", "."));
+                if (!isNaN(n) && n > 0) { vel = n; break; }
+              }
+              if (vel <= 0) continue;
+
+              const evMs = getEventMs(ev);
+              if (!evMs) continue;
+
+              let matched = sessions.find((s) => evMs >= s.startMs && evMs <= s.endMs);
+              if (!matched && sessions.length > 0) {
+                let best: Session | null = null;
+                let bestDelta = Infinity;
+                for (const s of sessions) {
+                  const delta = Math.min(Math.abs(evMs - s.startMs), Math.abs(evMs - s.endMs));
+                  if (delta < bestDelta) { bestDelta = delta; best = s; }
+                }
+                if (best && bestDelta <= 2 * 60 * 60 * 1000) matched = best;
+              }
+              if (!matched) continue;
+
+              if (vel > matched.velocidadeMaxima) matched.velocidadeMaxima = vel;
+              if (vel > limiteVelocidade) matched.excessosVelocidade++;
+              velAtribuidaPorEvento = true;
+            }
+          }
+
+          // Fallback: se nenhum evento trouxe velocidade, usar pico do dia
+          // mas atribuir APENAS à sessão com maior KM (provável dona do pico),
+          // em vez de replicar para todos os motoristas.
+          if (!velAtribuidaPorEvento && resumo.velocidadeMaxima > 0 && sessions.length > 0) {
+            let dona: Session | null = null;
+            let maiorKm = -1;
+            for (const s of sessions) {
+              const km = extractKm(s.entry);
+              if (km > maiorKm) { maiorKm = km; dona = s; }
+            }
+            if (dona) {
+              dona.velocidadeMaxima = resumo.velocidadeMaxima;
+              dona.excessosVelocidade = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
+            }
+          }
+
+          console.log(`[telemetria-attr] adesao=${vehicle.adesao_id} day=${day} eventos=${eventos.length} resumoTel=${resumo.telemetrias} velPico=${resumo.velocidadeMaxima} sessoes=${sessions.length} naoAtribuidos=${unattributedEvents} velStrategy=${velAtribuidaPorEvento ? 'evento-timestamp' : 'fallback-maior-km'}`);
 
           if (sessions.length > 0) {
             for (const session of sessions) {
