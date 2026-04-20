@@ -654,20 +654,40 @@ Deno.serve(async (req) => {
       if (page > 200) break;
     }
 
+    const allAuvoIds = all.map((expense) => expense.id);
+    const { data: existingRows } = allAuvoIds.length
+      ? await supabase
+        .from("auvo_expenses")
+        .select("auvo_id, vehicle_id, parsed_keyword, parse_status, raw_payload")
+        .in("auvo_id", allAuvoIds)
+      : { data: [] as Array<Record<string, unknown>> };
+    const existingByAuvoId = new Map((existingRows ?? []).map((row: any) => [row.auvo_id, row]));
+
     const baseRows = all.map((expense) => {
+      const existing = existingByAuvoId.get(expense.id);
       const description = expense.description ?? "";
       const parsedFromDescription = parseVehicleFromText(description, index);
+
+      const fallbackVehicleId = !parsedFromDescription.vehicle_id ? existing?.vehicle_id ?? null : null;
+      const fallbackParsedKeyword = !parsedFromDescription.vehicle_id ? existing?.parsed_keyword ?? null : null;
+      const fallbackParseStatus = !parsedFromDescription.vehicle_id ? existing?.parse_status ?? null : null;
+      const fallbackRawPayload = existing?.raw_payload && typeof existing.raw_payload === "object"
+        ? existing.raw_payload as Record<string, unknown>
+        : null;
 
       return {
         expense,
         description,
         date: (expense.expenseDate ?? expense.date ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10),
-        vehicle_id: parsedFromDescription.vehicle_id,
-        parsed_keyword: parsedFromDescription.keyword,
+        vehicle_id: parsedFromDescription.vehicle_id ?? fallbackVehicleId,
+        parsed_keyword: parsedFromDescription.keyword ?? fallbackParsedKeyword,
         parse_status: parsedFromDescription.vehicle_id
           ? `matched_description_${parsedFromDescription.matched_by}`
-          : "unmatched",
-        raw_payload: expense as Record<string, unknown>,
+          : fallbackParseStatus ?? "unmatched",
+        raw_payload: {
+          ...(fallbackRawPayload ?? {}),
+          ...(expense as Record<string, unknown>),
+        },
       };
     });
 
@@ -685,13 +705,6 @@ Deno.serve(async (req) => {
       const knownPlates = Array.from(placaToVehicle.keys());
       const knownPlatesSet = new Set(knownPlates);
 
-      const auvoIds = unmatchedForAttachment.map((r) => r.expense.id);
-      const { data: existingRows } = await supabase
-        .from("auvo_expenses")
-        .select("auvo_id, parse_status, raw_payload")
-        .in("auvo_id", auvoIds);
-
-      const existingByAuvoId = new Map((existingRows ?? []).map((row: any) => [row.auvo_id, row]));
       const ocrPending = unmatchedForAttachment.filter((row) => {
         const existing = existingByAuvoId.get(row.expense.id);
         if (!existing?.parse_status || existing.parse_status === "unmatched") return true;
