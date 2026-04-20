@@ -509,7 +509,7 @@ Deno.serve(async (req) => {
                 hr_vinculo: "00:00:00",
                 telemetrias: eventos.length || resumo.telemetrias,
                 velocidade_maxima: resumo.velocidadeMaxima,
-                excessos_velocidade: excessos,
+                excessos_velocidade: resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0,
                 synced_at: new Date().toISOString(),
               },
               { onConflict: "adesao_id,data,motorista_nome,hr_vinculo", ignoreDuplicates: false }
