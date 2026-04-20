@@ -321,7 +321,11 @@ export function useSyncVehiclesFromRotaExata() {
     mutationFn: async () => {
       const rawItems = await fetchRotaExata("/ultima-posicao/todos");
       if (!Array.isArray(rawItems)) return { created: 0, updated: 0 };
-      return syncVehiclesFromData(parseVehiclesFromPositions(rawItems));
+      const adesoesIds = rawItems
+        .map((it: any) => String(it?.posicao?.adesao_id ?? ""))
+        .filter((id: string) => !!id);
+      const correcoes = await fetchUltimasCorrecoesOdometro(adesoesIds);
+      return syncVehiclesFromData(parseVehiclesFromPositions(rawItems, correcoes));
     },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
