@@ -119,6 +119,12 @@ export default function Veiculos() {
   const upsertMutation = useMutation({
     mutationFn: async (vehicle: Partial<VehicleInsert> & { id?: string }) => {
       if (vehicle.id) {
+        // Detect KM change to also push to Rota Exata
+        const previous = vehicles.find((v) => v.id === vehicle.id);
+        const newKm = vehicle.km_atual ?? 0;
+        const kmChanged = previous && previous.km_atual !== newKm;
+        const adesaoId = vehicle.adesao_id || previous?.adesao_id || null;
+
         const { error } = await supabase
           .from("vehicles")
           .update({
@@ -127,12 +133,23 @@ export default function Veiculos() {
             modelo: vehicle.modelo!,
             ano: vehicle.ano ?? null,
             tipo: vehicle.tipo ?? null,
-            km_atual: vehicle.km_atual ?? 0,
+            km_atual: newKm,
             adesao_id: vehicle.adesao_id || null,
             status: vehicle.status as VehicleStatus,
           })
           .eq("id", vehicle.id);
         if (error) throw error;
+
+        // If KM changed and vehicle is linked to Rota Exata, push the new value
+        if (kmChanged && adesaoId && newKm > 0) {
+          try {
+            await updateOdometro({ adesao_id: Number(adesaoId), odometro_adesao: newKm });
+          } catch (err) {
+            // Don't fail the local save — just warn
+            console.error("[Veiculos] Falha ao atualizar odômetro no Rota Exata:", err);
+            toast.warning("Veículo salvo, mas não foi possível atualizar o odômetro no Rota Exata. Use o botão de Odômetro para tentar novamente.");
+          }
+        }
       } else {
         const { error } = await supabase.from("vehicles").insert({
           placa: vehicle.placa!,
