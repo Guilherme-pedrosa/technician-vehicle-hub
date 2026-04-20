@@ -462,7 +462,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim, uploadStates }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: File[]) => Promise<File[]>;
@@ -473,6 +473,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   vehicleMarca?: string;
   vehicleModelo?: string;
   limpezaClaim?: string;
+  uploadStates?: Array<{ status: "uploading" | "uploaded" | "error" }>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
@@ -481,7 +482,6 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   const handleCapture = async (files: File[]) => {
     const preparedFiles = await onCapture(category, files);
 
-    // Trigger validation for new photo
     if (!onValidationUpdate || preparedFiles.length === 0) return;
 
     await Promise.all(preparedFiles.map(async (file, offset) => {
@@ -505,7 +505,6 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
       }
 
-      // Interior coverage check: after each photo, check collective coverage
       if (category === "interior" && result.valid && result.detected_elements) {
         const allValidations = validations ? [...validations] : [];
         allValidations[newIdx] = { status: "valid", result };
@@ -546,11 +545,20 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         <div className="flex gap-2 flex-wrap">
           {photos.map((file, i) => {
             const v = validations?.[i];
-            const borderColor = !v || v.status === "idle" ? "border-border"
-              : v.status === "validating" ? "border-primary animate-pulse"
-              : v.status === "valid" ? "border-success"
-              : v.status === "forced" ? "border-warning"
-              : "border-destructive";
+            const upload = uploadStates?.[i];
+            const borderColor = upload?.status === "error"
+              ? "border-destructive"
+              : upload?.status === "uploading"
+                ? "border-primary animate-pulse"
+                : !v || v.status === "idle"
+                  ? "border-border"
+                  : v.status === "validating"
+                    ? "border-primary animate-pulse"
+                    : v.status === "valid"
+                      ? "border-success"
+                      : v.status === "forced"
+                        ? "border-warning"
+                        : "border-destructive";
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
