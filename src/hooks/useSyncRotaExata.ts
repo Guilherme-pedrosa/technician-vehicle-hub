@@ -73,20 +73,25 @@ function combineKmAtual(
 }
 
 // ========== SYNC VEHICLES ==========
-function parseVehiclesFromPositions(rawItems: any[]) {
+function parseVehiclesFromPositions(
+  rawItems: any[],
+  correcoes: Map<string, { adesaoKm: number; rastreadorKm: number }>
+) {
   return rawItems
     .filter((item: any) => item.posicao?.adesao)
     .map((item: any) => {
       const adesao = item.posicao.adesao;
       const pos = item.posicao;
+      const adesaoIdStr = String(adesao.id ?? pos.adesao_id ?? "");
+      const rastreadorKm = getRastreadorKm(pos);
       return {
-        adesao_id: String(adesao.id ?? pos.adesao_id ?? ""),
+        adesao_id: adesaoIdStr,
         placa: adesao.vei_placa ?? "",
         marca: adesao.marca?.marca ?? "",
         modelo: adesao.modelo?.modelo ?? adesao.vei_descricao ?? "",
         ano: adesao.vei_ano ? parseInt(adesao.vei_ano) : null,
         tipo: adesao.tipo_veiculo ?? null,
-        km_atual: getOdometerKm(pos),
+        km_atual: combineKmAtual(rastreadorKm, correcoes.get(adesaoIdStr)),
       };
     })
     .filter((v: any) => v.placa && v.adesao_id);
