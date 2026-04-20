@@ -36,7 +36,6 @@ function parseVehiclesFromPositions(rawItems: any[]) {
     .map((item: any) => {
       const adesao = item.posicao.adesao;
       const pos = item.posicao;
-      const odometro = pos.odometro_original ?? pos.odometro_gps ?? 0;
       return {
         adesao_id: String(adesao.id ?? pos.adesao_id ?? ""),
         placa: adesao.vei_placa ?? "",
