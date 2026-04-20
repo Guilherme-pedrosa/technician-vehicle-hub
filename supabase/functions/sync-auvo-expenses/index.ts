@@ -502,13 +502,14 @@ async function extractTextFromAttachment(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           temperature: 0,
-          max_tokens: 80,
+          max_tokens: 120,
           messages: [
             {
               role: "system",
-              content: 'Verifique visualmente a placa do veículo em um comprovante brasileiro. Responda APENAS com JSON válido no formato {"placa":"AAA0A00"} ou {"placa":""}. Escolha somente uma placa da lista fornecida se ela estiver visível no comprovante. Ignore números de cartão, códigos, CNPJ, QR code e qualquer texto que não seja a placa do veículo.',
+              content:
+                'Você analisa fotos de comprovantes brasileiros (NFC-e, TicketLog, cupons fiscais).\n\nÚnica tarefa: identificar a PLACA DO VEÍCULO impressa no comprovante e devolver EXATAMENTE uma placa de uma lista fechada fornecida.\n\nRegras:\n- A placa fica tipicamente em uma linha curta isolada do ticket TicketLog/Goodcard, perto do CNPJ "WD COMERCIO E IMPORTACAO".\n- IGNORE COMPLETAMENTE: números de cartão (16 dígitos com asteriscos como "603574******6952"), NSU, AUT, DOC, COO, CCF, CNPJ (XX.XXX.XXX/XXXX-XX), chave de acesso de NFC-e (44 dígitos), código de transação TicketLog, terminal POS, autorização e QR code.\n- Compare LETRA POR LETRA cada placa visível com cada placa da lista.\n- Só retorne uma placa se ela for IDÊNTICA a uma da lista. Se diferir em qualquer caractere, devolva "".\n- NUNCA invente, NUNCA chute, NUNCA force similaridade.\n\nResponda APENAS com JSON válido: {"placa":"AAA0A00"} ou {"placa":""}.',
             },
             {
               role: "user",
@@ -522,7 +523,7 @@ async function extractTextFromAttachment(
                 },
                 {
                   type: "text",
-                  text: `Texto OCR preliminar: ${String(parsed?.text ?? "").slice(0, 300)}\nPistas: ${clues.join(" | ")}\nCandidato OCR: ${placaRaw || "nenhum"}\nEscolha somente entre estas placas válidas: ${knownPlates.join(", ")}`,
+                  text: `Procure visualmente a placa do veículo na imagem. Compare letra por letra com esta lista FECHADA e devolva APENAS uma delas (ou string vazia se nenhuma aparecer):\n${knownPlates.map((p) => `- ${p}`).join("\n")}\n\nIgnore o candidato OCR preliminar "${placaRaw || "nenhum"}" se ele NÃO estiver exatamente nessa lista.`,
                 },
               ],
             },
@@ -538,10 +539,16 @@ async function extractTextFromAttachment(
           const verifiedPlate = normalizeCompact(String(verifyParsed?.placa ?? ""));
           if (verifiedPlate && knownPlates.includes(verifiedPlate)) {
             knownPlate = verifiedPlate;
+            console.log(`[OCR] verify hit placa=${verifiedPlate} url=${imageUrl}`);
+          } else {
+            console.log(`[OCR] verify miss raw=${placaRaw || "-"} verified="${verifiedPlate}" url=${imageUrl}`);
           }
         } catch {
           console.warn(`[OCR] verify parse error url=${imageUrl} content=${verifyContent.slice(0, 120)}`);
         }
+      } else {
+        const errText = await verifyRes.text();
+        console.warn(`[OCR] verify failed [${verifyRes.status}] url=${imageUrl} :: ${errText.slice(0, 200)}`);
       }
     }
 
