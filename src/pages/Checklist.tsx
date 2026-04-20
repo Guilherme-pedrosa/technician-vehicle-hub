@@ -125,6 +125,11 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 type PhotosMap = Record<string, File[]>;
+type PhotoUploadsMap = Record<string, Array<{
+  status: "uploading" | "uploaded" | "error";
+  uploadedUrl?: string;
+  storagePath?: string;
+}>>;
 
 type ValidationSummaryItem = {
   categoria: string;
@@ -136,6 +141,12 @@ type PersistedPhotoValidationMetadata = {
   fotos_forcadas: ValidationSummaryItem[];
   fotos_invalidas: ValidationSummaryItem[];
   fotos_erro_validacao: ValidationSummaryItem[];
+};
+
+type UploadSummaryItem = {
+  categoria: string;
+  label: string;
+  status: "uploading" | "error";
 };
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
@@ -153,9 +164,36 @@ function isCriticalNonConforme(key: string, val: string) {
   return isNonConforme(key, val);
 }
 
-// ═══════════════════════════════════════════
-// AI PHOTO VALIDATION
-// ═══════════════════════════════════════════
+function summarizePhotoUploads(photos: PhotosMap, photoUploads: PhotoUploadsMap) {
+  const statusMap = new Map<string, UploadSummaryItem>();
+
+  const ensureItem = (category: string, status: "uploading" | "error") => {
+    if (!statusMap.has(category)) {
+      statusMap.set(category, {
+        categoria: category,
+        label: PHOTO_META[category as PhotoCategory]?.label ?? category,
+        status,
+      });
+    }
+
+    return statusMap.get(category)!;
+  };
+
+  Object.entries(photos).forEach(([category, items]) => {
+    items.forEach((_, index) => {
+      const upload = photoUploads[category]?.[index];
+      if (upload?.status === "uploading") ensureItem(category, "uploading");
+      if (upload?.status === "error") ensureItem(category, "error");
+    });
+  });
+
+  const items = Array.from(statusMap.values());
+  return {
+    items,
+    hasPending: items.some((item) => item.status === "uploading"),
+    hasErrors: items.some((item) => item.status === "error"),
+  };
+}
 
 type ValidationResult = {
   valid: boolean;
@@ -424,7 +462,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim, uploadStates }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: File[]) => Promise<File[]>;
@@ -435,6 +473,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   vehicleMarca?: string;
   vehicleModelo?: string;
   limpezaClaim?: string;
+  uploadStates?: Array<{ status: "uploading" | "uploaded" | "error" }>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
@@ -443,7 +482,6 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   const handleCapture = async (files: File[]) => {
     const preparedFiles = await onCapture(category, files);
 
-    // Trigger validation for new photo
     if (!onValidationUpdate || preparedFiles.length === 0) return;
 
     await Promise.all(preparedFiles.map(async (file, offset) => {
@@ -467,7 +505,6 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
       }
 
-      // Interior coverage check: after each photo, check collective coverage
       if (category === "interior" && result.valid && result.detected_elements) {
         const allValidations = validations ? [...validations] : [];
         allValidations[newIdx] = { status: "valid", result };
@@ -508,11 +545,20 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         <div className="flex gap-2 flex-wrap">
           {photos.map((file, i) => {
             const v = validations?.[i];
-            const borderColor = !v || v.status === "idle" ? "border-border"
-              : v.status === "validating" ? "border-primary animate-pulse"
-              : v.status === "valid" ? "border-success"
-              : v.status === "forced" ? "border-warning"
-              : "border-destructive";
+            const upload = uploadStates?.[i];
+            const borderColor = upload?.status === "error"
+              ? "border-destructive"
+              : upload?.status === "uploading"
+                ? "border-primary animate-pulse"
+                : !v || v.status === "idle"
+                  ? "border-border"
+                  : v.status === "validating"
+                    ? "border-primary animate-pulse"
+                    : v.status === "valid"
+                      ? "border-success"
+                      : v.status === "forced"
+                        ? "border-warning"
+                        : "border-destructive";
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
@@ -642,6 +688,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     return d;
   });
   const [photos, setPhotos] = useState<PhotosMap>({});
+  const [photoUploads, setPhotoUploads] = useState<PhotoUploadsMap>({});
   const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
   const [uploading, setUploading] = useState(false);
   const [resultado, setResultado] = useState("");
@@ -672,18 +719,77 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     () => summarizePhotoValidations(photos, photoValidations),
     [photos, photoValidations],
   );
+  const photoUploadSummary = useMemo(
+    () => summarizePhotoUploads(photos, photoUploads),
+    [photos, photoUploads],
+  );
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
-    const compressed = await prepareCapturedImages(files);
-    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...compressed] }));
-    return compressed;
+  const uploadWithRetry = useCallback(async (path: string, file: File, maxRetries = 2): Promise<string> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type, upsert: true });
+      if (error) {
+        if (attempt === maxRetries) throw new Error(`Upload falhou após ${maxRetries} tentativas: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+      const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
+      return urlData.publicUrl;
+    }
+    throw new Error("Upload falhou");
   }, []);
+
+  const appendPhotosWithBackgroundUpload = useCallback(async (storageKey: string, files: File[]) => {
+    if (!vehicleId) {
+      toast.error("Selecione o veículo antes de tirar fotos.");
+      return [] as File[];
+    }
+
+    const compressed = await prepareCapturedImages(files);
+    const startIndex = photos[storageKey]?.length ?? 0;
+
+    setPhotos((prev) => ({ ...prev, [storageKey]: [...(prev[storageKey] ?? []), ...compressed] }));
+    setPhotoUploads((prev) => ({
+      ...prev,
+      [storageKey]: [
+        ...(prev[storageKey] ?? []),
+        ...compressed.map(() => ({ status: "uploading" as const })),
+      ],
+    }));
+
+    const date = format(new Date(), "yyyy-MM-dd");
+    void Promise.all(compressed.map(async (file, offset) => {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${date}/${vehicleId}/${storageKey}/${crypto.randomUUID()}.${ext}`;
+      try {
+        const url = await uploadWithRetry(path, file);
+        setPhotoUploads((prev) => {
+          const arr = [...(prev[storageKey] ?? [])];
+          arr[startIndex + offset] = { status: "uploaded", uploadedUrl: url, storagePath: path };
+          return { ...prev, [storageKey]: arr };
+        });
+      } catch (error) {
+        console.error("Photo upload error:", error);
+        setPhotoUploads((prev) => {
+          const arr = [...(prev[storageKey] ?? [])];
+          arr[startIndex + offset] = { status: "error" };
+          return { ...prev, [storageKey]: arr };
+        });
+      }
+    })).catch(() => undefined);
+
+    return compressed;
+  }, [photos, uploadWithRetry, vehicleId]);
+
+  const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
+    return appendPhotosWithBackgroundUpload(cat, files);
+  }, [appendPhotosWithBackgroundUpload]);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
   }, []);
   const handleValidationUpdate = useCallback((cat: PhotoCategory, idx: number, validation: PhotoValidation) => {
@@ -697,7 +803,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
-    setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
+    setPhotos({}); setPhotoUploads({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
@@ -735,37 +841,26 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         throw new Error("Aguarde a validação das fotos terminar antes de salvar.");
       }
 
+      if (photoUploadSummary.hasPending) {
+        throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
+      }
+
+      if (photoUploadSummary.hasErrors) {
+        throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
+      }
+
       const date = format(now, "yyyy-MM-dd");
 
-      // Upload photos with retry (parallel per category)
-      const uploadWithRetry = async (path: string, file: File, maxRetries = 2): Promise<string> => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type, upsert: true });
-          if (error) {
-            if (attempt === maxRetries) throw new Error(`Upload falhou após ${maxRetries} tentativas: ${error.message}`);
-            await new Promise(r => setTimeout(r, 500 * attempt));
-            continue;
-          }
-          const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
-          return urlData.publicUrl;
-        }
-        throw new Error("Upload falhou");
-      };
-
-      // Upload all photos in parallel
       const fotosUrls: Record<string, string[]> = {};
-      const uploadTasks: Promise<void>[] = [];
       for (const [cat, files] of Object.entries(photos)) {
-        fotosUrls[cat] = new Array(files.length).fill("");
-        files.forEach((file, idx) => {
-          const ext = file.name.split(".").pop() || "jpg";
-          const path = `${date}/${vehicleId}/${cat}/${crypto.randomUUID()}.${ext}`;
-          uploadTasks.push(
-            uploadWithRetry(path, file).then((url) => { fotosUrls[cat][idx] = url; })
-          );
+        fotosUrls[cat] = files.map((_, idx) => {
+          const uploadedUrl = photoUploads[cat]?.[idx]?.uploadedUrl;
+          if (!uploadedUrl) {
+            throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
+          }
+          return uploadedUrl;
         });
       }
-      await Promise.all(uploadTasks);
 
       const finalResultado = resultado || suggestedResult;
 
