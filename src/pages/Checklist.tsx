@@ -124,15 +124,12 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 };
 
 type FormData = Record<string, string>;
-type LocalPhoto = {
-  id: string;
-  file: File;
-  previewUrl: string;
-  uploadStatus: "uploading" | "uploaded" | "error";
+type PhotosMap = Record<string, File[]>;
+type PhotoUploadsMap = Record<string, Array<{
+  status: "uploading" | "uploaded" | "error";
   uploadedUrl?: string;
   storagePath?: string;
-};
-type PhotosMap = Record<string, LocalPhoto[]>;
+}>>;
 
 type ValidationSummaryItem = {
   categoria: string;
@@ -167,7 +164,7 @@ function isCriticalNonConforme(key: string, val: string) {
   return isNonConforme(key, val);
 }
 
-function summarizePhotoUploads(photos: PhotosMap) {
+function summarizePhotoUploads(photos: PhotosMap, photoUploads: PhotoUploadsMap) {
   const statusMap = new Map<string, UploadSummaryItem>();
 
   const ensureItem = (category: string, status: "uploading" | "error") => {
@@ -183,9 +180,10 @@ function summarizePhotoUploads(photos: PhotosMap) {
   };
 
   Object.entries(photos).forEach(([category, items]) => {
-    items.forEach((photo) => {
-      if (photo.uploadStatus === "uploading") ensureItem(category, "uploading");
-      if (photo.uploadStatus === "error") ensureItem(category, "error");
+    items.forEach((_, index) => {
+      const upload = photoUploads[category]?.[index];
+      if (upload?.status === "uploading") ensureItem(category, "uploading");
+      if (upload?.status === "error") ensureItem(category, "error");
     });
   });
 
