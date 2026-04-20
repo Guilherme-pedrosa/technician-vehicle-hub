@@ -680,6 +680,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     return d;
   });
   const [photos, setPhotos] = useState<PhotosMap>({});
+  const [photoUploads, setPhotoUploads] = useState<PhotoUploadsMap>({});
   const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
   const [uploading, setUploading] = useState(false);
   const [resultado, setResultado] = useState("");
@@ -709,6 +710,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
     [photos, photoValidations],
+  );
+  const photoUploadSummary = useMemo(
+    () => summarizePhotoUploads(photos, photoUploads),
+    [photos, photoUploads],
   );
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
