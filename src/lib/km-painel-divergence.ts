@@ -47,10 +47,13 @@ export function computeKmPainelDivergence(
   if (lido === null) return null;
   const esperado = typeof vehicleKmAtual === "number" ? vehicleKmAtual : 0;
   const diferenca = lido - esperado;
+  // Só é divergente quando o KM lido na foto é MAIOR que o cadastrado + threshold.
+  // Diferenças negativas (lido < esperado) são esperadas: o carro rodou entre a
+  // hora da foto e o sync mais recente do Rota Exata, então o cadastro evoluiu.
   return {
     lido,
     esperado,
     diferenca,
-    divergente: Math.abs(diferenca) > KM_PAINEL_DIVERGENCE_THRESHOLD,
+    divergente: diferenca > KM_PAINEL_DIVERGENCE_THRESHOLD,
   };
 }
