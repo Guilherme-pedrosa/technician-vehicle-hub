@@ -24,26 +24,74 @@ async function fetchRotaExata(path: string, extraParams?: Record<string, string>
   return json?.data ?? json;
 }
 
-function getOdometerKm(source: Record<string, any> | undefined) {
-  const rawOdometer = source?.odometro_original ?? source?.odometro_gps ?? source?.odometro ?? 0;
-  return Math.round(Number(rawOdometer) / 1000);
+/** KM bruto do rastreador (não reflete o KM real — use combineKmAtual) */
+function getRastreadorKm(source: Record<string, any> | undefined) {
+  const raw = source?.odometro_original ?? source?.odometro_gps ?? source?.odometro ?? 0;
+  return Math.round(Number(raw) / 1000);
+}
+
+/**
+ * Busca a última correção manual de odômetro (`/odometro`) por adesão.
+ * Retorna mapa adesao_id → { adesaoKm, rastreadorKm } da correção mais recente.
+ */
+async function fetchUltimasCorrecoesOdometro(
+  adesoesIds: string[]
+): Promise<Map<string, { adesaoKm: number; rastreadorKm: number }>> {
+  const result = new Map<string, { adesaoKm: number; rastreadorKm: number }>();
+  // Sequencial pra não estourar rate limit do proxy
+  for (const adesaoId of adesoesIds) {
+    try {
+      const where = JSON.stringify({ adesao_id: Number(adesaoId) });
+      const data = await fetchRotaExata("/odometro", { where, limit: "1000" });
+      const items: any[] = Array.isArray(data) ? data : (data?.data ?? []);
+      if (!items.length) continue;
+      let latest: any = null;
+      let latestTs = 0;
+      for (const item of items) {
+        const ts = new Date(String(item.created ?? item.updated ?? 0)).getTime();
+        if (ts > latestTs) { latestTs = ts; latest = item; }
+      }
+      if (!latest) continue;
+      const adesaoKm = Math.round(Number(latest.odometro_adesao ?? 0) / 1000);
+      const rastreadorKm = Math.round(Number(latest.odometro_rastreador ?? 0) / 1000);
+      if (adesaoKm > 0) result.set(adesaoId, { adesaoKm, rastreadorKm });
+    } catch {
+      /* skip */
+    }
+  }
+  return result;
+}
+
+/** KM real = correção manual + delta GPS desde a correção (espelha painel Rota Exata) */
+function combineKmAtual(
+  rastreadorAtualKm: number,
+  correcao: { adesaoKm: number; rastreadorKm: number } | undefined
+): number {
+  if (!correcao || correcao.adesaoKm <= 0) return rastreadorAtualKm;
+  const delta = Math.max(0, rastreadorAtualKm - correcao.rastreadorKm);
+  return correcao.adesaoKm + delta;
 }
 
 // ========== SYNC VEHICLES ==========
-function parseVehiclesFromPositions(rawItems: any[]) {
+function parseVehiclesFromPositions(
+  rawItems: any[],
+  correcoes: Map<string, { adesaoKm: number; rastreadorKm: number }>
+) {
   return rawItems
     .filter((item: any) => item.posicao?.adesao)
     .map((item: any) => {
       const adesao = item.posicao.adesao;
       const pos = item.posicao;
+      const adesaoIdStr = String(adesao.id ?? pos.adesao_id ?? "");
+      const rastreadorKm = getRastreadorKm(pos);
       return {
-        adesao_id: String(adesao.id ?? pos.adesao_id ?? ""),
+        adesao_id: adesaoIdStr,
         placa: adesao.vei_placa ?? "",
         marca: adesao.marca?.marca ?? "",
         modelo: adesao.modelo?.modelo ?? adesao.vei_descricao ?? "",
         ano: adesao.vei_ano ? parseInt(adesao.vei_ano) : null,
         tipo: adesao.tipo_veiculo ?? null,
-        km_atual: getOdometerKm(pos),
+        km_atual: combineKmAtual(rastreadorKm, correcoes.get(adesaoIdStr)),
       };
     })
     .filter((v: any) => v.placa && v.adesao_id);
@@ -206,7 +254,10 @@ async function syncDrivers() {
 }
 
 // ========== SYNC ASSIGNMENTS + KM (reuses positions data) ==========
-async function syncAssignmentsAndKm(rawItems: any[]) {
+async function syncAssignmentsAndKm(
+  rawItems: any[],
+  correcoes: Map<string, { adesaoKm: number; rastreadorKm: number }>
+) {
   const { data: vehicles } = await supabase.from("vehicles").select("id, adesao_id, km_atual");
   const { data: drivers } = await supabase.from("drivers").select("id, full_name");
   const { data: existingAssignments } = await supabase
@@ -227,11 +278,13 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     const pos = (item as any).posicao;
     if (!pos?.adesao_id) continue;
 
-    const vehicle = vehicleByAdesao.get(String(pos.adesao_id));
+    const adesaoIdStr = String(pos.adesao_id);
+    const vehicle = vehicleByAdesao.get(adesaoIdStr);
     if (!vehicle) continue;
 
-    // Update KM
-    const newKm = getOdometerKm(pos);
+    // Update KM (correção manual + delta GPS)
+    const rastreadorKm = getRastreadorKm(pos);
+    const newKm = combineKmAtual(rastreadorKm, correcoes.get(adesaoIdStr));
     if (newKm > vehicle.km_atual) {
       await supabase.from("vehicles").update({ km_atual: newKm }).eq("id", vehicle.id);
       kmUpdated++;
@@ -244,7 +297,6 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     const motoristaName = pos.motorista_nome ?? pos.motorista_key ?? null;
     if (!motoristaName) continue;
 
-    // Match by exact full name (case-insensitive, trimmed) — NOT substring
     const normalizedApiName = motoristaName.toLowerCase().trim();
     const driver = drivers.find(d => d.full_name.toLowerCase().trim() === normalizedApiName);
     if (!driver) continue;
@@ -269,7 +321,11 @@ export function useSyncVehiclesFromRotaExata() {
     mutationFn: async () => {
       const rawItems = await fetchRotaExata("/ultima-posicao/todos");
       if (!Array.isArray(rawItems)) return { created: 0, updated: 0 };
-      return syncVehiclesFromData(parseVehiclesFromPositions(rawItems));
+      const adesoesIds = rawItems
+        .map((it: any) => String(it?.posicao?.adesao_id ?? ""))
+        .filter((id: string) => !!id);
+      const correcoes = await fetchUltimasCorrecoesOdometro(adesoesIds);
+      return syncVehiclesFromData(parseVehiclesFromPositions(rawItems, correcoes));
     },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
@@ -302,15 +358,23 @@ export function useSyncAllFromRotaExata() {
       const rawItems = await fetchRotaExata("/ultima-posicao/todos");
       const positionsArray = Array.isArray(rawItems) ? rawItems : [];
 
+      // Busca correções de odômetro pra todos os adesoes presentes
+      const adesoesIds = positionsArray
+        .map((it: any) => String(it?.posicao?.adesao_id ?? ""))
+        .filter((id: string) => !!id);
+      const correcoes = positionsArray.length > 0
+        ? await fetchUltimasCorrecoesOdometro(adesoesIds)
+        : new Map<string, { adesaoKm: number; rastreadorKm: number }>();
+
       // Run vehicles + drivers in parallel (independent data)
       const [vehicleResult, driverResult] = await Promise.all([
-        syncVehiclesFromData(parseVehiclesFromPositions(positionsArray)),
+        syncVehiclesFromData(parseVehiclesFromPositions(positionsArray, correcoes)),
         syncDrivers(),
       ]);
 
       // Assignments + KM depend on vehicles being synced first
       const { assignmentsCreated, kmUpdated } = positionsArray.length > 0
-        ? await syncAssignmentsAndKm(positionsArray)
+        ? await syncAssignmentsAndKm(positionsArray, correcoes)
         : { assignmentsCreated: 0, kmUpdated: 0 };
 
       // KM daily sync is done manually by the user in the Dashboard
