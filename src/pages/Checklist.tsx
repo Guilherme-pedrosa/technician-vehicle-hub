@@ -946,7 +946,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         } catch (emailErr) {
           console.error("Erro ao enviar notificação por e-mail:", emailErr);
         }
-      }
+      };
+
+      // dispara em background — não bloqueia o usuário
+      runBackgroundTasks().catch((err) =>
+        console.error("Erro nas tarefas pós-save (ticket/e-mail):", err)
+      );
     },
     onSuccess: () => {
       setUploading(false);
