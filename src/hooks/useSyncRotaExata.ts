@@ -24,9 +24,52 @@ async function fetchRotaExata(path: string, extraParams?: Record<string, string>
   return json?.data ?? json;
 }
 
-function getOdometerKm(source: Record<string, any> | undefined) {
-  const rawOdometer = source?.odometro_original ?? source?.odometro_gps ?? source?.odometro ?? 0;
-  return Math.round(Number(rawOdometer) / 1000);
+/** KM bruto do rastreador (não reflete o KM real — use combineKmAtual) */
+function getRastreadorKm(source: Record<string, any> | undefined) {
+  const raw = source?.odometro_original ?? source?.odometro_gps ?? source?.odometro ?? 0;
+  return Math.round(Number(raw) / 1000);
+}
+
+/**
+ * Busca a última correção manual de odômetro (`/odometro`) por adesão.
+ * Retorna mapa adesao_id → { adesaoKm, rastreadorKm } da correção mais recente.
+ */
+async function fetchUltimasCorrecoesOdometro(
+  adesoesIds: string[]
+): Promise<Map<string, { adesaoKm: number; rastreadorKm: number }>> {
+  const result = new Map<string, { adesaoKm: number; rastreadorKm: number }>();
+  // Sequencial pra não estourar rate limit do proxy
+  for (const adesaoId of adesoesIds) {
+    try {
+      const where = JSON.stringify({ adesao_id: Number(adesaoId) });
+      const data = await fetchRotaExata("/odometro", { where, limit: "1000" });
+      const items: any[] = Array.isArray(data) ? data : (data?.data ?? []);
+      if (!items.length) continue;
+      let latest: any = null;
+      let latestTs = 0;
+      for (const item of items) {
+        const ts = new Date(String(item.created ?? item.updated ?? 0)).getTime();
+        if (ts > latestTs) { latestTs = ts; latest = item; }
+      }
+      if (!latest) continue;
+      const adesaoKm = Math.round(Number(latest.odometro_adesao ?? 0) / 1000);
+      const rastreadorKm = Math.round(Number(latest.odometro_rastreador ?? 0) / 1000);
+      if (adesaoKm > 0) result.set(adesaoId, { adesaoKm, rastreadorKm });
+    } catch {
+      /* skip */
+    }
+  }
+  return result;
+}
+
+/** KM real = correção manual + delta GPS desde a correção (espelha painel Rota Exata) */
+function combineKmAtual(
+  rastreadorAtualKm: number,
+  correcao: { adesaoKm: number; rastreadorKm: number } | undefined
+): number {
+  if (!correcao || correcao.adesaoKm <= 0) return rastreadorAtualKm;
+  const delta = Math.max(0, rastreadorAtualKm - correcao.rastreadorKm);
+  return correcao.adesaoKm + delta;
 }
 
 // ========== SYNC VEHICLES ==========
