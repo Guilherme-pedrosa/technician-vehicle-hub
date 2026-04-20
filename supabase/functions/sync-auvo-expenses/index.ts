@@ -291,6 +291,55 @@ function inferMimeFromUrl(url: string): string | null {
   return null;
 }
 
+const OCR_PLATE_EQUIVALENTS: Record<string, string[]> = {
+  "0": ["0", "O", "Q", "D"],
+  "O": ["O", "0", "Q", "D"],
+  "1": ["1", "I", "L"],
+  "I": ["I", "1", "L"],
+  "2": ["2", "Z"],
+  "Z": ["Z", "2"],
+  "5": ["5", "S"],
+  "S": ["S", "5"],
+  "6": ["6", "G"],
+  "G": ["G", "6"],
+  "8": ["8", "B"],
+  "B": ["B", "8"],
+};
+
+function getPlateLikeTokens(hints: Array<string | null | undefined>) {
+  const tokens = new Set<string>();
+
+  for (const hint of hints) {
+    const normalized = normalizeCompact(hint);
+    const matches = normalized.match(/[A-Z0-9]{7}/g) ?? [];
+    for (const match of matches) {
+      if (/^[A-Z]{3}[A-Z0-9]{4}$/.test(match)) {
+        tokens.add(match);
+      }
+    }
+  }
+
+  return Array.from(tokens);
+}
+
+function plateCharsCompatible(a: string, b: string) {
+  if (a === b) return true;
+  return (OCR_PLATE_EQUIVALENTS[a] ?? []).includes(b) || (OCR_PLATE_EQUIVALENTS[b] ?? []).includes(a);
+}
+
+function looksLikeKnownPlate(candidate: string, knownPlate: string) {
+  if (candidate.length !== 7 || knownPlate.length !== 7) return false;
+
+  let incompatibleChars = 0;
+  for (let i = 0; i < 7; i += 1) {
+    if (plateCharsCompatible(candidate[i], knownPlate[i])) continue;
+    incompatibleChars += 1;
+    if (incompatibleChars > 1) return false;
+  }
+
+  return true;
+}
+
 function extractKnownPlateFromHints(
   hints: Array<string | null | undefined>,
   knownPlates: string[],
@@ -307,7 +356,56 @@ function extractKnownPlateFromHints(
     }
   }
 
-  return null;
+  const fuzzyMatches = new Set<string>();
+  const plateLikeTokens = getPlateLikeTokens(hints);
+  for (const candidate of plateLikeTokens) {
+    for (const plate of knownPlates) {
+      if (looksLikeKnownPlate(candidate, plate)) {
+        fuzzyMatches.add(plate);
+      }
+    }
+  }
+
+  return fuzzyMatches.size === 1 ? Array.from(fuzzyMatches)[0] : null;
+}
+
+function getAttachmentOcrPayload(rawPayload: unknown) {
+  if (!rawPayload || typeof rawPayload !== "object") return null;
+  const attachmentOcr = (rawPayload as Record<string, unknown>).attachment_ocr;
+  return attachmentOcr && typeof attachmentOcr === "object"
+    ? (attachmentOcr as Record<string, unknown>)
+    : null;
+}
+
+function shouldRetryOcrNoMatch(
+  existingRow: { parse_status?: string | null; raw_payload?: Record<string, unknown> | null },
+  knownPlatesSet: Set<string>,
+) {
+  if (existingRow.parse_status !== "ocr_no_match") return false;
+
+  const attachmentOcr = getAttachmentOcrPayload(existingRow.raw_payload);
+  if (!attachmentOcr) return true;
+
+  const error = String(attachmentOcr.error ?? "").trim();
+  if (error) return true;
+
+  const rawPlateCandidate = normalizeCompact(
+    String(attachmentOcr.raw_plate_candidate ?? attachmentOcr.placa ?? ""),
+  );
+  if (rawPlateCandidate && !knownPlatesSet.has(rawPlateCandidate)) {
+    return true;
+  }
+
+  const text = String(attachmentOcr.text ?? "");
+  const clues = Array.isArray(attachmentOcr.clues)
+    ? (attachmentOcr.clues as unknown[]).map((item) => String(item))
+    : [];
+
+  if (!rawPlateCandidate && !normalizeCompact(text) && clues.length === 0) {
+    return true;
+  }
+
+  return false;
 }
 
 async function extractTextFromAttachment(
@@ -332,8 +430,9 @@ async function extractTextFromAttachment(
     }
 
     const imageBase64 = toBase64(buffer);
+    const imageDataUrl = `data:${contentType};base64,${imageBase64}`;
     const knownPlatesPrompt = knownPlates.length
-      ? `Placas válidas da frota WeDo para conferir visualmente: ${knownPlates.join(", ")}. Se enxergar exatamente uma delas na imagem, retorne essa placa.`
+      ? `Placas válidas da frota WeDo. Retorne o campo \"placa\" APENAS se enxergar exatamente uma destas placas na imagem:\n- ${knownPlates.join("\n- ")}`
       : "";
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -350,7 +449,7 @@ async function extractTextFromAttachment(
           {
             role: "system",
             content:
-              'Você analisa comprovantes de abastecimento/deslocamento brasileiros (cupom fiscal, NFC-e, ticket TicketLog, recibos manuais).\n\nSua única tarefa: extrair literalmente o que está IMPRESSO ou ESCRITO na imagem. NUNCA invente, NUNCA deduza.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456 (número inteiro do hodômetro/odômetro, null se ausente),"litros":12.34 (número decimal, null se ausente),"valor":123.45 (valor total, null se ausente),"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas adicionais úteis para identificar veículo: modelo, apelido, prefixo"]}\n\nRegras:\n- Placa BR tem 7 caracteres: 3 letras + 4 caracteres (Mercosul tem letra na 5ª posição). Procure perto de "PLACA", "VEICULO", em ticket TicketLog geralmente aparece sozinha em uma linha.\n- KM/Hodômetro: número grande perto de "KM", "ODOMETRO", "HODOMETRO".\n- Se houver dois comprovantes na mesma imagem, priorize a placa que aparecer no ticket de combustível/TicketLog.\n- Se a placa estiver ilegível ou ausente, retorne string vazia "".\n- Se uma placa exata da frota aparecer em qualquer parte do comprovante, retorne essa placa no campo "placa".\n- NUNCA chute uma placa parecida.',
+              'Você analisa comprovantes brasileiros de abastecimento/deslocamento (cupom fiscal, NFC-e, TicketLog, recibos manuais).\n\nSua tarefa é extrair SOMENTE o que está visível na imagem. NUNCA invente e NUNCA chute.\n\nResponda APENAS com um JSON válido neste formato exato:\n{"placa":"AAA0A00 ou AAA0000 (vazio se não visível)","km":123456,"litros":12.34,"valor":123.45,"text":"transcrição resumida do que está legível (máx 300 chars)","clues":["pistas úteis para identificar o veículo"]}\n\nRegras obrigatórias:\n- Procure a placa do VEÍCULO, não números de cartão, NSU, AUT, DOC, CNPJ, QR code, chave da nota, terminal, autorização ou sequências mascaradas com asteriscos.\n- Em TicketLog, a placa do veículo costuma aparecer sozinha em uma linha curta, separada dos dados de pagamento.\n- Se houver dois comprovantes na mesma foto, priorize a placa visível no ticket de combustível/TicketLog.\n- Se a imagem trouxer uma lista de placas válidas da frota, só retorne \"placa\" se enxergar EXATAMENTE uma delas. Caso contrário, retorne string vazia \"\".\n- Se existir dúvida entre placa e código de pagamento/cartão, deixe \"placa\" vazia.\n- KM/Hodômetro: extraia apenas o número do hodômetro/odômetro, normalmente perto de \"KM\", \"ODOMETRO\" ou \"HODOMETRO\".',
           },
           {
             role: "user",
@@ -358,13 +457,13 @@ async function extractTextFromAttachment(
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:${contentType};base64,${imageBase64}`,
+                  url: imageDataUrl,
                   detail: "high",
                 },
               },
               {
                 type: "text",
-                text: `Extraia placa, KM do hodômetro, litros, valor e quaisquer pistas do veículo visíveis no(s) comprovante(s) desta imagem. ${knownPlatesPrompt}`.trim(),
+                text: `Extraia placa, KM do hodômetro, litros, valor e pistas do veículo visíveis nesta imagem. Ignore números de cartão, códigos de autorização e sequências mascaradas. ${knownPlatesPrompt}`.trim(),
               },
             ],
           },
@@ -395,18 +494,67 @@ async function extractTextFromAttachment(
       knownPlates,
     );
 
-    // 2ª chamada Gemini removida (custo de CPU dobrava sem ganho — a 1ª já recebe a lista de placas)
+    if (!knownPlate && knownPlates.length) {
+      const verifyRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 80,
+          messages: [
+            {
+              role: "system",
+              content: 'Verifique visualmente a placa do veículo em um comprovante brasileiro. Responda APENAS com JSON válido no formato {"placa":"AAA0A00"} ou {"placa":""}. Escolha somente uma placa da lista fornecida se ela estiver visível no comprovante. Ignore números de cartão, códigos, CNPJ, QR code e qualquer texto que não seja a placa do veículo.',
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: "high",
+                  },
+                },
+                {
+                  type: "text",
+                  text: `Texto OCR preliminar: ${String(parsed?.text ?? "").slice(0, 300)}\nPistas: ${clues.join(" | ")}\nCandidato OCR: ${placaRaw || "nenhum"}\nEscolha somente entre estas placas válidas: ${knownPlates.join(", ")}`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        const verifyContent = verifyData?.choices?.[0]?.message?.content ?? "";
+        try {
+          const verifyParsed = parseJsonObject(verifyContent);
+          const verifiedPlate = normalizeCompact(String(verifyParsed?.placa ?? ""));
+          if (verifiedPlate && knownPlates.includes(verifiedPlate)) {
+            knownPlate = verifiedPlate;
+          }
+        } catch {
+          console.warn(`[OCR] verify parse error url=${imageUrl} content=${verifyContent.slice(0, 120)}`);
+        }
+      }
+    }
 
     const result: AttachmentOcr = {
       text: String(parsed?.text ?? "").trim(),
       clues,
-      placa: knownPlate ?? (placaRaw && placaRaw.length === 7 ? placaRaw : null),
+      placa: knownPlate ?? (!knownPlates.length && placaRaw.length === 7 ? placaRaw : null),
       km: typeof parsed?.km === "number" ? (parsed.km as number) : null,
       litros: typeof parsed?.litros === "number" ? (parsed.litros as number) : null,
       valor: typeof parsed?.valor === "number" ? (parsed.valor as number) : null,
-    };
-    console.log(`[OCR] ok placa=${result.placa ?? "-"} km=${result.km ?? "-"} url=${imageUrl}`);
+      raw_plate_candidate: placaRaw || null,
+    } as AttachmentOcr;
+    console.log(`[OCR] ok placa=${result.placa ?? "-"} raw=${placaRaw || "-"} km=${result.km ?? "-"} url=${imageUrl}`);
     return result;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -521,7 +669,6 @@ Deno.serve(async (req) => {
       .filter((row) => !row.vehicle_id && row.expense.attachmentUrl);
 
     if (LOVABLE_API_KEY && unmatchedForAttachment.length) {
-      // Mapa placa->vehicle_id para match direto
       const placaToVehicle = new Map<string, string>();
       for (const v of (vehicles ?? []) as Vehicle[]) {
         const p = normalizeCompact(v.placa);
@@ -529,24 +676,21 @@ Deno.serve(async (req) => {
       }
 
       const knownPlates = Array.from(placaToVehicle.keys());
+      const knownPlatesSet = new Set(knownPlates);
 
-      // Pula despesas que já foram processadas por OCR antes (cache via parse_status)
       const auvoIds = unmatchedForAttachment.map((r) => r.expense.id);
       const { data: existingRows } = await supabase
         .from("auvo_expenses")
-        .select("auvo_id, parse_status")
+        .select("auvo_id, parse_status, raw_payload")
         .in("auvo_id", auvoIds);
-      const alreadyOcrTried = new Set(
-        (existingRows ?? [])
-          .filter((r: any) => r.parse_status && r.parse_status !== "unmatched")
-          .map((r: any) => r.auvo_id),
-      );
-      // Também pula os que já estão como "ocr_no_match" (tentamos antes e Gemini não achou)
-      const ocrPending = unmatchedForAttachment.filter(
-        (r) => !alreadyOcrTried.has(r.expense.id) &&
-          !(existingRows ?? []).some((er: any) => er.auvo_id === r.expense.id && er.parse_status === "ocr_no_match"),
-      );
 
+      const existingByAuvoId = new Map((existingRows ?? []).map((row: any) => [row.auvo_id, row]));
+      const ocrPending = unmatchedForAttachment.filter((row) => {
+        const existing = existingByAuvoId.get(row.expense.id);
+        if (!existing?.parse_status || existing.parse_status === "unmatched") return true;
+        if (String(existing.parse_status).startsWith("matched_attachment")) return false;
+        return shouldRetryOcrNoMatch(existing, knownPlatesSet);
+      });
       // Limita OCRs por execução para caber no orçamento de CPU da edge function
       const OCR_LIMIT = Math.max(0, Math.min(Number(body.ocrLimit ?? 8), 20));
       const OCR_CONCURRENCY = Math.max(1, Math.min(Number(body.ocrConcurrency ?? 2), 3));
