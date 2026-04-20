@@ -779,37 +779,26 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         throw new Error("Aguarde a validação das fotos terminar antes de salvar.");
       }
 
+      if (photoUploadSummary.hasPending) {
+        throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
+      }
+
+      if (photoUploadSummary.hasErrors) {
+        throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
+      }
+
       const date = format(now, "yyyy-MM-dd");
 
-      // Upload photos with retry (parallel per category)
-      const uploadWithRetry = async (path: string, file: File, maxRetries = 2): Promise<string> => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type, upsert: true });
-          if (error) {
-            if (attempt === maxRetries) throw new Error(`Upload falhou após ${maxRetries} tentativas: ${error.message}`);
-            await new Promise(r => setTimeout(r, 500 * attempt));
-            continue;
-          }
-          const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
-          return urlData.publicUrl;
-        }
-        throw new Error("Upload falhou");
-      };
-
-      // Upload all photos in parallel
       const fotosUrls: Record<string, string[]> = {};
-      const uploadTasks: Promise<void>[] = [];
       for (const [cat, files] of Object.entries(photos)) {
-        fotosUrls[cat] = new Array(files.length).fill("");
-        files.forEach((file, idx) => {
-          const ext = file.name.split(".").pop() || "jpg";
-          const path = `${date}/${vehicleId}/${cat}/${crypto.randomUUID()}.${ext}`;
-          uploadTasks.push(
-            uploadWithRetry(path, file).then((url) => { fotosUrls[cat][idx] = url; })
-          );
+        fotosUrls[cat] = files.map((_, idx) => {
+          const uploadedUrl = photoUploads[cat]?.[idx]?.uploadedUrl;
+          if (!uploadedUrl) {
+            throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
+          }
+          return uploadedUrl;
         });
       }
-      await Promise.all(uploadTasks);
 
       const finalResultado = resultado || suggestedResult;
 
