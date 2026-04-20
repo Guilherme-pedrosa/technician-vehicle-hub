@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A foto deve mostrar o INTERIOR do veículo. Seja PERMISSIVO: ACEITE qualquer foto onde seja possível identificar componentes internos do veículo (bancos, painel, volante, console, forros de porta, teto, cintos, retrovisor interno). A foto pode estar ROTACIONADA, INCLINADA, com ILUMINAÇÃO IRREGULAR (sol forte, sombras), em ÂNGULOS NÃO CONVENCIONAIS (de cima, de lado, deitada) — NADA disso é motivo para rejeitar. ACEITE se pelo menos 1 elemento interno relevante for identificável (ex: só bancos traseiros ok, só dianteiros + volante ok, só console + bancos ok). REJEITE EXCLUSIVAMENTE (target_match=false) se: (a) a foto não mostrar interior de veículo nenhum (paisagem, pessoa, comida, tela, exterior do carro); (b) a foto estiver totalmente preta/branca/borrada a ponto de não ser possível identificar NENHUM componente automotivo; (c) a foto mostrar apenas o exterior (lataria, rodas, capô fechado). Close-ups de UM banco SÃO ACEITOS desde que dê para avaliar o estado. Em caso de dúvida → ACEITE. Inclua 'detected_elements' no JSON com os elementos visíveis.",
+    criterio: "A foto deve mostrar o INTERIOR do veículo. Seja MÁXIMO PERMISSIVO: ACEITE qualquer foto onde seja possível identificar ao menos 1 componente interno do veículo (bancos dianteiros ou traseiros, encosto, apoio de cabeça, painel, volante, console, câmbio, forros de porta, teto, cinto, retrovisor interno, tapete ou acabamento interno). NÃO exija visão ampla, NÃO exija dois elementos, NÃO exija enquadramento panorâmico. Fotos mostrando APENAS bancos traseiros, APENAS bancos dianteiros, APENAS um banco, APENAS encostos/cabeceiras ou parte do habitáculo DEVEM ser ACEITAS se claramente forem do interior do carro. A foto pode estar rotacionada, inclinada, parcial, muito próxima, cortada ou com iluminação irregular — isso NÃO é motivo para rejeitar. REJEITE EXCLUSIVAMENTE se: (a) a foto não mostrar interior de veículo nenhum; (b) a foto estiver totalmente ilegível a ponto de não ser possível identificar NENHUM componente automotivo interno; (c) a foto mostrar apenas o exterior. Em caso de dúvida → ACEITE. Inclua 'detected_elements' no JSON com os elementos visíveis.",
     has_critical: false,
     has_cleanliness_check: true,
   },
@@ -109,6 +109,14 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
 // Categories where vehicle model verification matters
 const VEHICLE_CHECK_CATEGORIES = [
   "exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "painel",
+];
+
+const INTERIOR_OVERSTRICT_REJECTION_PATTERNS = [
+  /vis[aã]o ampla do interior/i,
+  /pelo menos dois elementos/i,
+  /n[ãa]o permitem visualizar/i,
+  /focando apenas nos bancos/i,
+  /parte dos bancos dianteiros/i,
 ];
 
 Deno.serve(async (req) => {
@@ -349,6 +357,20 @@ Critério esperado: ${finalCriterio}`;
           } else {
             console.log(`[painel] KM lido com sucesso: "${kmDigits}"`);
           }
+        }
+
+        if (
+          category === "interior" &&
+          result.valid === false &&
+          result.vehicle_match === true &&
+          result.focus_ok === true &&
+          result.quality !== "ruim" &&
+          INTERIOR_OVERSTRICT_REJECTION_PATTERNS.some((pattern) => pattern.test(result.reason || ""))
+        ) {
+          console.log(`[interior] Rejeição excessiva detectada; aceitando fallback. reason="${result.reason}"`);
+          result.target_match = true;
+          result.valid = true;
+          result.reason = "Interior do veículo identificável na foto, mesmo com enquadramento parcial.";
         }
       } else {
         result = {
