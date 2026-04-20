@@ -29,6 +29,7 @@
 - [Technician Attribution](mem://logic/technician-attribution-priority) — Exact driver ID match, unidentified grouped as 'Sem condutor vinculado'
 - [Speed Monitoring](mem://logic/speed-monitoring-rules) — Speed pro-rated from daily summary, default limit 120km/h
 - [Telemetria Attribution Fix](mem://logic/telemetria-attribution-fix) — 1 log_motorista entry = 1 real telemetria, no pro-rating
+- [KM Atual Calculation](mem://logic/km-atual-rota-exata-calc) — KM real = última correção /odometro + delta odometro_rastreador desde a correção
 - [Data Sync Flow](mem://features/data-synchronization-flow) — General sync must NOT trigger historical KM sync
 - [Data Sync Accessibility](mem://features/data-synchronization-ui-accessibility) — Sync buttons bypass RBAC to avoid race conditions
 
