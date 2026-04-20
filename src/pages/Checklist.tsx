@@ -125,6 +125,7 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 type LocalPhoto = {
+  id: string;
   file: File;
   previewUrl: string;
   uploadStatus: "uploading" | "uploaded" | "error";
