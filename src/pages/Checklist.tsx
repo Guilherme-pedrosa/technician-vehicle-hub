@@ -1106,6 +1106,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // Bloqueia retrocesso de odômetro além da margem de 50 km
       if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
     }
+    // CAPÔ: KM da próxima troca de óleo é OBRIGATÓRIO (item mais crítico do checklist)
+    if (currentStep.id === "capo") {
+      const kmTrocaInput = kmProximaTroca.trim();
+      if (!kmTrocaInput) return false;
+      const kmTrocaParsed = parseInt(kmTrocaInput.replace(/[^\d]/g, ""), 10);
+      if (isNaN(kmTrocaParsed) || kmTrocaParsed <= 0) return false;
+    }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
