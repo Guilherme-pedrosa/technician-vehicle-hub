@@ -1106,6 +1106,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // Bloqueia retrocesso de odômetro além da margem de 50 km
       if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
     }
+    // CAPÔ: KM da próxima troca de óleo é OBRIGATÓRIO (item mais crítico do checklist)
+    if (currentStep.id === "capo") {
+      const kmTrocaInput = kmProximaTroca.trim();
+      if (!kmTrocaInput) return false;
+      const kmTrocaParsed = parseInt(kmTrocaInput.replace(/[^\d]/g, ""), 10);
+      if (isNaN(kmTrocaParsed) || kmTrocaParsed <= 0) return false;
+    }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
@@ -1316,10 +1323,21 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
               {/* KM Próxima Troca de Óleo */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">KM da próxima troca de óleo</Label>
+                <Label className="text-sm font-semibold flex items-center gap-1">
+                  KM da próxima troca de óleo
+                  <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Olhe o adesivo no para-brisa ou pergunte. Esse valor define quando o próximo óleo precisa ser trocado.
+                </p>
                 <Input type="number" inputMode="numeric" placeholder="Ex: 85000"
                   value={kmProximaTroca} onChange={(e) => setKmProximaTroca(e.target.value)}
-                  className="h-12 text-base" />
+                  className={`h-12 text-base ${!kmProximaTroca.trim() ? "border-destructive/60 focus-visible:ring-destructive/40" : ""}`} />
+                {!kmProximaTroca.trim() && (
+                  <p className="text-xs text-destructive font-medium">
+                    ⚠️ Obrigatório — sem isso não conseguimos avisar quando a próxima troca chega.
+                  </p>
+                )}
                 {selectedVehicle && kmProximaTroca && (
                   <div className="space-y-2">
                     <div className={`rounded-lg p-2 text-xs font-medium ${
