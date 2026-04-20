@@ -461,8 +461,8 @@ Deno.serve(async (req) => {
                     null,
                   hr_vinculo: hrVinculo,
                   telemetrias: session.telemetrias,
-                  velocidade_maxima: resumo.velocidadeMaxima,
-                  excessos_velocidade: excessos,
+                  velocidade_maxima: session.velocidadeMaxima,
+                  excessos_velocidade: session.excessosVelocidade,
                   synced_at: new Date().toISOString(),
                 },
                 {
