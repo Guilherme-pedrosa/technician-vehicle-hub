@@ -39,9 +39,9 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     has_critical: true,
   },
   reservatorio_agua: {
-    label: "Reservatório de água",
-    criterio: "Deve mostrar o reservatório de água/arrefecimento do veículo. ACEITE a foto se o reservatório estiver visível e identificável, mesmo que o nível do líquido não seja perfeitamente visível (reservatórios opacos, sujos ou escuros são comuns). Só REJEITE (target_match=false) se: (1) a foto não mostrar o reservatório de água, ou (2) o reservatório estiver CLARAMENTE vazio/seco. Se há dúvida sobre o nível mas o reservatório está presente, ACEITE.",
-    has_critical: false,
+    label: "Reservatório de água/arrefecimento",
+    criterio: "A foto deve mostrar o reservatório de água/arrefecimento do veículo E PRECISA permitir CONFIRMAR VISUALMENTE QUE HÁ LÍQUIDO DENTRO DELE (água/aditivo de arrefecimento). Não basta mostrar o reservatório fechado por cima — é preciso ver o líquido. SINAIS ACEITÁVEIS de presença de líquido: (a) marca/linha de líquido visível na lateral do reservatório (mesmo que opaco, dá pra ver a sombra do nível); (b) líquido visível por dentro/por cima com a tampa aberta; (c) reservatório translúcido onde se vê claramente o líquido (cor verde, rosa, laranja, azul, marrom). REJEITE OBRIGATORIAMENTE (target_match=false, critical_visible=false) se: (1) a foto mostra apenas a TAMPA fechada do reservatório de cima, sem qualquer indício do líquido; (2) o reservatório aparece, mas o ângulo/iluminação/foco não permite afirmar que tem líquido (ex: foto só do plástico amarelo da tampa, ou foto distante onde não dá pra ver dentro); (3) o reservatório está CLARAMENTE VAZIO/SECO (sem nenhuma marca de líquido na lateral nem dentro). Na 'reason', se rejeitar, oriente: 'Tire uma nova foto mostrando o LÍQUIDO dentro do reservatório — preferencialmente da LATERAL para ver a marca do nível, ou abrindo a tampa pra mostrar a água por dentro.' Se aceitar, descreva o que viu (ex: 'Líquido laranja visível pela lateral do reservatório, acima da marca MIN').",
+    has_critical: true,
   },
   pneu_de: {
     label: "Pneu dianteiro esquerdo",
