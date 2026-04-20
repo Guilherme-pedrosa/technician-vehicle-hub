@@ -254,7 +254,10 @@ async function syncDrivers() {
 }
 
 // ========== SYNC ASSIGNMENTS + KM (reuses positions data) ==========
-async function syncAssignmentsAndKm(rawItems: any[]) {
+async function syncAssignmentsAndKm(
+  rawItems: any[],
+  correcoes: Map<string, { adesaoKm: number; rastreadorKm: number }>
+) {
   const { data: vehicles } = await supabase.from("vehicles").select("id, adesao_id, km_atual");
   const { data: drivers } = await supabase.from("drivers").select("id, full_name");
   const { data: existingAssignments } = await supabase
@@ -275,11 +278,13 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     const pos = (item as any).posicao;
     if (!pos?.adesao_id) continue;
 
-    const vehicle = vehicleByAdesao.get(String(pos.adesao_id));
+    const adesaoIdStr = String(pos.adesao_id);
+    const vehicle = vehicleByAdesao.get(adesaoIdStr);
     if (!vehicle) continue;
 
-    // Update KM
-    const newKm = getOdometerKm(pos);
+    // Update KM (correção manual + delta GPS)
+    const rastreadorKm = getRastreadorKm(pos);
+    const newKm = combineKmAtual(rastreadorKm, correcoes.get(adesaoIdStr));
     if (newKm > vehicle.km_atual) {
       await supabase.from("vehicles").update({ km_atual: newKm }).eq("id", vehicle.id);
       kmUpdated++;
@@ -292,7 +297,6 @@ async function syncAssignmentsAndKm(rawItems: any[]) {
     const motoristaName = pos.motorista_nome ?? pos.motorista_key ?? null;
     if (!motoristaName) continue;
 
-    // Match by exact full name (case-insensitive, trimmed) — NOT substring
     const normalizedApiName = motoristaName.toLowerCase().trim();
     const driver = drivers.find(d => d.full_name.toLowerCase().trim() === normalizedApiName);
     if (!driver) continue;
