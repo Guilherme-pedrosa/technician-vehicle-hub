@@ -230,12 +230,16 @@ async function fileToBase64(file: File): Promise<string> {
 
 async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string): Promise<ValidationResult> {
   try {
-    const base64 = await fileToBase64(file);
+    // Comprimir mais agressivamente APENAS pra validação IA (upload final mantém qualidade).
+    // Reduz payload em ~80%, encurta drasticamente o tempo em 4G ruim.
+    const compactFile = await compressImage(file, 800, 0.6).catch(() => file);
+    const base64 = await fileToBase64(compactFile);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("Not authenticated");
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // 60s — tolera 4G ruim + cold start da edge function + latência OpenAI.
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     const body: Record<string, any> = {
       image_base64: base64,
