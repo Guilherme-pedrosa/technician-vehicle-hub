@@ -827,7 +827,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const hasPhotoIssues = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
       const shouldCreateTicket = hasAnyProblem || hasPhotoIssues;
 
-      if (shouldCreateTicket && savedChecklist) {
+      // ⚡ Fire-and-forget: não bloqueia o save. Ticket + e-mail rodam em background
+      // para o técnico não esperar a Edge Function `notify-checklist-nc` (Resend pode levar 5-15s).
+      const runBackgroundTasks = async () => {
+        if (!shouldCreateTicket || !savedChecklist) return;
         const problemItems = nonConformeFields.map((f) => {
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
