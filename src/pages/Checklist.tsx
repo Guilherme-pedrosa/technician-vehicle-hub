@@ -728,11 +728,65 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
-  const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
-    const compressed = await prepareCapturedImages(files);
-    setPhotos((prev) => ({ ...prev, [cat]: [...(prev[cat] ?? []), ...compressed] }));
-    return compressed;
+  const uploadWithRetry = useCallback(async (path: string, file: File, maxRetries = 2): Promise<string> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { error } = await supabase.storage.from("checklist-photos").upload(path, file, { contentType: file.type, upsert: true });
+      if (error) {
+        if (attempt === maxRetries) throw new Error(`Upload falhou após ${maxRetries} tentativas: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+      const { data: urlData } = supabase.storage.from("checklist-photos").getPublicUrl(path);
+      return urlData.publicUrl;
+    }
+    throw new Error("Upload falhou");
   }, []);
+
+  const appendPhotosWithBackgroundUpload = useCallback(async (storageKey: string, files: File[]) => {
+    if (!vehicleId) {
+      toast.error("Selecione o veículo antes de tirar fotos.");
+      return [] as File[];
+    }
+
+    const compressed = await prepareCapturedImages(files);
+    const startIndex = photos[storageKey]?.length ?? 0;
+
+    setPhotos((prev) => ({ ...prev, [storageKey]: [...(prev[storageKey] ?? []), ...compressed] }));
+    setPhotoUploads((prev) => ({
+      ...prev,
+      [storageKey]: [
+        ...(prev[storageKey] ?? []),
+        ...compressed.map(() => ({ status: "uploading" as const })),
+      ],
+    }));
+
+    const date = format(new Date(), "yyyy-MM-dd");
+    void Promise.all(compressed.map(async (file, offset) => {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${date}/${vehicleId}/${storageKey}/${crypto.randomUUID()}.${ext}`;
+      try {
+        const url = await uploadWithRetry(path, file);
+        setPhotoUploads((prev) => {
+          const arr = [...(prev[storageKey] ?? [])];
+          arr[startIndex + offset] = { status: "uploaded", uploadedUrl: url, storagePath: path };
+          return { ...prev, [storageKey]: arr };
+        });
+      } catch (error) {
+        console.error("Photo upload error:", error);
+        setPhotoUploads((prev) => {
+          const arr = [...(prev[storageKey] ?? [])];
+          arr[startIndex + offset] = { status: "error" };
+          return { ...prev, [storageKey]: arr };
+        });
+      }
+    })).catch(() => undefined);
+
+    return compressed;
+  }, [photos, uploadWithRetry, vehicleId]);
+
+  const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
+    return appendPhotosWithBackgroundUpload(cat, files);
+  }, [appendPhotosWithBackgroundUpload]);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
@@ -749,7 +803,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
-    setPhotos({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
+    setPhotos({}); setPhotoUploads({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
     const d: FormData = {};
     CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
     setAnswers(d);
