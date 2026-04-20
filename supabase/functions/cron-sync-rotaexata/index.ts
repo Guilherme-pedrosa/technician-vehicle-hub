@@ -310,6 +310,12 @@ Deno.serve(async (req) => {
           if (v.adesao_id) kmAtualMap.set(String(v.adesao_id), { km: v.km_atual ?? 0, placa: v.placa });
         }
 
+        // Busca última correção manual de odômetro pra cada adesão
+        const adesoesIds = items
+          .map((it: any) => String(it?.posicao?.adesao_id ?? ""))
+          .filter((id: string) => id && kmAtualMap.has(id));
+        const correcoes = await fetchUltimasCorrecoesOdometro(rotaToken, adesoesIds);
+
         const REGRESSION_THRESHOLD = 5000;
         let updated = 0;
         let skippedRegression = 0;
@@ -317,20 +323,21 @@ Deno.serve(async (req) => {
           const pos = item?.posicao;
           if (!pos?.adesao_id) continue;
           const adesaoId = String(pos.adesao_id);
-          const newKm = extractOdometerKm(pos);
+          const rastreadorKm = extractRastreadorKm(pos);
+          if (rastreadorKm <= 0) continue;
+
+          // KM real = correção manual + delta GPS desde a correção
+          const newKm = combineKmAtual(rastreadorKm, correcoes.get(adesaoId));
           if (newKm <= 0) continue;
 
           const current = kmAtualMap.get(adesaoId);
           if (current) {
-            // Nunca regredir o KM cadastrado
             if (newKm < current.km) {
               const diff = current.km - newKm;
               if (diff > REGRESSION_THRESHOLD) {
-                console.warn(`[cron-sync] Ignorando regressão grande de KM para ${current.placa}: cadastro=${current.km}, RotaExata=${newKm} (diff=${diff}km). Provavelmente o Rota Exata está dessincronizado e o admin corrigiu manualmente.`);
+                console.warn(`[cron-sync] Ignorando regressão grande de KM para ${current.placa}: cadastro=${current.km}, RotaExata=${newKm} (diff=${diff}km).`);
                 skippedRegression++;
-                continue;
               }
-              // Regressão pequena (<5000km) também é ignorada — KM só sobe
               continue;
             }
           }
@@ -338,7 +345,7 @@ Deno.serve(async (req) => {
           await supabase.from("vehicles").update({ km_atual: newKm }).eq("adesao_id", adesaoId);
           updated++;
         }
-        console.log(`[cron-sync] Vehicle positions updated: ${updated}, regressões ignoradas: ${skippedRegression}`);
+        console.log(`[cron-sync] Vehicle positions updated: ${updated}, regressões ignoradas: ${skippedRegression}, correções aplicadas: ${correcoes.size}`);
       }
     } catch (err) {
       console.warn("[cron-sync] Position sync error:", (err as Error).message);
