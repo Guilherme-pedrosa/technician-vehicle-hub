@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -96,6 +98,12 @@ export default function ManutencaoPreventiva() {
   const [selectedExecutor, setSelectedExecutor] = useState<string>("all");
   const [selectedItems, setSelectedItems] = useState<Set<SelectionKey>>(new Set());
   const [collapsedVehicles, setCollapsedVehicles] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const prev = document.title;
+    document.title = "Manutenção Preventiva | FleetDesk";
+    return () => { document.title = prev; };
+  }, []);
 
   const toggleCollapse = (vehicleId: string) => {
     setCollapsedVehicles((prev) => {
@@ -469,8 +477,24 @@ export default function ManutencaoPreventiva() {
                             className={!canSelect ? "opacity-30" : ""}
                           />
                           <cfg.icon className={`w-4 h-4 ${cfg.color}`} />
-                          <span className="text-sm font-medium truncate max-w-[140px]">{s.plan.name}</span>
+                          {(() => {
+                            const desc = s.plan.description ?? "";
+                            const isCritical = /CR[ÍI]TICO/i.test(desc);
+                            return (
+                              <div className="flex items-center gap-1 min-w-0">
+                                {isCritical && <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />}
+                                <span className={`text-sm truncate max-w-[140px] ${isCritical ? "font-bold text-destructive" : "font-medium"}`}>
+                                  {s.plan.name}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
+                        {s.plan.description && (
+                          <p className="text-[11px] text-muted-foreground mt-1 ml-8 line-clamp-2">
+                            {s.plan.description}
+                          </p>
+                        )}
                         <div className="flex gap-1">
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${executor.className}`}>{executor.label}</Badge>
                           <Badge variant="outline" className="text-[10px]">{CATEGORY_SHORT[s.plan.category]}</Badge>
@@ -513,6 +537,7 @@ export default function ManutencaoPreventiva() {
                       </TableHead>
                       <TableHead className="w-10">Status</TableHead>
                       <TableHead>Item</TableHead>
+                      <TableHead className="w-10">Obs.</TableHead>
                       <TableHead>Faixa</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Executor</TableHead>
@@ -543,7 +568,38 @@ export default function ManutencaoPreventiva() {
                             />
                           </TableCell>
                           <TableCell><cfg.icon className={`w-4 h-4 ${cfg.color}`} /></TableCell>
-                          <TableCell className="font-medium text-sm">{s.plan.name}</TableCell>
+                          <TableCell className="text-sm">
+                            {(() => {
+                              const desc = s.plan.description ?? "";
+                              const isCritical = /CR[ÍI]TICO/i.test(desc);
+                              return (
+                                <div className="flex items-center gap-1.5">
+                                  {isCritical && <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />}
+                                  <span className={isCritical ? "font-bold text-destructive" : "font-medium"}>
+                                    {s.plan.name}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            {s.plan.description ? (
+                              <TooltipProvider delayDuration={150}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button type="button" className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                                      <Info className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                                    {s.plan.description}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">{CATEGORY_SHORT[s.plan.category]}</Badge>
                           </TableCell>
