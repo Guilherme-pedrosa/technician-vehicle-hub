@@ -222,7 +222,11 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "reason": "motivo breve em português",
   "confidence": 0.95${category === "painel" ? `,
   "km_lido": "123456",
-  "km_legivel": true` : ""}
+  "km_legivel": true` : ""}${category === "exterior_frente" ? `,
+  "farois_acesos": true,
+  "farois_observacao": "ambos os faróis aparentam estar acesos"` : ""}${category === "exterior_traseira" ? `,
+  "lanternas_acesas": true,
+  "lanternas_observacao": "ambas as lanternas aparentam estar acesas"` : ""}
 }
 
 Regras:
