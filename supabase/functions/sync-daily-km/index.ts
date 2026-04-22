@@ -74,9 +74,13 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
 
 /** Fetch raw driving events (freadas/acelerações/curvas bruscas) with timestamps */
 async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
-  // IMPORTANTE: NÃO incluir `horario` no where — a API retorna 400 com esse campo.
-  // O endpoint /relatorios/rastreamento/dirigibilidade aceita apenas { adesao_id, data }.
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
+  // A API exige o campo `eventos` listando os tipos a retornar.
+  // Sem esse campo, retorna 400 "Field eventos is required".
+  const where = JSON.stringify({
+    adesao_id: Number(adesaoId),
+    data,
+    eventos: ["freada_brusca", "aceleracao_brusca", "curva_brusca"],
+  });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
   try {
     const res = await fetch(url, {
