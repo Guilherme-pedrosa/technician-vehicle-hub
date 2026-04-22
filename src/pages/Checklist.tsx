@@ -787,16 +787,31 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     return appendPhotosWithBackgroundUpload(cat, files);
   }, [appendPhotosWithBackgroundUpload]);
+  const handleCaptureForStorageKey = useCallback(async (storageKey: string, files: File[]) => {
+    return appendPhotosWithBackgroundUpload(storageKey, files);
+  }, [appendPhotosWithBackgroundUpload]);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
+  }, []);
+  const handleRemovePhotoByStorageKey = useCallback((storageKey: string, idx: number) => {
+    setPhotos((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoUploads((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoValidations((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
   }, []);
   const handleValidationUpdate = useCallback((cat: PhotoCategory, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
       const arr = [...(prev[cat] ?? [])];
       arr[idx] = validation;
       return { ...prev, [cat]: arr };
+    });
+  }, []);
+  const handleValidationUpdateByStorageKey = useCallback((storageKey: string, idx: number, validation: PhotoValidation) => {
+    setPhotoValidations((prev) => {
+      const arr = [...(prev[storageKey] ?? [])];
+      arr[idx] = validation;
+      return { ...prev, [storageKey]: arr };
     });
   }, []);
 
@@ -1287,12 +1302,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                       <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                        onCapture={async (_, files) => {
-                          const compressed = await prepareCapturedImages(files);
-                          setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
-                          return compressed;
-                        }}
-                        onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
+                        validations={photoValidations[`exc_${field.key}`]}
+                        uploadStates={photoUploads[`exc_${field.key}`]}
+                        onCapture={(_, files) => handleCaptureForStorageKey(`exc_${field.key}`, files)}
+                        onRemove={(_, idx) => handleRemovePhotoByStorageKey(`exc_${field.key}`, idx)}
+                        onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
+                        vehicleMarca={selectedVehicle?.marca}
+                        vehicleModelo={selectedVehicle?.modelo}
+                        limpezaClaim={answers.limpeza_organizacao} />
                     </div>
                   )}
                 </div>
@@ -1398,12 +1415,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                       <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                        onCapture={async (_, files) => {
-                          const compressed = await prepareCapturedImages(files);
-                          setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
-                          return compressed;
-                        }}
-                        onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
+                        validations={photoValidations[`exc_${field.key}`]}
+                        uploadStates={photoUploads[`exc_${field.key}`]}
+                        onCapture={(_, files) => handleCaptureForStorageKey(`exc_${field.key}`, files)}
+                        onRemove={(_, idx) => handleRemovePhotoByStorageKey(`exc_${field.key}`, idx)}
+                        onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
+                        vehicleMarca={selectedVehicle?.marca}
+                        vehicleModelo={selectedVehicle?.modelo}
+                        limpezaClaim={answers.limpeza_organizacao} />
                     </div>
                   )}
                 </div>
@@ -1627,12 +1646,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       value={answers[`obs_${field.key}`] ?? ""} rows={2}
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                      onCapture={async (_, files) => {
-                        const compressed = await prepareCapturedImages(files);
-                        setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
-                        return compressed;
-                      }}
-                      onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
+                      validations={photoValidations[`exc_${field.key}`]}
+                      uploadStates={photoUploads[`exc_${field.key}`]}
+                      onCapture={(_, files) => handleCaptureForStorageKey(`exc_${field.key}`, files)}
+                      onRemove={(_, idx) => handleRemovePhotoByStorageKey(`exc_${field.key}`, idx)}
+                      onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
+                      vehicleMarca={selectedVehicle?.marca}
+                      vehicleModelo={selectedVehicle?.modelo}
+                      limpezaClaim={answers.limpeza_organizacao} />
                   </div>
                 )}
               </div>
