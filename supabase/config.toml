@@ -1,4 +1,1 @@
 project_id = "qfmpyrekjbbqekxrjgov"
-
-[functions.rotaexata-proxy]
-verify_jwt = false

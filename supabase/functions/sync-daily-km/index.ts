@@ -55,7 +55,8 @@ async function getToken(): Promise<string> {
 }
 
 async function fetchLogMotorista(token: string, adesaoId: string, data: string): Promise<unknown[]> {
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
+  // Mesmo padrão usado em src/services/rotaexata.ts: where = { adesao_id, data } apenas.
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
 
   const res = await fetch(url, {
@@ -73,20 +74,28 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
 
 /** Fetch raw driving events (freadas/acelerações/curvas bruscas) with timestamps */
 async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
+  // A API exige `eventos` como array de IDs numéricos: 1=Freada, 2=Aceleração, 3=Curva, 4, 5
+  // Strings (ex.: "freada_brusca") retornam HTTP 200 com [] vazio.
+  const where = JSON.stringify({
+    adesao_id: Number(adesaoId),
+    data,
+    eventos: [1, 2, 3, 4, 5],
+  });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
   try {
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json", Authorization: token },
     });
-    if (res.status === 404 || !res.ok) {
-      console.warn(`[dirigibilidade] adesao=${adesaoId} data=${data} status=${res.status}`);
+    if (!res.ok) {
+      const bodyTxt = await res.text().catch(() => "");
+      console.warn(`[dirigibilidade] adesao=${adesaoId} data=${data} status=${res.status} body=${bodyTxt.substring(0, 200)}`);
       return [];
     }
     const json = await res.json();
     const arr = Array.isArray(json) ? json : (json?.data && Array.isArray(json.data) ? json.data : []);
     return arr as Record<string, unknown>[];
-  } catch {
+  } catch (err) {
+    console.warn(`[dirigibilidade] adesao=${adesaoId} data=${data} exception:`, (err as Error).message);
     return [];
   }
 }
