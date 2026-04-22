@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { BatchTicketBar } from "@/components/manutencao/BatchTicketBar";
 import { generatePreventivaPdf } from "@/components/manutencao/PreventivaPdfExport";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 // ═══════════════════════════════════════════
 // CONSTANTS
@@ -122,7 +123,8 @@ export default function ManutencaoPreventiva() {
         .select("id, placa, marca, modelo, km_atual, status")
         .order("placa");
       if (error) throw error;
-      return data;
+      // Ignora veículos excluídos (ex: Saveiro Sport DIW9D20) do sistema preventivo
+      return (data ?? []).filter((v) => !isExcludedPlaca(v.placa));
     },
   });
 
