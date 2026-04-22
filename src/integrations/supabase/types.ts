@@ -978,6 +978,63 @@ export type Database = {
           },
         ]
       }
+      vehicle_telemetry_events: {
+        Row: {
+          adesao_id: string
+          created_at: string
+          data: string
+          duracao_segundos: number | null
+          endereco: string | null
+          event_at: string
+          event_type: string
+          event_type_raw: string | null
+          external_id: string | null
+          id: string
+          motorista_id: string | null
+          motorista_nome: string | null
+          placa: string
+          raw: Json | null
+          synced_at: string
+          velocidade: number | null
+        }
+        Insert: {
+          adesao_id: string
+          created_at?: string
+          data: string
+          duracao_segundos?: number | null
+          endereco?: string | null
+          event_at: string
+          event_type: string
+          event_type_raw?: string | null
+          external_id?: string | null
+          id?: string
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          placa: string
+          raw?: Json | null
+          synced_at?: string
+          velocidade?: number | null
+        }
+        Update: {
+          adesao_id?: string
+          created_at?: string
+          data?: string
+          duracao_segundos?: number | null
+          endereco?: string | null
+          event_at?: string
+          event_type?: string
+          event_type_raw?: string | null
+          external_id?: string | null
+          id?: string
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          placa?: string
+          raw?: Json | null
+          synced_at?: string
+          velocidade?: number | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           adesao_id: string | null
