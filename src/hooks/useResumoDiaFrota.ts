@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { getRelatorioLogMotorista } from "@/services/rotaexata";
 import { useFleetMetrics } from "@/hooks/useFleetMetrics";
+import { useTelemetryEvents } from "@/hooks/useTelemetryEvents";
 
 /**
  * log_motorista response: array of driver segments per vehicle per day.
