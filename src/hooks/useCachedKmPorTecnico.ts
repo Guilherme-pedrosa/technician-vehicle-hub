@@ -102,7 +102,8 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
   }, [query.data, telemetry.byDriver]);
 
   const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);
-  const totalTelemetrias = telemetry.total;
+  // Soma direta da coluna driverRows.telemetrias (que já aplica o fallback events → daily_vehicle_km)
+  const totalTelemetrias = useMemo(() => driverRows.reduce((s, r) => s + r.telemetrias, 0), [driverRows]);
   const totalExcessos = useMemo(() => driverRows.reduce((s, r) => s + r.excessosVelocidade, 0), [driverRows]);
 
   return {
