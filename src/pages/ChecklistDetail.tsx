@@ -174,7 +174,12 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   if (cl.troca_oleo || detalhes?.km_proxima_troca) {
     let oilY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
     doc.setFontSize(9);
-    doc.text(`Troca de óleo: ${cl.troca_oleo === "vencido" ? "⚠ VENCIDO" : "OK"}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
+    const oleoLabel = cl.troca_oleo === "vencido"
+      ? "⚠ VENCIDO"
+      : cl.troca_oleo === "proximo"
+        ? "⚠ PRÓXIMO DA TROCA"
+        : "OK";
+    doc.text(`Troca de óleo: ${oleoLabel}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
   }
 
   const categories = [...new Set(CHECKLIST_FIELDS.map((f) => f.category))];
@@ -840,9 +845,16 @@ export default function ChecklistDetail() {
             <h3 className="text-sm font-bold flex items-center gap-2"><Droplets className="w-4 h-4 text-primary" /> Troca de Óleo</h3>
             <div className="flex items-center justify-between">
               <span className="text-sm">Status</span>
-              <span className={`text-sm font-semibold ${(cl as any).troca_oleo === "vencido" ? "text-destructive" : "text-success"}`}>
-                {(cl as any).troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
-              </span>
+              {(() => {
+                const status = (cl as any).troca_oleo;
+                if (status === "vencido") {
+                  return <span className="text-sm font-semibold text-destructive">⚠️ VENCIDO</span>;
+                }
+                if (status === "proximo") {
+                  return <span className="text-sm font-semibold text-warning">⚠️ PRÓXIMO DA TROCA</span>;
+                }
+                return <span className="text-sm font-semibold text-success">✅ OK</span>;
+              })()}
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm">KM próxima troca</span>
