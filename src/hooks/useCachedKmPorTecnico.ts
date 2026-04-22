@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, eachDayOfInterval, differenceInCalendarDays } from "date-fns";
 import { toast } from "sonner";
 import { isExcludedPlaca } from "@/lib/excluded-vehicles";
-import { useTelemetryEvents } from "@/hooks/useTelemetryEvents";
 
 export type DriverPeriodRow = {
   id: string;
@@ -37,9 +36,6 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     staleTime: 30 * 1000,
   });
 
-  // Fonte de verdade para telemetrias: eventos brutos; fallback = agregado salvo em daily_vehicle_km
-  const telemetry = useTelemetryEvents(startDate, endDate);
-
   const syncedDays = useMemo(() => {
     const rows = query.data ?? [];
     const uniqueDays = new Set(rows.map((r) => r.data));
@@ -69,29 +65,16 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
       g.placas.add(row.placa);
     }
 
-    // Garante que motoristas com telemetria mas sem KM ainda apareçam
-    telemetry.byDriver.forEach((info, key) => {
-      if (!groups.has(key)) {
-        groups.set(key, { nome: info.nome, km: 0, tel: 0, excessos: 0, velMax: 0, placas: new Set(info.placas) });
-      } else {
-        const g = groups.get(key)!;
-        info.placas.forEach((p) => g.placas.add(p));
-      }
-    });
-
     return Array.from(groups.entries())
       .map(([key, g]) => {
-        // Fonte primária: eventos brutos (vehicle_telemetry_events).
-        // Fallback: agregado já gravado em daily_vehicle_km.telemetrias (preenchido pelo sync).
-        const telFromEvents = telemetry.byDriver.get(key)?.total ?? 0;
-        const tel = telFromEvents > 0 ? telFromEvents : g.tel;
         const kmRound = Math.round(g.km * 100) / 100;
-        const kmPorTel = tel > 0 && g.km > 0 ? Math.round((g.km / tel) * 100) / 100 : 0;
+        // KM por Telemetria = total_km / total_telemetrias (ambos da mesma row de daily_vehicle_km)
+        const kmPorTel = g.tel > 0 && g.km > 0 ? Math.round((g.km / g.tel) * 100) / 100 : 0;
         return {
           id: key,
           nome: g.nome,
           kmRodado: kmRound,
-          telemetrias: tel,
+          telemetrias: g.tel,
           kmPorTelemetria: kmPorTel,
           excessosVelocidade: g.excessos,
           velocidadeMaxima: g.velMax,
@@ -99,10 +82,9 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
         };
       })
       .sort((a, b) => b.kmRodado - a.kmRodado || b.telemetrias - a.telemetrias);
-  }, [query.data, telemetry.byDriver]);
+  }, [query.data]);
 
   const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);
-  // Soma direta da coluna driverRows.telemetrias (que já aplica o fallback events → daily_vehicle_km)
   const totalTelemetrias = useMemo(() => driverRows.reduce((s, r) => s + r.telemetrias, 0), [driverRows]);
   const totalExcessos = useMemo(() => driverRows.reduce((s, r) => s + r.excessosVelocidade, 0), [driverRows]);
 
@@ -111,8 +93,8 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     totalKm: Math.round(totalKm * 100) / 100,
     totalTelemetrias,
     totalExcessos,
-    isLoading: query.isLoading || telemetry.isLoading,
-    isError: query.isError || telemetry.isError,
+    isLoading: query.isLoading,
+    isError: query.isError,
     isEmpty: (query.data ?? []).length === 0,
     syncedDays,
     totalDaysInRange,
