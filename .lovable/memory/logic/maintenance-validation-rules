@@ -1,0 +1,14 @@
+---
+name: Maintenance Validation Rules
+description: Regras de validação de óleo no checklist - 3 estados (ok/proximo/vencido) com sugestão de resultado correspondente
+type: feature
+---
+A validação de óleo no checklist tem 3 estados, baseados em (KM próxima troca − KM atual do veículo):
+
+- **OK** (`troca_oleo: "ok"`): faltam mais de 1.000 km. Sem alerta. Resultado sugerido = "Liberado".
+- **PRÓXIMO DA TROCA** (`troca_oleo: "proximo"`): faltam ≤ 1.000 km mas ainda > 0. Não é crítico — apenas observação. Resultado sugerido = "Liberado c/ observação". Abre chamado de programação.
+- **VENCIDO** (`troca_oleo: "vencido"`): KM atual ≥ KM próxima troca (restante ≤ 0). Crítico. Resultado sugerido = "Bloqueado". Abre chamado urgente.
+
+Constante: `KM_OLEO_ALERTA_MARGEM = 1000` km (margem de antecipação).
+
+Visual: vermelho (vencido), amarelo/warning (próximo), verde (ok). O técnico SEMPRE pode mudar manualmente o resultado — a sugestão não bloqueia.
