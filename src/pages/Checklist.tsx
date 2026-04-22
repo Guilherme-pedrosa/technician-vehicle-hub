@@ -55,7 +55,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   pneu_td: { label: "🔵 Pneu Traseiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
   calibracao: { label: "📏 Calibração dos Pneus", hint: "Foto do calibrador mostrando pressão", min: 1 },
   estepe: { label: "🔄 Pneu Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
-  farois_lanternas: { label: "💡 Faróis e Lanternas", hint: "Faróis acesos, setas funcionando", min: 1 },
+  // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
   itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
   interior: { label: "🪑 Interior do Veículo", hint: "Bancos, painel e forros de porta visíveis", min: 1 },
@@ -208,6 +208,10 @@ type ValidationResult = {
   detected_elements?: string[];
   km_lido?: string;
   km_legivel?: boolean;
+  farois_acesos?: boolean | null;
+  farois_observacao?: string;
+  lanternas_acesas?: boolean | null;
+  lanternas_observacao?: string;
 };
 
 // Comparação KM painel × cadastro: feita sob demanda na exibição
@@ -649,7 +653,7 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
   capo: ["motor", "nivel_oleo", "reservatorio_agua"],
   calibracao: ["calibracao", "estepe", "itens_seguranca"],
-  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
+  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
   interior: ["interior"],
 };
 
@@ -1947,7 +1951,7 @@ const DIALOG_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
   { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
-  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fieldCategories: ["Exterior"] },
+  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fieldCategories: ["Danos"] },
 ];
