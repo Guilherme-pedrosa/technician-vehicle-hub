@@ -38,7 +38,7 @@ type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
   | "nivel_oleo" | "reservatorio_agua"
   | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao" | "estepe"
-  | "farois_lanternas" | "motor" | "itens_seguranca" | "interior"
+  | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
 
 const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: number }> = {
