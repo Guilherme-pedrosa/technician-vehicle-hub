@@ -916,12 +916,12 @@ export default function ChecklistDetail() {
                   ⚠️ Diferença acima de 50 km. Pode impactar o cálculo de troca de óleo. Revise a foto do painel ou corrija o KM no Rota Exata.
                 </p>
               )}
-              {divergente && isAdmin && (
+              {isAdmin && kp.diferenca !== 0 && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       size="sm"
-                      variant="default"
+                      variant={divergente ? "default" : "outline"}
                       className="w-full mt-2 gap-1.5"
                       disabled={syncingKmRota || !vehicle?.adesao_id}
                     >
@@ -930,38 +930,42 @@ export default function ChecklistDetail() {
                       ) : (
                         <RefreshCw className="w-4 h-4" />
                       )}
-                      Corrigir KM no Rota Exata ({kp.lido.toLocaleString("pt-BR")} km)
+                      {divergente ? "Corrigir" : "Sincronizar"} KM no Rota Exata ({kp.lido.toLocaleString("pt-BR")} km)
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Corrigir odômetro no Rota Exata?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {divergente ? "Corrigir" : "Sincronizar"} odômetro no Rota Exata?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
                         O odômetro do veículo <strong>{vehicle?.placa}</strong> será atualizado de{" "}
                         <strong>{kp.esperado.toLocaleString("pt-BR")} km</strong> para{" "}
                         <strong>{kp.lido.toLocaleString("pt-BR")} km</strong> diretamente no Rota Exata.
                         <br />
                         <br />
-                        Use somente se a foto do painel estiver correta. Esta ação:
+                        {divergente
+                          ? "Use somente se a foto do painel estiver correta. Esta ação:"
+                          : "Pequeno ajuste para manter o cadastro em sincronia com o painel. Esta ação:"}
                         <ul className="list-disc list-inside mt-2 space-y-1">
                           <li>Atualiza o odômetro no Rota Exata</li>
                           <li>Atualiza o cadastro local imediatamente</li>
-                          <li>Conclui chamados abertos de "KM divergente" deste veículo</li>
+                          {divergente && <li>Conclui chamados abertos de "KM divergente" deste veículo</li>}
                         </ul>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancelar</AlertDialogCancel>
                       <AlertDialogAction onClick={() => handleSyncKmRotaExata(kp.lido)}>
-                        Confirmar correção
+                        Confirmar {divergente ? "correção" : "sincronização"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
               )}
-              {divergente && isAdmin && !vehicle?.adesao_id && (
+              {isAdmin && kp.diferenca !== 0 && !vehicle?.adesao_id && (
                 <p className="text-[10px] text-muted-foreground italic mt-1">
-                  Veículo sem adesão Rota Exata cadastrada — correção remota indisponível.
+                  Veículo sem adesão Rota Exata cadastrada — sincronização remota indisponível.
                 </p>
               )}
               <p className="text-[10px] text-muted-foreground italic mt-1">
