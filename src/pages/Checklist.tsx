@@ -1001,11 +1001,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             });
           }
 
-          // Troca de óleo vencida
-          if (trocaOleoVencida) {
+          // Troca de óleo (vencida ou próxima)
+          if (trocaOleoAlerta) {
             actions.push({
               ticket_id: ticketData.id,
-              descricao: kmRestanteOleo !== null && kmRestanteOleo <= 0
+              descricao: trocaOleoVencida
                 ? "Realizar troca de óleo (vencida)"
                 : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`,
               created_by: userId,
