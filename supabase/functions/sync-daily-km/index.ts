@@ -88,6 +88,45 @@ async function fetchDirigibilidade(token: string, adesaoId: string, data: string
   }
 }
 
+/** Normaliza o tipo do evento bruto (Freada Brusca, Aceleração Brusca, Curva Brusca, ...) */
+function normalizeEventType(raw: unknown): { type: string; raw: string } {
+  const original = String(raw ?? "").trim();
+  const lower = original.toLowerCase();
+  if (lower.includes("freada") || lower.includes("frenagem") || lower.includes("brake")) {
+    return { type: "freada", raw: original };
+  }
+  if (lower.includes("acelera")) {
+    return { type: "aceleracao", raw: original };
+  }
+  if (lower.includes("curva") || lower.includes("corner")) {
+    return { type: "curva", raw: original };
+  }
+  return { type: "outro", raw: original };
+}
+
+/** Extrai o tipo do evento de um payload do /dirigibilidade */
+function extractEventType(ev: Record<string, unknown>): { type: string; raw: string } {
+  const candidates = [
+    ev.evento, ev.tipo_evento, ev.tipo, ev.descricao,
+    ev.event, ev.event_type, ev.nome, ev.titulo,
+  ];
+  for (const c of candidates) {
+    if (c != null && String(c).trim() !== "") return normalizeEventType(c);
+  }
+  return { type: "outro", raw: "" };
+}
+
+/** Extrai número (velocidade, duração) de candidatos */
+function extractNumber(ev: Record<string, unknown>, fields: string[]): number | null {
+  for (const f of fields) {
+    const v = ev[f];
+    if (v == null) continue;
+    const n = parseFloat(String(v).replace(",", "."));
+    if (!isNaN(n)) return n;
+  }
+  return null;
+}
+
 /** Parse a date string like "2026-04-01 02:09:53" or ISO into ms */
 function parseDateMs(s: unknown): number {
   if (!s) return 0;
