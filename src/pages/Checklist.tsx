@@ -43,8 +43,8 @@ type PhotoCategory =
 
 const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: number }> = {
   painel: { label: "📊 Painel do Veículo", hint: "KM e indicadores visíveis, veículo ligado", min: 1 },
-  exterior_frente: { label: "📸 Frente do Veículo", hint: "Foto frontal completa", min: 1 },
-  exterior_traseira: { label: "📸 Traseira do Veículo", hint: "Foto traseira completa", min: 1 },
+  exterior_frente: { label: "📸 Frente do Veículo (faróis ACESOS)", hint: "⚠️ LIGUE OS FARÓIS antes de tirar a foto. A IA verifica se ambos estão acesos.", min: 1 },
+  exterior_traseira: { label: "📸 Traseira do Veículo (lanternas ACESAS)", hint: "⚠️ LIGUE OS FARÓIS (lanternas acesas). A IA verifica se ambas estão funcionando.", min: 1 },
   exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto lateral esquerda completa", min: 1 },
   exterior_direita: { label: "📸 Lateral Direita", hint: "Foto lateral direita completa", min: 1 },
   nivel_oleo: { label: "🛢️ Nível de Óleo", hint: "Foto da vareta ou indicador de nível", min: 1 },
