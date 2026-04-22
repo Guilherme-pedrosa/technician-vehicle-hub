@@ -55,7 +55,8 @@ async function getToken(): Promise<string> {
 }
 
 async function fetchLogMotorista(token: string, adesaoId: string, data: string): Promise<unknown[]> {
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
+  // Mesmo padrão usado em src/services/rotaexata.ts: where = { adesao_id, data } apenas.
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
 
   const res = await fetch(url, {
