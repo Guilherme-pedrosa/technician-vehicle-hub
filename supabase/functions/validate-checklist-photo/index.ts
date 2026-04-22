@@ -342,6 +342,10 @@ Critério esperado: ${finalCriterio}`;
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
           km_lido: typeof parsed.km_lido === "string" ? parsed.km_lido.replace(/[^\d]/g, "") : "",
           km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
+          farois_acesos: parsed.farois_acesos === true ? true : parsed.farois_acesos === false ? false : null,
+          farois_observacao: typeof parsed.farois_observacao === "string" ? parsed.farois_observacao : "",
+          lanternas_acesas: parsed.lanternas_acesas === true ? true : parsed.lanternas_acesas === false ? false : null,
+          lanternas_observacao: typeof parsed.lanternas_observacao === "string" ? parsed.lanternas_observacao : "",
         };
 
         // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)
