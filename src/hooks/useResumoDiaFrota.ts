@@ -57,11 +57,15 @@ export type ResumoDiaRow = {
 export function useResumoDiaFrota(dateStr?: string) {
   const { rows: vehicles, isLoading: loadingVehicles } = useFleetMetrics();
   const hoje = dateStr ?? format(new Date(), "yyyy-MM-dd");
+  const hojeDate = useMemo(() => new Date(hoje + "T00:00:00"), [hoje]);
 
   const adesaoIds = useMemo(
     () => vehicles.filter((v) => v.adesaoId).map((v) => ({ adesaoId: v.adesaoId!, placa: v.placa })),
     [vehicles]
   );
+
+  // Telemetrias do dia (fonte de verdade)
+  const telemetry = useTelemetryEvents(hojeDate, hojeDate);
 
   const query = useQuery({
     queryKey: ["resumo-dia-frota", hoje, adesaoIds.map((a) => a.adesaoId).join(",")],
@@ -78,10 +82,6 @@ export function useResumoDiaFrota(dateStr?: string) {
             return [];
           });
 
-          // DEBUG: log raw API response to identify real structure
-          console.log(`[log_motorista] adesao=${adesaoId} placa=${placa} raw=`, JSON.stringify(raw, null, 2));
-
-          // Resilient parsing: handle both array and { data: [...] } shapes
           const unwrapped = raw && typeof raw === "object" && !Array.isArray(raw) && "data" in (raw as Record<string, unknown>)
             ? (raw as Record<string, unknown>).data
             : raw;
@@ -94,7 +94,6 @@ export function useResumoDiaFrota(dateStr?: string) {
         })
       );
 
-      // Flatten all segments from all vehicles
       const allSegments: {
         adesaoId: string;
         placa: string;
@@ -124,7 +123,6 @@ export function useResumoDiaFrota(dateStr?: string) {
         }
       }
 
-      // Group by vehicle for vehicleRows
       const vehicleMap = new Map<
         string,
         { adesaoId: string; placa: string; kmHoje: number; motoristaId?: number; motoristaNome?: string }
@@ -142,7 +140,6 @@ export function useResumoDiaFrota(dateStr?: string) {
         }
         const v = vehicleMap.get(seg.adesaoId)!;
         v.kmHoje += seg.kmPercorrido;
-        // Use the driver with the most recent/largest segment
         if (seg.motoristaId) {
           v.motoristaId = seg.motoristaId;
           v.motoristaNome = seg.motoristaNome;
@@ -155,7 +152,7 @@ export function useResumoDiaFrota(dateStr?: string) {
             adesaoId: v.adesaoId,
             placa: v.placa,
             kmHoje: Math.round(v.kmHoje * 100) / 100,
-            telemetrias: 0,
+            telemetrias: 0, // preenchido depois com telemetry.byPlaca
             motoristaId: v.motoristaId,
             motoristaNome: v.motoristaNome,
           }) satisfies ResumoDiaRow
@@ -166,64 +163,76 @@ export function useResumoDiaFrota(dateStr?: string) {
     refetchInterval: 2 * 60 * 1000,
   });
 
-  const driverRows = useMemo(() => {
+  // Enriquecimento: telemetrias por placa vêm da nova tabela
+  const vehicleRows = useMemo<ResumoDiaRow[]>(() => {
     const data = query.data ?? [];
+    return data.map((row) => ({
+      ...row,
+      telemetrias: telemetry.byPlaca.get(row.placa) ?? 0,
+    }));
+  }, [query.data, telemetry.byPlaca]);
+
+  const driverRows = useMemo(() => {
     const groups = new Map<
       string,
-      { nome: string; kmHoje: number; telemetrias: number; placas: string[] }
+      { nome: string; kmHoje: number; placas: Set<string> }
     >();
 
-    data.forEach((row) => {
+    vehicleRows.forEach((row) => {
       if (row.kmHoje === 0) return;
 
       const key = row.motoristaId ? String(row.motoristaId) : "sem-condutor";
       const nome = row.motoristaNome ?? "Sem condutor vinculado";
 
       if (!groups.has(key)) {
-        groups.set(key, { nome, kmHoje: 0, telemetrias: 0, placas: [] });
+        groups.set(key, { nome, kmHoje: 0, placas: new Set() });
       }
 
       const group = groups.get(key)!;
       group.kmHoje += row.kmHoje;
-      group.telemetrias += row.telemetrias;
-      if (!group.placas.includes(row.placa)) {
-        group.placas.push(row.placa);
+      group.placas.add(row.placa);
+    });
+
+    // Adiciona motoristas que tiveram telemetria mas não aparecem em log_motorista
+    telemetry.byDriver.forEach((info, key) => {
+      if (!groups.has(key)) {
+        groups.set(key, { nome: info.nome, kmHoje: 0, placas: new Set(info.placas) });
+      } else {
+        info.placas.forEach((p) => groups.get(key)!.placas.add(p));
       }
     });
 
     return Array.from(groups.entries())
       .map(([id, group]) => {
         const kmRodado = Math.round(group.kmHoje * 100) / 100;
-        const kmPorTelemetria = kmRodado;
+        const tel = telemetry.byDriver.get(id)?.total ?? 0;
+        const kmPorTelemetria = tel > 0 ? Math.round((kmRodado / tel) * 100) / 100 : kmRodado;
 
         return {
           id,
           nome: group.nome,
           kmRodado,
-          telemetrias: group.telemetrias,
+          telemetrias: tel,
           kmPorTelemetria,
-          placas: group.placas,
+          placas: Array.from(group.placas),
         };
       })
       .sort((a, b) => b.kmRodado - a.kmRodado);
-  }, [query.data]);
+  }, [vehicleRows, telemetry.byDriver]);
 
   const totalKmHoje = useMemo(
-    () => (query.data ?? []).reduce((sum, row) => sum + row.kmHoje, 0),
-    [query.data]
+    () => vehicleRows.reduce((sum, row) => sum + row.kmHoje, 0),
+    [vehicleRows]
   );
 
-  const totalTelemetrias = useMemo(
-    () => (query.data ?? []).reduce((sum, row) => sum + row.telemetrias, 0),
-    [query.data]
-  );
+  const totalTelemetrias = telemetry.total;
 
   return {
-    vehicleRows: query.data ?? [],
+    vehicleRows,
     driverRows,
     totalKmHoje: Math.round(totalKmHoje * 100) / 100,
     totalTelemetrias,
-    isLoading: loadingVehicles || query.isLoading,
-    isError: query.isError,
+    isLoading: loadingVehicles || query.isLoading || telemetry.isLoading,
+    isError: query.isError || telemetry.isError,
   };
 }
