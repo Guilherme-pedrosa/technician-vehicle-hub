@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { BatchTicketBar } from "@/components/manutencao/BatchTicketBar";
 import { generatePreventivaPdf } from "@/components/manutencao/PreventivaPdfExport";
+import { isExcludedPlaca } from "@/lib/excluded-vehicles";
 
 // ═══════════════════════════════════════════
 // CONSTANTS
