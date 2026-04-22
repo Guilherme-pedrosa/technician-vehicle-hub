@@ -1,4 +1,4 @@
 project_id = "qfmpyrekjbbqekxrjgov"
 
-[functions.rotaexata-proxy]
+[functions.test-dirigibilidade]
 verify_jwt = false
