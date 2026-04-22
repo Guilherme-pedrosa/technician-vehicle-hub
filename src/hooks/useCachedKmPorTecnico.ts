@@ -37,7 +37,7 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     staleTime: 30 * 1000,
   });
 
-  // Fonte de verdade para telemetrias: tabela de eventos brutos
+  // Fonte de verdade para telemetrias: eventos brutos; fallback = agregado salvo em daily_vehicle_km
   const telemetry = useTelemetryEvents(startDate, endDate);
 
   const syncedDays = useMemo(() => {
@@ -92,7 +92,7 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
           placas: Array.from(g.placas),
         };
       })
-      .sort((a, b) => b.kmPorTelemetria - a.kmPorTelemetria);
+      .sort((a, b) => b.kmRodado - a.kmRodado || b.telemetrias - a.telemetrias);
   }, [query.data, telemetry.byDriver]);
 
   const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);

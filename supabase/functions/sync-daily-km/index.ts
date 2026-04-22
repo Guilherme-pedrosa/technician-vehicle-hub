@@ -73,13 +73,16 @@ async function fetchLogMotorista(token: string, adesaoId: string, data: string):
 
 /** Fetch raw driving events (freadas/acelerações/curvas bruscas) with timestamps */
 async function fetchDirigibilidade(token: string, adesaoId: string, data: string): Promise<Record<string, unknown>[]> {
-  const where = JSON.stringify({ adesao_id: Number(adesaoId), data });
+  const where = JSON.stringify({ adesao_id: Number(adesaoId), data, horario: "00:00-23:59" });
   const url = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
   try {
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json", Authorization: token },
     });
-    if (res.status === 404 || !res.ok) return [];
+    if (res.status === 404 || !res.ok) {
+      console.warn(`[dirigibilidade] adesao=${adesaoId} data=${data} status=${res.status}`);
+      return [];
+    }
     const json = await res.json();
     const arr = Array.isArray(json) ? json : (json?.data && Array.isArray(json.data) ? json.data : []);
     return arr as Record<string, unknown>[];
@@ -357,17 +360,24 @@ Deno.serve(async (req) => {
               .filter((r): r is NonNullable<typeof r> => r !== null);
 
             if (eventRows.length > 0) {
+              const { error: deleteError } = await supabase
+                .from("vehicle_telemetry_events")
+                .delete()
+                .eq("adesao_id", vehicle.adesao_id!)
+                .eq("data", day);
+
+              if (deleteError) {
+                console.warn(`[telemetry-events] delete failed adesao=${vehicle.adesao_id} day=${day}:`, deleteError.message);
+              }
+
               const CHUNK = 200;
               for (let i = 0; i < eventRows.length; i += CHUNK) {
                 const slice = eventRows.slice(i, i + CHUNK);
                 const { error: evErr } = await supabase
                   .from("vehicle_telemetry_events")
-                  .upsert(slice, {
-                    onConflict: "adesao_id,event_at,event_type,motorista_id",
-                    ignoreDuplicates: true,
-                  });
+                  .insert(slice);
                 if (evErr) {
-                  console.warn(`[telemetry-events] upsert failed adesao=${vehicle.adesao_id} day=${day}:`, evErr.message);
+                  console.warn(`[telemetry-events] insert failed adesao=${vehicle.adesao_id} day=${day}:`, evErr.message);
                 }
               }
               console.log(`[telemetry-events] adesao=${vehicle.adesao_id} day=${day} gravados=${eventRows.length}`);
