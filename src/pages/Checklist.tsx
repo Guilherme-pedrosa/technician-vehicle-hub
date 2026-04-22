@@ -667,6 +667,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   userId: string;
 }) {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -1567,7 +1568,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                 { value: "bloqueado", label: "Bloqueado para saída", icon: ShieldAlert, color: "destructive" },
               ].map((opt) => {
                 const hasAvaria = answers.danos_veiculo === "sim";
-                const isDisabled = opt.value === "liberado" && (hasAnyProblem || hasAvaria);
+                // Óleo VENCIDO (passou da troca) → só admin pode liberar/liberar com obs
+                const oleoBlockTec = trocaOleoVencida && !isAdmin && opt.value !== "bloqueado";
+                const isDisabled =
+                  (opt.value === "liberado" && (hasAnyProblem || hasAvaria)) ||
+                  oleoBlockTec;
                 const isSelected = finalRes === opt.value;
                 const colorMap: Record<string, string> = {
                   success: isSelected ? "bg-success/10 border-success text-success" : "border-border text-muted-foreground",
@@ -1581,11 +1586,22 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all active:scale-[0.97] ${colorMap[opt.color]} ${isDisabled ? "opacity-40 cursor-not-allowed" : ""}`}>
                     <opt.icon className="w-5 h-5 shrink-0" />
                     <span className="text-base font-bold">{opt.label}</span>
-                    {isDisabled && hasAvaria && <span className="ml-auto text-xs text-muted-foreground">Veículo com avaria</span>}
+                    {isDisabled && hasAvaria && opt.value === "liberado" && <span className="ml-auto text-[10px] text-muted-foreground">Veículo com avaria</span>}
+                    {isDisabled && oleoBlockTec && <span className="ml-auto text-[10px] text-muted-foreground">Apenas ADM</span>}
                   </button>
                 );
               })}
             </div>
+
+            {/* Aviso quando óleo vencido bloqueia técnico */}
+            {trocaOleoVencida && !isAdmin && (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive">
+                  <strong>Troca de óleo vencida.</strong> Apenas administradores podem liberar este veículo. Você só pode marcar como <strong>Bloqueado</strong>. Acione um ADM para liberação excepcional.
+                </p>
+              </div>
+            )}
           </div>
 
           {finalRes !== "liberado" && (
