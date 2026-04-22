@@ -14,13 +14,13 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     has_critical: true,
   },
   exterior_frente: {
-    label: "Frente do veículo",
-    criterio: "A foto deve conter a parte dianteira de um veículo automotivo. Elementos que confirmam: capô, para-choque dianteiro, grade, faróis dianteiros, placa dianteira, logo frontal. Se QUALQUER desses elementos estiver presente, a foto é válida.",
+    label: "Frente do veículo (com faróis acesos)",
+    criterio: "A foto deve conter a parte DIANTEIRA do veículo (capô, para-choque, grade, faróis, placa) — esses elementos confirmam o enquadramento. ALÉM DISSO, você DEVE analisar o ESTADO DOS FARÓIS DIANTEIROS para verificar se estão ACESOS: procure por brilho/halo emitido pelas lentes dos faróis (luz baixa, luz alta ou luz de posição/DRL), reflexo no chão, ou contraste claro entre as lentes acesas e a carroceria. Retorne os campos extras: 'farois_acesos' (true/false/null) e 'farois_observacao' (curta, ex: 'farol direito apagado', 'ambos acesos com luz baixa', 'não foi possível avaliar pela iluminação ambiente'). Use null APENAS se a foto estiver muito clara/contra-luz/escura demais para concluir. Se UM dos faróis estiver claramente apagado enquanto o outro acende, marque farois_acesos=false e descreva qual lado. NÃO rejeite a foto (target_match continua true) só porque os faróis estão apagados — apenas reporte. A foto só é inválida se não mostrar a frente do veículo.",
     has_critical: false,
   },
   exterior_traseira: {
-    label: "Traseira do veículo",
-    criterio: "A foto deve conter a parte traseira de um veículo automotivo. Elementos que confirmam: para-choque traseiro, lanternas traseiras, placa traseira, porta-malas, logo traseiro. Se QUALQUER desses elementos estiver presente, a foto é válida.",
+    label: "Traseira do veículo (com lanternas acesas)",
+    criterio: "A foto deve conter a parte TRASEIRA do veículo (para-choque traseiro, lanternas, placa, porta-malas) — esses elementos confirmam o enquadramento. ALÉM DISSO, você DEVE analisar o ESTADO DAS LANTERNAS TRASEIRAS para verificar se estão ACESAS: procure por brilho vermelho/âmbar nas lentes das lanternas (luz de posição, freio ou ré), reflexo no chão, ou contraste claro entre as lentes iluminadas e a carroceria. Retorne os campos extras: 'lanternas_acesas' (true/false/null) e 'lanternas_observacao' (curta, ex: 'lanterna esquerda apagada', 'ambas acesas', 'não foi possível avaliar'). Use null APENAS se a foto estiver muito clara/contra-luz/escura demais para concluir. Se UMA lanterna estiver claramente apagada enquanto a outra acende, marque lanternas_acesas=false e descreva qual lado. NÃO rejeite a foto (target_match continua true) só porque as lanternas estão apagadas — apenas reporte. A foto só é inválida se não mostrar a traseira do veículo.",
     has_critical: false,
   },
   exterior_esquerda: {
@@ -222,7 +222,11 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "reason": "motivo breve em português",
   "confidence": 0.95${category === "painel" ? `,
   "km_lido": "123456",
-  "km_legivel": true` : ""}
+  "km_legivel": true` : ""}${category === "exterior_frente" ? `,
+  "farois_acesos": true,
+  "farois_observacao": "ambos os faróis aparentam estar acesos"` : ""}${category === "exterior_traseira" ? `,
+  "lanternas_acesas": true,
+  "lanternas_observacao": "ambas as lanternas aparentam estar acesas"` : ""}
 }
 
 Regras:
@@ -342,6 +346,10 @@ Critério esperado: ${finalCriterio}`;
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
           km_lido: typeof parsed.km_lido === "string" ? parsed.km_lido.replace(/[^\d]/g, "") : "",
           km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
+          farois_acesos: parsed.farois_acesos === true ? true : parsed.farois_acesos === false ? false : null,
+          farois_observacao: typeof parsed.farois_observacao === "string" ? parsed.farois_observacao : "",
+          lanternas_acesas: parsed.lanternas_acesas === true ? true : parsed.lanternas_acesas === false ? false : null,
+          lanternas_observacao: typeof parsed.lanternas_observacao === "string" ? parsed.lanternas_observacao : "",
         };
 
         // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)

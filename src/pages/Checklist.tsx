@@ -38,13 +38,13 @@ type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
   | "nivel_oleo" | "reservatorio_agua"
   | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao" | "estepe"
-  | "farois_lanternas" | "motor" | "itens_seguranca" | "interior"
+  | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
 
 const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: number }> = {
   painel: { label: "📊 Painel do Veículo", hint: "KM e indicadores visíveis, veículo ligado", min: 1 },
-  exterior_frente: { label: "📸 Frente do Veículo", hint: "Foto frontal completa", min: 1 },
-  exterior_traseira: { label: "📸 Traseira do Veículo", hint: "Foto traseira completa", min: 1 },
+  exterior_frente: { label: "📸 Frente do Veículo (faróis ACESOS)", hint: "⚠️ LIGUE OS FARÓIS antes de tirar a foto. A IA verifica se ambos estão acesos.", min: 1 },
+  exterior_traseira: { label: "📸 Traseira do Veículo (lanternas ACESAS)", hint: "⚠️ LIGUE OS FARÓIS (lanternas acesas). A IA verifica se ambas estão funcionando.", min: 1 },
   exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto lateral esquerda completa", min: 1 },
   exterior_direita: { label: "📸 Lateral Direita", hint: "Foto lateral direita completa", min: 1 },
   nivel_oleo: { label: "🛢️ Nível de Óleo", hint: "Foto da vareta ou indicador de nível", min: 1 },
@@ -55,7 +55,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   pneu_td: { label: "🔵 Pneu Traseiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
   calibracao: { label: "📏 Calibração dos Pneus", hint: "Foto do calibrador mostrando pressão", min: 1 },
   estepe: { label: "🔄 Pneu Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
-  farois_lanternas: { label: "💡 Faróis e Lanternas", hint: "Faróis acesos, setas funcionando", min: 1 },
+  // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
   itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
   interior: { label: "🪑 Interior do Veículo", hint: "Bancos, painel e forros de porta visíveis", min: 1 },
@@ -208,6 +208,10 @@ type ValidationResult = {
   detected_elements?: string[];
   km_lido?: string;
   km_legivel?: boolean;
+  farois_acesos?: boolean | null;
+  farois_observacao?: string;
+  lanternas_acesas?: boolean | null;
+  lanternas_observacao?: string;
 };
 
 // Comparação KM painel × cadastro: feita sob demanda na exibição
@@ -649,7 +653,7 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
   capo: ["motor", "nivel_oleo", "reservatorio_agua"],
   calibracao: ["calibracao", "estepe", "itens_seguranca"],
-  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
+  exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
   interior: ["interior"],
 };
 
@@ -806,6 +810,26 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       arr[idx] = validation;
       return { ...prev, [cat]: arr };
     });
+
+    // Auto-detecção de faróis/lanternas apagados nas fotos de frente/traseira:
+    // se a IA reportar que alguma lâmpada está apagada, sugere "NÃO CONFORME"
+    // no campo "Faróis e lanternas funcionando?"
+    const r = validation.result;
+    if (!r) return;
+    const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
+    const lanternaApagada = cat === "exterior_traseira" && r.lanternas_acesas === false;
+    if (farolApagado || lanternaApagada) {
+      const obs = farolApagado ? r.farois_observacao : r.lanternas_observacao;
+      setAnswers((prev) => {
+        // Só auto-marca se ainda não estiver marcado como NÃO CONFORME manualmente
+        if (prev.farois_lanternas === "nao_conforme") return prev;
+        return { ...prev, farois_lanternas: "nao_conforme" };
+      });
+      toast.warning(
+        `💡 IA detectou problema nos ${farolApagado ? "faróis" : "lanternas"}: ${obs || "luz aparenta estar apagada"}. Marcado como NÃO CONFORME — confirme antes de finalizar.`,
+        { duration: 7000 },
+      );
+    }
   }, []);
   const handleValidationUpdateByStorageKey = useCallback((storageKey: string, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
@@ -1947,7 +1971,7 @@ const DIALOG_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
   { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
-  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fieldCategories: ["Exterior"] },
+  { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fieldCategories: ["Danos"] },
 ];
