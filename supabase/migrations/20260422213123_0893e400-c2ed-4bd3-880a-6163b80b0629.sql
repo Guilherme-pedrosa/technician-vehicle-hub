@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_plans ADD COLUMN IF NOT EXISTS executor TEXT DEFAULT 'oficina' CHECK (executor IN ('galpao', 'oficina'));
