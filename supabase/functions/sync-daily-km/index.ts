@@ -315,6 +315,65 @@ Deno.serve(async (req) => {
             console.log(`[dirigibilidade RAW] adesao=${vehicle.adesao_id} day=${day} count=${eventos.length} keys=${Object.keys(eventos[0]).join(",")} sample=${JSON.stringify(eventos[0]).substring(0, 600)}`);
           }
 
+          // ===== GRAVA EVENTOS BRUTOS NA TABELA vehicle_telemetry_events =====
+          // 1 linha por evento — fonte de verdade pro dashboard de telemetrias.
+          if (eventos.length > 0) {
+            const eventRows = eventos
+              .map((ev) => {
+                const evMs = getEventMs(ev);
+                if (!evMs) return null;
+                const { type, raw: rawType } = extractEventType(ev);
+                const motorista = (ev.motorista as Record<string, unknown> | undefined) ?? null;
+                const motoristaNomeRaw = motorista?.nome
+                  ? String(motorista.nome)
+                  : (ev.motorista_nome ? String(ev.motorista_nome) : null);
+                const motoristaNome = !motoristaNomeRaw || motoristaNomeRaw === "Desconhecido"
+                  ? "Sem condutor vinculado"
+                  : motoristaNomeRaw;
+                const motoristaId = motorista?.id
+                  ? String(motorista.id)
+                  : (ev.motorista_id ? String(ev.motorista_id) : null);
+                const endereco = ev.endereco ? String(ev.endereco) : null;
+                const velocidade = extractNumber(ev, ["velocidade", "vel", "velocidade_maxima", "vel_max", "speed"]);
+                const duracao = extractNumber(ev, ["tempo_evento", "duracao", "tempo", "duration"]);
+                const externalId = ev.id ? String(ev.id) : (ev._id ? String(ev._id) : null);
+                return {
+                  adesao_id: vehicle.adesao_id!,
+                  placa: vehicle.placa,
+                  data: day,
+                  event_at: new Date(evMs).toISOString(),
+                  event_type: type,
+                  event_type_raw: rawType,
+                  motorista_id: motoristaId,
+                  motorista_nome: motoristaNome,
+                  endereco,
+                  velocidade,
+                  duracao_segundos: duracao,
+                  external_id: externalId,
+                  raw: ev,
+                  synced_at: new Date().toISOString(),
+                };
+              })
+              .filter((r): r is NonNullable<typeof r> => r !== null);
+
+            if (eventRows.length > 0) {
+              const CHUNK = 200;
+              for (let i = 0; i < eventRows.length; i += CHUNK) {
+                const slice = eventRows.slice(i, i + CHUNK);
+                const { error: evErr } = await supabase
+                  .from("vehicle_telemetry_events")
+                  .upsert(slice, {
+                    onConflict: "adesao_id,event_at,event_type,motorista_id",
+                    ignoreDuplicates: true,
+                  });
+                if (evErr) {
+                  console.warn(`[telemetry-events] upsert failed adesao=${vehicle.adesao_id} day=${day}:`, evErr.message);
+                }
+              }
+              console.log(`[telemetry-events] adesao=${vehicle.adesao_id} day=${day} gravados=${eventRows.length}`);
+            }
+          }
+
           // Build session list with parsed time ranges and driver info
           // velocidade_maxima e excessos_velocidade serão atribuídos POR SESSÃO,
           // não replicados do dia inteiro do veículo.
