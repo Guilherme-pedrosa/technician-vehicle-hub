@@ -81,12 +81,17 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     return Array.from(groups.entries())
       .map(([key, g]) => {
         const tel = telemetry.byDriver.get(key)?.total ?? 0;
+        const kmRound = Math.round(g.km * 100) / 100;
+        // KM por Telemetria = km rodado dividido pelo número de eventos de telemetria.
+        // Se não houver telemetria registrada, retornamos 0 (não dá pra dividir por zero,
+        // e usar o KM total como fallback é semanticamente errado).
+        const kmPorTel = tel > 0 && g.km > 0 ? Math.round((g.km / tel) * 100) / 100 : 0;
         return {
           id: key,
           nome: g.nome,
-          kmRodado: Math.round(g.km * 100) / 100,
+          kmRodado: kmRound,
           telemetrias: tel,
-          kmPorTelemetria: tel > 0 ? Math.round((g.km / tel) * 100) / 100 : Math.round(g.km * 100) / 100,
+          kmPorTelemetria: kmPorTel,
           excessosVelocidade: g.excessos,
           velocidadeMaxima: g.velMax,
           placas: Array.from(g.placas),
