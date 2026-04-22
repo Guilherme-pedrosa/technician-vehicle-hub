@@ -810,6 +810,26 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       arr[idx] = validation;
       return { ...prev, [cat]: arr };
     });
+
+    // Auto-detecção de faróis/lanternas apagados nas fotos de frente/traseira:
+    // se a IA reportar que alguma lâmpada está apagada, sugere "NÃO CONFORME"
+    // no campo "Faróis e lanternas funcionando?"
+    const r = validation.result;
+    if (!r) return;
+    const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
+    const lanternaApagada = cat === "exterior_traseira" && r.lanternas_acesas === false;
+    if (farolApagado || lanternaApagada) {
+      const obs = farolApagado ? r.farois_observacao : r.lanternas_observacao;
+      setAnswers((prev) => {
+        // Só auto-marca se ainda não estiver marcado como NÃO CONFORME manualmente
+        if (prev.farois_lanternas === "nao_conforme") return prev;
+        return { ...prev, farois_lanternas: "nao_conforme" };
+      });
+      toast.warning(
+        `💡 IA detectou problema nos ${farolApagado ? "faróis" : "lanternas"}: ${obs || "luz aparenta estar apagada"}. Marcado como NÃO CONFORME — confirme antes de finalizar.`,
+        { duration: 7000 },
+      );
+    }
   }, []);
   const handleValidationUpdateByStorageKey = useCallback((storageKey: string, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
