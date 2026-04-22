@@ -1646,12 +1646,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       value={answers[`obs_${field.key}`] ?? ""} rows={2}
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
-                      onCapture={async (_, files) => {
-                        const compressed = await prepareCapturedImages(files);
-                        setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: [...(prev[`exc_${field.key}`] ?? []), ...compressed] }));
-                        return compressed;
-                      }}
-                      onRemove={(_, idx) => setPhotos((prev) => ({ ...prev, [`exc_${field.key}`]: (prev[`exc_${field.key}`] ?? []).filter((__, i) => i !== idx) }))} />
+                      validations={photoValidations[`exc_${field.key}`]}
+                      uploadStates={photoUploads[`exc_${field.key}`]}
+                      onCapture={(_, files) => handleCaptureForStorageKey(`exc_${field.key}`, files)}
+                      onRemove={(_, idx) => handleRemovePhotoByStorageKey(`exc_${field.key}`, idx)}
+                      onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
+                      vehicleMarca={selectedVehicle?.marca}
+                      vehicleModelo={selectedVehicle?.modelo}
+                      limpezaClaim={answers.limpeza_organizacao} />
                   </div>
                 )}
               </div>
