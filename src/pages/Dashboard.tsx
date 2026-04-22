@@ -12,7 +12,7 @@ import {
   Gauge, Radio, Loader2, RefreshCw, UserCheck, CalendarDays, ChevronRight, Shield, XCircle, Skull, Download,
   Fuel, DollarSign, TrendingUp, Droplet,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { isPast, format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSyncAllFromRotaExata } from "@/hooks/useSyncRotaExata";
@@ -147,11 +147,14 @@ function SyncKmHistoricoDialog() {
           <Download className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Sincronizar KM Histórico</DialogTitle>
+            <DialogDescription>
+              Baixa KM e telemetrias do período selecionado e grava no banco local em lotes semanais.
+            </DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
+         <p className="text-sm text-muted-foreground">
           Baixa os dados de KM do Rota Exata para o período selecionado e grava no banco de dados local.
           O processo é feito em lotes de 7 dias.
         </p>
