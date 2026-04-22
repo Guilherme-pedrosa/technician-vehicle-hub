@@ -1363,7 +1363,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     <div className={`rounded-lg p-2 text-xs font-medium ${
                       trocaOleoVencida
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
-                        : "bg-success/10 text-success border border-success/30"
+                        : trocaOleoProxima
+                          ? "bg-warning/10 text-warning border border-warning/30"
+                          : "bg-success/10 text-success border border-success/30"
                     }`}>
                       {(() => {
                         const restante = parseInt(kmProximaTroca) - selectedVehicle.km_atual;
@@ -1371,7 +1373,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                           return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
                         }
                         if (restante <= KM_OLEO_ALERTA_MARGEM) {
-                          return `⚠️ ATENÇÃO — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto.`;
+                          return `⚠️ PRÓXIMO DA TROCA — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto, mas o veículo pode ser liberado.`;
                         }
                         return `✅ OK — Faltam ${restante.toLocaleString("pt-BR")} km para a próxima troca.`;
                       })()}
