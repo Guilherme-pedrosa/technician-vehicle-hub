@@ -488,16 +488,31 @@ Deno.serve(async (req) => {
       d.setUTCDate(d.getUTCDate() + 1);
     }
 
-    const jobs: JobInput[] = [];
-    for (const v of vehicles) {
-      for (const day of days) {
-        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos });
+    const token = await getToken();
+
+    // Lista oficial de motoristas ATIVOS (campo `motorista===1` em /usuarios).
+    // Replicada exatamente do filtro do painel — eventos fora dessa lista são
+    // ignorados (motoristas antigos/desativados, terceiros, visitantes).
+    // Por padrão SEMPRE aplica o filtro; pode ser desligado com use_active_drivers_filter:false.
+    const useActiveFilter = body.use_active_drivers_filter !== false;
+    let motoristaIds: number[] = [];
+    if (useActiveFilter) {
+      try {
+        motoristaIds = await fetchActiveDriverIds(token);
+        console.log(`[sync-daily-km] motoristas ativos=${motoristaIds.length} ids=[${motoristaIds.slice(0, 8).join(",")}...]`);
+      } catch (e) {
+        console.warn(`[sync-daily-km] fetchActiveDriverIds falhou — seguindo sem filtro:`, (e as Error).message);
       }
     }
 
-    const token = await getToken();
+    const jobs: JobInput[] = [];
+    for (const v of vehicles) {
+      for (const day of days) {
+        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos, motoristaIds });
+      }
+    }
 
-    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
+    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] motoristas_ativos=${motoristaIds.length} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
 
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
