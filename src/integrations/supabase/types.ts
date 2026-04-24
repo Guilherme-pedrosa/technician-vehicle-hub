@@ -191,6 +191,39 @@ export type Database = {
           },
         ]
       }
+      daily_km_sync_status: {
+        Row: {
+          data: string
+          empty_jobs: number
+          failed_jobs: number
+          inserted_events: number
+          inserted_sessions: number
+          processed_jobs: number
+          synced_at: string
+          total_jobs: number
+        }
+        Insert: {
+          data: string
+          empty_jobs?: number
+          failed_jobs?: number
+          inserted_events?: number
+          inserted_sessions?: number
+          processed_jobs?: number
+          synced_at?: string
+          total_jobs?: number
+        }
+        Update: {
+          data?: string
+          empty_jobs?: number
+          failed_jobs?: number
+          inserted_events?: number
+          inserted_sessions?: number
+          processed_jobs?: number
+          synced_at?: string
+          total_jobs?: number
+        }
+        Relationships: []
+      }
       daily_vehicle_km: {
         Row: {
           adesao_id: string
