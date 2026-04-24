@@ -725,6 +725,20 @@ export default function ChecklistDetail() {
                 {scanningKm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gauge className="w-4 h-4" />}
                 {scanningKm ? "Verificando..." : "Verificar KM"}
               </Button>
+              {(cl as any).resultado === "bloqueado" && (
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-success text-success-foreground hover:bg-success/90"
+                  onClick={() => setReleaseDialog({ open: true, mode: "liberar" })}
+                >
+                  <ShieldCheck className="w-4 h-4" /> Liberar veículo
+                </Button>
+              )}
+              {(cl as any).resultado === "liberado_obs" && (
+                <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setReleaseDialog({ open: true, mode: "rebloquear" })}>
+                  <ShieldAlert className="w-4 h-4" /> Re-bloquear
+                </Button>
+              )}
             </>
           )}
           {editing && (
