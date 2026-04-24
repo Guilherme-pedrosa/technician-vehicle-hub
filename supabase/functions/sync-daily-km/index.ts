@@ -144,16 +144,46 @@ async function fetchWithRetry<T>(
 }
 
 // ---------- Endpoints ----------
-function urlLogMotorista(adesao: string, day: string): string {
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day });
-  return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
+// IMPORTANTE: o painel oficial passa SEMPRE a lista de motoristas ativos da empresa
+// (`motoristas: [...ids]`) tanto em /dirigibilidade quanto em /log_motorista.
+// Eventos/sessões com motorista_id fora dessa lista NÃO aparecem no painel.
+// Sem esse filtro, o sync trazia +52 eventos "fantasmas" no mês (motoristas
+// antigos/desativados, terceiros, visitantes). Validado contra o XHR real.
+function urlLogMotorista(adesao: string, day: string, motoristaIds: number[]): string {
+  const where: Record<string, unknown> = { adesao_id: Number(adesao), data: day };
+  if (motoristaIds.length > 0) where.motoristas = motoristaIds;
+  return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(JSON.stringify(where))}`;
 }
 
-function urlDirigibilidade(adesao: string, day: string, eventos: number[]): string {
+function urlDirigibilidade(adesao: string, day: string, eventos: number[], motoristaIds: number[]): string {
   // Eventos suportados oficialmente: 1=Aceleração, 2=Freada, 3=Colisão, 4=Curva.
   // Default [1,2,3,4]; o painel oficial usa [1,2,4] (sem colisão) — passe via body.eventos.
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos });
-  return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+  const where: Record<string, unknown> = { adesao_id: Number(adesao), data: day, eventos };
+  if (motoristaIds.length > 0) where.motoristas = motoristaIds;
+  return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(JSON.stringify(where))}`;
+}
+
+// Busca a lista de motoristas ATIVOS da empresa (campo `motorista===1` em /usuarios).
+// Replica exatamente o filtro que o painel oficial aplica.
+async function fetchActiveDriverIds(token: string): Promise<number[]> {
+  const url = `${ROTAEXATA_API}/usuarios?limit=500&offset=0`;
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json", Authorization: token },
+  });
+  if (!res.ok) {
+    throw new Error(`fetchActiveDriverIds failed [${res.status}]: ${await res.text().catch(() => "")}`);
+  }
+  const json = await res.json();
+  const arr: Record<string, unknown>[] = Array.isArray(json)
+    ? json
+    : Array.isArray((json as { data?: unknown }).data)
+      ? (json as { data: Record<string, unknown>[] }).data
+      : [];
+  const ids = arr
+    .filter((u) => Number(u.motorista) === 1)
+    .map((u) => Number(u.id))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return Array.from(new Set(ids)).sort((a, b) => a - b);
 }
 
 const parseList = (raw: unknown): Record<string, unknown>[] => {
@@ -260,7 +290,7 @@ async function runPool<T, R>(
 }
 
 // ---------- Job result ----------
-type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[] };
+type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[]; motoristaIds: number[] };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
 type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
@@ -283,8 +313,8 @@ async function processJob(
   const empty: EmptyDay[] = [];
 
   const [logRes, dirRes] = await Promise.all([
-    fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
-    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos), token, parseList),
+    fetchWithRetry(urlLogMotorista(job.adesao_id, job.day, job.motoristaIds), token, parseList),
+    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos, job.motoristaIds), token, parseList),
   ]);
 
   if (!logRes.ok) {
@@ -304,7 +334,23 @@ async function processJob(
   }
 
   const entries = (logRes as { ok: true; data: Record<string, unknown>[] }).data;
-  const eventos = (dirRes as { ok: true; data: Record<string, unknown>[] }).data;
+  const eventosRaw = (dirRes as { ok: true; data: Record<string, unknown>[] }).data;
+
+  // FILTRO MOTORISTAS ATIVOS: replica exatamente o painel oficial.
+  // Mesmo passando `motoristas: [...]` na query, a API às vezes ainda devolve
+  // eventos de motoristas fora da lista — descarta no client.
+  // Eventos com motorista_id ausente passam (serão resolvidos pela janela).
+  const activeSet = new Set<number>(job.motoristaIds);
+  const eventos = job.motoristaIds.length === 0
+    ? eventosRaw
+    : eventosRaw.filter((ev) => {
+        const m = ev.motorista as Record<string, unknown> | undefined;
+        const idRaw = m?.id ?? ev.motorista_id;
+        if (idRaw == null || idRaw === "") return true; // sem id → tenta janela
+        const idNum = Number(idRaw);
+        if (!Number.isInteger(idNum)) return true;
+        return activeSet.has(idNum);
+      });
 
   // 1) Constrói janelas de motorista a partir do log_motorista
   const windows: DriverWindow[] = buildDriverWindows(entries, job.adesao_id, job.day, parseDateMs);
@@ -442,16 +488,31 @@ Deno.serve(async (req) => {
       d.setUTCDate(d.getUTCDate() + 1);
     }
 
-    const jobs: JobInput[] = [];
-    for (const v of vehicles) {
-      for (const day of days) {
-        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos });
+    const token = await getToken();
+
+    // Lista oficial de motoristas ATIVOS (campo `motorista===1` em /usuarios).
+    // Replicada exatamente do filtro do painel — eventos fora dessa lista são
+    // ignorados (motoristas antigos/desativados, terceiros, visitantes).
+    // Por padrão SEMPRE aplica o filtro; pode ser desligado com use_active_drivers_filter:false.
+    const useActiveFilter = body.use_active_drivers_filter !== false;
+    let motoristaIds: number[] = [];
+    if (useActiveFilter) {
+      try {
+        motoristaIds = await fetchActiveDriverIds(token);
+        console.log(`[sync-daily-km] motoristas ativos=${motoristaIds.length} ids=[${motoristaIds.slice(0, 8).join(",")}...]`);
+      } catch (e) {
+        console.warn(`[sync-daily-km] fetchActiveDriverIds falhou — seguindo sem filtro:`, (e as Error).message);
       }
     }
 
-    const token = await getToken();
+    const jobs: JobInput[] = [];
+    for (const v of vehicles) {
+      for (const day of days) {
+        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos, motoristaIds });
+      }
+    }
 
-    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
+    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] motoristas_ativos=${motoristaIds.length} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
 
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
@@ -468,6 +529,7 @@ Deno.serve(async (req) => {
       mode,
       dry_run: dryRun,
       eventos,
+      motoristas_ativos_count: motoristaIds.length,
       total_jobs: jobs.length,
       ok,
       failed,
