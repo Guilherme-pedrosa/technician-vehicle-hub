@@ -453,6 +453,19 @@ export default function ChecklistDetail() {
     enabled: !!id,
   });
 
+  const { data: releaseLogs = [] } = useQuery({
+    queryKey: ["checklist-release-log", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("checklist_release_log")
+        .select("action, created_by_name, created_at")
+        .eq("checklist_id", id!)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+    enabled: !!id,
+  });
+
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
     queryFn: async () => { const { data } = await supabase.from("vehicles").select("id, placa, modelo, marca, km_atual, adesao_id").order("placa"); return data ?? []; },
@@ -469,6 +482,7 @@ export default function ChecklistDetail() {
   const fotosData: Record<string, string[]> = useMemo(() => (cl?.fotos && typeof cl.fotos === "object" ? cl.fotos as any : {}), [cl]);
   const res = RESULTADO_LABELS[(cl as any)?.resultado] ?? { label: (cl as any)?.resultado ?? "—", color: "muted" };
   const detalhes = (cl as any)?.detalhes as any;
+  const latestLiberacao = releaseLogs.find((log) => log.action === "liberacao");
 
   const startEditing = () => {
     const fields: Record<string, string> = {};
@@ -825,7 +839,14 @@ export default function ChecklistDetail() {
                    <ShieldAlert className="w-4 h-4" />}
                   {res.label}
                 </Badge>
-                {(cl as any).resultado_motivo && <p className="text-sm italic text-muted-foreground">{(cl as any).resultado_motivo}</p>}
+                <div className="min-w-0 space-y-1">
+                  {(cl as any).resultado === "liberado_obs" && latestLiberacao && (
+                    <p className="text-xs font-medium text-foreground">
+                      Liberado por {latestLiberacao.created_by_name ?? "—"} em {new Date(latestLiberacao.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
+                  )}
+                  {(cl as any).resultado_motivo && <p className="text-sm italic text-muted-foreground">{(cl as any).resultado_motivo}</p>}
+                </div>
               </>
             )}
           </div>
