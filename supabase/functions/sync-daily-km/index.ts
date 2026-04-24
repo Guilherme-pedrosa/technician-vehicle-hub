@@ -516,8 +516,13 @@ Deno.serve(async (req) => {
       drivers: porMotorista.size,
     };
 
-    // DRY-RUN: não persiste, retorna resumo
+    // DRY-RUN: não persiste, retorna resumo.
+    // Loga o resumo completo nos logs da edge function — o tool curl pode cortar
+    // a resposta HTTP por timeout, mas os logs persistem e ficam consultáveis.
     if (dryRun) {
+      console.log(`[sync-daily-km] DRY_RUN totals:`, JSON.stringify(totals));
+      console.log(`[sync-daily-km] DRY_RUN por_motorista:`, JSON.stringify(summary));
+      console.log(`[sync-daily-km] DRY_RUN empty_days_count=${empty_days.length}`);
       return new Response(JSON.stringify({
         ...stats,
         totals,
