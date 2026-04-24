@@ -442,10 +442,12 @@ Deno.serve(async (req) => {
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
     const failed_pairs: FailedPair[] = [];
+    const empty_days: EmptyDay[] = [];
     let ok = 0, failed = 0;
     for (const r of results) {
       if (r.ok) ok++;
       else { failed++; if (r.failed) failed_pairs.push(...r.failed); }
+      if (r.empty?.length) empty_days.push(...r.empty);
     }
 
     const stats = {
@@ -456,6 +458,8 @@ Deno.serve(async (req) => {
       failed,
       total_attempts: jobs.length * 2, // 2 endpoints por job
       failed_pairs,
+      empty_days_count: empty_days.length,
+      empty_days,
     };
 
     console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length}`);
