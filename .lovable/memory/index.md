@@ -15,6 +15,7 @@
 - [API Proxy Pattern](mem://architecture/api-proxy-pattern) — Retry/backoff logic for API Rota Exata
 - [Rota Exata API Specs](mem://architecture/rota-exata-api-integration-specs) — GET with JSON `where`, 404s handled as empty arrays
 - [API Concurrency](mem://architecture/api-concurrency-management) — 8 concurrent calls for <=7 days, 2 for >7 days to prevent 502/429
+- [Sync Daily KM Contract](mem://architecture/sync-daily-km-contract) — Modos strict/resilient, pool, retry, dedup por external_id
 - [Automated Hourly Sync](mem://architecture/automated-hourly-sync) — `cron-sync-rotaexata` updates `km_atual` every hour
 - [KM History Caching](mem://architecture/km-history-caching) — Upsert logic for `daily_vehicle_km` cache
 - [Storage Reliability](mem://architecture/storage-reliability-pattern) — Parallel uploads and retry logic for checklist photos
