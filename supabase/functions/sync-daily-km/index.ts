@@ -409,13 +409,15 @@ Deno.serve(async (req) => {
 
     // Filtro de eventos opcional. Default [1,2,3,4]; o painel oficial usa [1,2,4].
     // Aceita Array<number> ou Array<string>; valida contra o conjunto suportado.
-    const ALLOWED_EVENTS = [1, 2, 3, 4];
+    const ALLOWED_EVENTS: number[] = [1, 2, 3, 4];
     let eventos: number[] = [1, 2, 3, 4];
     if (Array.isArray(body.eventos)) {
-      const parsed = body.eventos
-        .map((x: unknown) => Number(x))
-        .filter((n: number) => Number.isInteger(n) && ALLOWED_EVENTS.includes(n));
-      if (parsed.length > 0) eventos = Array.from(new Set(parsed)).sort();
+      const parsed: number[] = (body.eventos as unknown[])
+        .map((x) => Number(x))
+        .filter((n): n is number => Number.isInteger(n) && ALLOWED_EVENTS.includes(n));
+      if (parsed.length > 0) {
+        eventos = Array.from(new Set<number>(parsed)).sort((a, b) => a - b);
+      }
     }
 
     if (!start_date || !end_date) {
