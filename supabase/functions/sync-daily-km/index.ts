@@ -311,7 +311,7 @@ function extractKm(entry: Record<string, unknown>): number {
 }
 
 // Chave determinística do evento (id externo da RotaExata ou synthetic).
-function buildExternalId(ev: Record<string, unknown>, placa: string, day: string): string {
+function buildExternalIdBase(ev: Record<string, unknown>, placa: string, day: string): string {
   if (ev.id != null) return `re:${ev.id}`;
   if ((ev as { _id?: unknown })._id != null) return `re:${(ev as { _id: unknown })._id}`;
   const ts = getEventMs(ev) || Date.parse(`${day}T00:00:00Z`);
@@ -414,10 +414,16 @@ async function processJob(
   const windows: DriverWindow[] = buildDriverWindows(entries, job.adesao_id, job.day, parseDateMs);
 
   // 2) Resolve motorista para CADA evento usando as janelas
-    const eventRows = eventos.map((ev) => {
+  // Importante: a API oficial pode devolver linhas idênticas repetidas, e o
+  // relatório do painel conta cada uma delas. Não podemos deduplicar aqui.
+  const duplicateCounters = new Map<string, number>();
+  const eventRows = eventos.map((ev) => {
     const evMs = getEventMs(ev);
     const { type, raw: rawType } = extractEventType(ev);
     const fallbackMot = (ev.motorista as Record<string, unknown> | undefined);
+    const baseExternalId = buildExternalIdBase(ev, job.placa, job.day);
+    const duplicateIndex = duplicateCounters.get(baseExternalId) ?? 0;
+    duplicateCounters.set(baseExternalId, duplicateIndex + 1);
     const resolved = resolveDriverForTelemetry(
       { adesao_id: job.adesao_id, timestamp_ms: evMs },
       windows,
@@ -438,11 +444,11 @@ async function processJob(
       endereco: ev.endereco ? String(ev.endereco) : null,
       velocidade: extractNumber(ev, ["velocidade", "vel", "velocidade_maxima", "vel_max", "speed"]),
       duracao_segundos: extractNumber(ev, ["tempo_evento", "duracao", "tempo", "duration"]),
-      external_id: buildExternalId(ev, job.placa, job.day),
+      external_id: `${baseExternalId}|dup:${duplicateIndex}`,
       raw: ev,
       synced_at: new Date().toISOString(),
     };
-  }).filter((row, index, all) => all.findIndex((candidate) => candidate.external_id === row.external_id) === index);
+  });
 
   // 3) Sessões de KM (1 linha por entry do log_motorista, sem distribuição artificial de telemetria)
   // A coluna `telemetrias` aqui fica 0; o dashboard conta direto em vehicle_telemetry_events.
