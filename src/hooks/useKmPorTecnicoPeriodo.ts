@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, eachDayOfInterval } from "date-fns";
 import { getRelatorioLogMotorista } from "@/services/rotaexata";
-import { useFleetMetrics } from "@/hooks/useFleetMetrics";
 
 export type DriverPeriodRow = {
   id: string;
@@ -13,6 +12,11 @@ export type DriverPeriodRow = {
   excessosVelocidade: number;
   velocidadeMaxima: number;
   placas: string[];
+};
+
+type VehicleInput = {
+  adesaoId: string | null;
+  placa: string;
 };
 
 type LogMotoristaEntry = {
@@ -55,9 +59,7 @@ async function batchCalls<T>(tasks: (() => Promise<T>)[], concurrency = 6): Prom
   return results;
 }
 
-export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
-  const { rows: vehicles, isLoading: loadingVehicles } = useFleetMetrics();
-
+export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date, vehicles: VehicleInput[], loadingVehicles = false) {
   const adesaoIds = useMemo(
     () => vehicles.filter((v) => v.adesaoId).map((v) => ({ adesaoId: v.adesaoId!, placa: v.placa })),
     [vehicles]
