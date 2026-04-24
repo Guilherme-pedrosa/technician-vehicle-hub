@@ -610,6 +610,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    // FREEZE GUARD (manutenção): bloqueia escrita quando TELEMETRY_WRITES_FROZEN=1
+    if (Deno.env.get("TELEMETRY_WRITES_FROZEN") === "1") {
+      console.warn("[sync-daily-km] writes frozen for maintenance — skipping persistence");
+      return new Response(JSON.stringify({
+        ...stats,
+        totals,
+        ok: false,
+        reason: "writes_frozen_for_maintenance",
+      }), {
+        status: 423,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Persistência ATÔMICA via RPC: 1 chamada por (adesao,dia) — delete+insert em transação.
     // Roda em pool para não estourar conexões.
     let insertedEvents = 0;
