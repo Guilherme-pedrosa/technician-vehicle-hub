@@ -261,12 +261,14 @@ async function runPool<T, R>(
 // ---------- Job result ----------
 type JobInput = { adesao_id: string; placa: string; day: string };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
+type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
   adesao_id: string;
   placa: string;
   day: string;
   ok: boolean;
   failed?: FailedPair[];
+  empty?: EmptyDay[];
   // dados a serem persistidos quando ok=true
   events: Record<string, unknown>[];
   sessions: Record<string, unknown>[];
@@ -277,6 +279,7 @@ async function processJob(
   token: string,
 ): Promise<JobOutput> {
   const fails: FailedPair[] = [];
+  const empty: EmptyDay[] = [];
 
   const [logRes, dirRes] = await Promise.all([
     fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
@@ -285,13 +288,18 @@ async function processJob(
 
   if (!logRes.ok) {
     fails.push({ ...job, endpoint: "log_motorista", status: logRes.status, error: logRes.error, attempts: logRes.attempts });
+  } else if (logRes.status === 400 || logRes.status === 404) {
+    // Sucesso vazio "legítimo" (dia sem posições) — visibilidade separada.
+    empty.push({ adesao_id: job.adesao_id, placa: job.placa, day: job.day, endpoint: "log_motorista" });
   }
   if (!dirRes.ok) {
     fails.push({ ...job, endpoint: "dirigibilidade", status: dirRes.status, error: dirRes.error, attempts: dirRes.attempts });
+  } else if (dirRes.status === 400 || dirRes.status === 404) {
+    empty.push({ adesao_id: job.adesao_id, placa: job.placa, day: job.day, endpoint: "dirigibilidade" });
   }
 
   if (fails.length > 0) {
-    return { ...job, ok: false, failed: fails, events: [], sessions: [] };
+    return { ...job, ok: false, failed: fails, empty, events: [], sessions: [] };
   }
 
   const entries = (logRes as { ok: true; data: Record<string, unknown>[] }).data;
@@ -366,7 +374,7 @@ async function processJob(
     };
   });
 
-  return { ...job, ok: true, events: eventRows, sessions: sessionRows };
+  return { ...job, ok: true, empty, events: eventRows, sessions: sessionRows };
 }
 
 // ---------- Servidor ----------
@@ -434,10 +442,12 @@ Deno.serve(async (req) => {
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
     const failed_pairs: FailedPair[] = [];
+    const empty_days: EmptyDay[] = [];
     let ok = 0, failed = 0;
     for (const r of results) {
       if (r.ok) ok++;
       else { failed++; if (r.failed) failed_pairs.push(...r.failed); }
+      if (r.empty?.length) empty_days.push(...r.empty);
     }
 
     const stats = {
@@ -448,9 +458,11 @@ Deno.serve(async (req) => {
       failed,
       total_attempts: jobs.length * 2, // 2 endpoints por job
       failed_pairs,
+      empty_days_count: empty_days.length,
+      empty_days,
     };
 
-    console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length}`);
+    console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length} empty_days=${empty_days.length}`);
     if (failed_pairs.length > 0) {
       console.log(`[sync-daily-km] failed pairs sample:`, JSON.stringify(failed_pairs.slice(0, 5)));
     }
