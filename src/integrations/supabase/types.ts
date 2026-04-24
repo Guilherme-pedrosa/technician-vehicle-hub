@@ -1089,6 +1089,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      sync_replace_day_telemetry: {
+        Args: {
+          p_adesao_id: string
+          p_data: string
+          p_events: Json
+          p_sessions: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "tecnico"
