@@ -374,7 +374,7 @@ async function processJob(
     };
   });
 
-  return { ...job, ok: true, events: eventRows, sessions: sessionRows };
+  return { ...job, ok: true, empty, events: eventRows, sessions: sessionRows };
 }
 
 // ---------- Servidor ----------
