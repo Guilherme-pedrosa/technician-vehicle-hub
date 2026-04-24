@@ -654,21 +654,26 @@ Deno.serve(async (req) => {
     let insertedSessions = 0;
     const persistFails: { adesao_id: string; day: string; error: string }[] = [];
 
-    await runPool(okResults, 8, async (r) => {
-      const { data, error } = await supabase.rpc("sync_replace_day_telemetry", {
-        p_adesao_id: r.adesao_id,
-        p_data: r.day,
-        p_events: r.events,
-        p_sessions: r.sessions,
+    // Defesa em profundidade: nunca chama a RPC se o guard estiver ativo.
+    if (writesFrozen) {
+      console.warn("[sync-daily-km] writesFrozen=true → pulando persistência (RPC sync_replace_day_telemetry)");
+    } else {
+      await runPool(okResults, 8, async (r) => {
+        const { data, error } = await supabase.rpc("sync_replace_day_telemetry", {
+          p_adesao_id: r.adesao_id,
+          p_data: r.day,
+          p_events: r.events,
+          p_sessions: r.sessions,
+        });
+        if (error) {
+          persistFails.push({ adesao_id: r.adesao_id, day: r.day, error: error.message });
+          return;
+        }
+        const d = data as { inserted_events?: number; inserted_sessions?: number } | null;
+        insertedEvents += d?.inserted_events ?? 0;
+        insertedSessions += d?.inserted_sessions ?? 0;
       });
-      if (error) {
-        persistFails.push({ adesao_id: r.adesao_id, day: r.day, error: error.message });
-        return;
-      }
-      const d = data as { inserted_events?: number; inserted_sessions?: number } | null;
-      insertedEvents += d?.inserted_events ?? 0;
-      insertedSessions += d?.inserted_sessions ?? 0;
-    });
+    }
 
     if (persistFails.length > 0) {
       console.warn(`[sync-daily-km] persist failures:`, JSON.stringify(persistFails.slice(0, 5)));
