@@ -99,9 +99,20 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
       .sort((a, b) => b.kmRodado - a.kmRodado || b.telemetrias - a.telemetrias);
   }, [query.data, telemetry.byDriver]);
 
-  const totalKm = useMemo(() => driverRows.reduce((s, r) => s + r.kmRodado, 0), [driverRows]);
-  const totalTelemetrias = telemetry.total;
-  const totalExcessos = useMemo(() => driverRows.reduce((s, r) => s + r.excessosVelocidade, 0), [driverRows]);
+  // Totais EXCLUEM "Sem condutor vinculado" — só contam KM/telemetrias atribuídos a motoristas reais.
+  // Isso bate com o relatório oficial da Rota Exata (que filtra por motorista identificado).
+  const totalKm = useMemo(
+    () => driverRows.filter((r) => r.id !== "sem-condutor").reduce((s, r) => s + r.kmRodado, 0),
+    [driverRows]
+  );
+  const totalTelemetrias = useMemo(
+    () => driverRows.filter((r) => r.id !== "sem-condutor").reduce((s, r) => s + r.telemetrias, 0),
+    [driverRows]
+  );
+  const totalExcessos = useMemo(
+    () => driverRows.filter((r) => r.id !== "sem-condutor").reduce((s, r) => s + r.excessosVelocidade, 0),
+    [driverRows]
+  );
 
   return {
     driverRows,
