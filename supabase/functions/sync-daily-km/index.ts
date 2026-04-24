@@ -260,7 +260,7 @@ async function runPool<T, R>(
 }
 
 // ---------- Job result ----------
-type JobInput = { adesao_id: string; placa: string; day: string };
+type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[] };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
 type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
@@ -284,7 +284,7 @@ async function processJob(
 
   const [logRes, dirRes] = await Promise.all([
     fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
-    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day), token, parseList),
+    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos), token, parseList),
   ]);
 
   if (!logRes.ok) {
