@@ -141,6 +141,13 @@ export function useSyncDailyKm() {
   const [isSyncing, setIsSyncing] = useState(false);
   const abortRef = useRef(false);
 
+  const refreshTelemetryQueries = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] }),
+      queryClient.invalidateQueries({ queryKey: ["telemetry-events"] }),
+    ]);
+  }, [queryClient]);
+
   const sync = useCallback(async (startDate: string, endDate: string) => {
     if (isSyncing) return;
     setIsSyncing(true);
@@ -180,27 +187,31 @@ export function useSyncDailyKm() {
 
         try {
           const { data, error } = await supabase.functions.invoke("sync-daily-km", {
-            body: { start_date: chunk.start, end_date: chunk.end },
+            body: {
+              start_date: chunk.start,
+              end_date: chunk.end,
+              mode: "resilient",
+            },
           });
 
           if (error) {
             console.warn(`[sync] Chunk ${chunk.start} to ${chunk.end} failed:`, error.message);
-            totalErrors += CHUNK_SIZE_DAYS;
+            totalErrors += differenceInCalendarDays(new Date(`${chunk.end}T00:00:00`), new Date(`${chunk.start}T00:00:00`)) + 1;
           } else if (data) {
             totalSynced += (data as { synced?: number }).synced ?? 0;
             totalErrors += (data as { errors?: number }).errors ?? 0;
           }
         } catch (err) {
           console.warn(`[sync] Chunk ${chunk.start} to ${chunk.end} exception:`, (err as Error).message);
-          totalErrors += CHUNK_SIZE_DAYS;
+          totalErrors += differenceInCalendarDays(new Date(`${chunk.end}T00:00:00`), new Date(`${chunk.start}T00:00:00`)) + 1;
         }
 
         if ((i + 1) % 5 === 0) {
-          queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
+          await refreshTelemetryQueries();
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
+      await refreshTelemetryQueries();
 
       if (totalSynced > 0) {
         toast.success(`Sincronização concluída: ${totalSynced} registros em ${allDays.length} dias`);
@@ -218,7 +229,7 @@ export function useSyncDailyKm() {
       setIsSyncing(false);
       setProgress(null);
     }
-  }, [isSyncing, queryClient]);
+  }, [isSyncing, refreshTelemetryQueries]);
 
   const cancel = useCallback(() => {
     abortRef.current = true;

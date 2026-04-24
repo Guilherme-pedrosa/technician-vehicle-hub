@@ -504,7 +504,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
     const { start_date, end_date } = body;
-    const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
+    const mode: "strict" | "resilient" = body.mode === "strict" ? "strict" : "resilient";
     const dryRun: boolean = body.dry_run === true;
 
     // ============================================================
