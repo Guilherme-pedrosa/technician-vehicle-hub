@@ -13,6 +13,8 @@
 // e ficará em uma sincronização separada (vehicle_speed_violations).
 //
 // CONTRATO da API: cada chamada é (1 adesao_id, 1 dia). Não há range/paginação.
+// 404 e 400 "Positions to specified search not found" = dia sem posições
+// (veículo parado/desligado). Tratados como sucesso com array vazio.
 //
 // MODOS:
 //   - strict (default p/ backfill/validação): aborta tudo no primeiro par
@@ -109,8 +111,16 @@ async function fetchWithRetry<T>(
         return { ok: true, data: parser(json), status: res.status };
       }
 
-      const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
       lastError = await res.text().catch(() => "");
+
+      // 400 com "Positions to specified search not found" = veículo parado/sem posições
+      // no dia. É resposta esperada da RotaExata, NÃO é erro real. Trata como vazio.
+      // Mesmo padrão do painel oficial (linha em branco no relatório).
+      if (res.status === 400 && /positions to specified search not found/i.test(lastError)) {
+        return { ok: true, data: parser([]), status: 400 };
+      }
+
+      const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
       if (!retryable) {
         return { ok: false, status: res.status, error: lastError.slice(0, 300), attempts: attempt + 1 };
       }
