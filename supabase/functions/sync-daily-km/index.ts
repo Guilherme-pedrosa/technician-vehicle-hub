@@ -13,6 +13,8 @@
 // e ficará em uma sincronização separada (vehicle_speed_violations).
 //
 // CONTRATO da API: cada chamada é (1 adesao_id, 1 dia). Não há range/paginação.
+// 404 e 400 "Positions to specified search not found" = dia sem posições
+// (veículo parado/desligado). Tratados como sucesso com array vazio.
 //
 // MODOS:
 //   - strict (default p/ backfill/validação): aborta tudo no primeiro par
