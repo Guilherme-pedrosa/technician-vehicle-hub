@@ -144,16 +144,46 @@ async function fetchWithRetry<T>(
 }
 
 // ---------- Endpoints ----------
-function urlLogMotorista(adesao: string, day: string): string {
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day });
-  return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
+// IMPORTANTE: o painel oficial passa SEMPRE a lista de motoristas ativos da empresa
+// (`motoristas: [...ids]`) tanto em /dirigibilidade quanto em /log_motorista.
+// Eventos/sessões com motorista_id fora dessa lista NÃO aparecem no painel.
+// Sem esse filtro, o sync trazia +52 eventos "fantasmas" no mês (motoristas
+// antigos/desativados, terceiros, visitantes). Validado contra o XHR real.
+function urlLogMotorista(adesao: string, day: string, motoristaIds: number[]): string {
+  const where: Record<string, unknown> = { adesao_id: Number(adesao), data: day };
+  if (motoristaIds.length > 0) where.motoristas = motoristaIds;
+  return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(JSON.stringify(where))}`;
 }
 
-function urlDirigibilidade(adesao: string, day: string, eventos: number[]): string {
+function urlDirigibilidade(adesao: string, day: string, eventos: number[], motoristaIds: number[]): string {
   // Eventos suportados oficialmente: 1=Aceleração, 2=Freada, 3=Colisão, 4=Curva.
   // Default [1,2,3,4]; o painel oficial usa [1,2,4] (sem colisão) — passe via body.eventos.
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos });
-  return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+  const where: Record<string, unknown> = { adesao_id: Number(adesao), data: day, eventos };
+  if (motoristaIds.length > 0) where.motoristas = motoristaIds;
+  return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(JSON.stringify(where))}`;
+}
+
+// Busca a lista de motoristas ATIVOS da empresa (campo `motorista===1` em /usuarios).
+// Replica exatamente o filtro que o painel oficial aplica.
+async function fetchActiveDriverIds(token: string): Promise<number[]> {
+  const url = `${ROTAEXATA_API}/usuarios?limit=500&offset=0`;
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json", Authorization: token },
+  });
+  if (!res.ok) {
+    throw new Error(`fetchActiveDriverIds failed [${res.status}]: ${await res.text().catch(() => "")}`);
+  }
+  const json = await res.json();
+  const arr: Record<string, unknown>[] = Array.isArray(json)
+    ? json
+    : Array.isArray((json as { data?: unknown }).data)
+      ? (json as { data: Record<string, unknown>[] }).data
+      : [];
+  const ids = arr
+    .filter((u) => Number(u.motorista) === 1)
+    .map((u) => Number(u.id))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return Array.from(new Set(ids)).sort((a, b) => a - b);
 }
 
 const parseList = (raw: unknown): Record<string, unknown>[] => {
