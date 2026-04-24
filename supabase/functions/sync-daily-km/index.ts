@@ -451,7 +451,7 @@ Deno.serve(async (req) => {
 
     const token = await getToken();
 
-    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
+    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
 
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
@@ -467,6 +467,7 @@ Deno.serve(async (req) => {
     const stats = {
       mode,
       dry_run: dryRun,
+      eventos,
       total_jobs: jobs.length,
       ok,
       failed,
