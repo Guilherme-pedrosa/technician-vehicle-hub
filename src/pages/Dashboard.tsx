@@ -282,10 +282,14 @@ export default function Dashboard() {
   const isSingleDay = preset === "hoje";
   const rangeDays = Math.ceil((dates.fim.getTime() - dates.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
+  const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
+
   // "Hoje": direct API call (realtime) — used for KM only
   const realtimeData = useKmPorTecnicoPeriodo(
     isSingleDay ? dates.inicio : new Date(0),
-    isSingleDay ? dates.fim : new Date(0)
+    isSingleDay ? dates.fim : new Date(0),
+    telemetryVehicles,
+    loadingMetrics,
   );
 
   // Cache table — always queried for telemetria data
@@ -334,8 +338,6 @@ export default function Dashboard() {
     : cachedData.totalKm;
   const totalTelemetrias = cachedData.totalTelemetrias;
   const loadingResumo = isSingleDay ? (realtimeData.isLoading || cachedData.isLoading) : cachedData.isLoading;
-
-  const { rows: telemetryVehicles, summary, isLoading: loadingMetrics, isError: errorMetrics } = useFleetMetrics();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
