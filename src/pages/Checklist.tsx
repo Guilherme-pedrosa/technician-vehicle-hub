@@ -2575,9 +2575,31 @@ export default function Checklist() {
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
-                              <Eye className="w-3.5 h-3.5" /> Ver
-                            </Button>
+                            <div className="inline-flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                                <Eye className="w-3.5 h-3.5" /> Ver
+                              </Button>
+                              {isAdmin && cl.resultado === "bloqueado" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 text-xs border-success/40 text-success hover:bg-success/10 hover:text-success"
+                                  onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "liberar" })}
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Liberar
+                                </Button>
+                              )}
+                              {isAdmin && cl.resultado === "liberado_obs" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "rebloquear" })}
+                                >
+                                  <ShieldAlert className="w-3.5 h-3.5" /> Re-bloquear
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
