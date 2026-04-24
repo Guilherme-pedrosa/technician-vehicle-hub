@@ -44,23 +44,28 @@ Deno.serve(async (req) => {
     let total = 0;
     const sample: unknown[] = [];
 
+    const tasks: Promise<Array<{ motorista?: { nome?: string }; adesao: string }>>[] = [];
     for (const dia of dias) {
       for (const adesao of lista) {
-        const where = JSON.stringify({ adesao_id: Number(adesao), data: dia, eventos });
-        const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
-        const res = await fetch(u, { headers: { "Content-Type": "application/json", Authorization: token } });
-        if (!res.ok) continue;
-        const j = await res.json();
-        const arr = Array.isArray(j) ? j : (j?.data ?? []);
-        if (arr.length && sample.length < 1) sample.push(arr[0]);
-        for (const ev of arr as Array<{ motorista?: { nome?: string } }>) {
-          total++;
-          const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
-          porMotorista[nome] = (porMotorista[nome] || 0) + 1;
-          porAdesao[adesao] = (porAdesao[adesao] || 0) + 1;
-        }
+        tasks.push((async () => {
+          const where = JSON.stringify({ adesao_id: Number(adesao), data: dia, eventos });
+          const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+          const res = await fetch(u, { headers: { "Content-Type": "application/json", Authorization: token } });
+          if (!res.ok) return [];
+          const j = await res.json();
+          const arr = (Array.isArray(j) ? j : (j?.data ?? [])) as Array<{ motorista?: { nome?: string } }>;
+          return arr.map(ev => ({ ...ev, adesao }));
+        })());
       }
     }
+    const all = (await Promise.all(tasks)).flat();
+    for (const ev of all) {
+      total++;
+      const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
+      porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+      porAdesao[ev.adesao] = (porAdesao[ev.adesao] || 0) + 1;
+    }
+    if (all.length) sample.push(all[0]);
 
     return new Response(JSON.stringify({
       periodo: { dataInicio, dataFim, eventos, dias: dias.length, adesoes: lista.length },
