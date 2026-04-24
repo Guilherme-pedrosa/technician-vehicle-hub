@@ -74,6 +74,14 @@ function SyncKmHistoricoDialog() {
   const [syncedCount, setSyncedCount] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
+  type SyncDailyKmResponse = {
+    inserted_events?: number;
+    inserted_sessions?: number;
+    failed?: number;
+    failed_pairs?: Array<unknown>;
+    persist_failures?: Array<unknown>;
+  };
+
   const dayCount = useMemo(() => {
     const s = new Date(startDate);
     const e = new Date(endDate);
@@ -120,8 +128,12 @@ function SyncKmHistoricoDialog() {
           console.warn(`Chunk ${i + 1} error:`, error);
           totalErrors++;
         } else {
-          totalSynced += data?.synced ?? 0;
-          totalErrors += data?.errors ?? 0;
+          const response = (data ?? {}) as SyncDailyKmResponse;
+          totalSynced += (response.inserted_events ?? 0) + (response.inserted_sessions ?? 0);
+          totalErrors +=
+            (response.failed ?? 0) +
+            (response.failed_pairs?.length ?? 0) +
+            (response.persist_failures?.length ?? 0);
         }
       } catch (err) {
         console.warn(`Chunk ${i + 1} exception:`, err);
@@ -136,7 +148,10 @@ function SyncKmHistoricoDialog() {
         : `Concluído: ${totalSynced} registros sincronizados!`
     );
     setSyncing(false);
-    queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] }),
+      queryClient.invalidateQueries({ queryKey: ["telemetry-events"] }),
+    ]);
     toast.success(`Sincronização histórica: ${totalSynced} registros atualizados`);
   }, [startDate, endDate, queryClient]);
 
