@@ -316,9 +316,13 @@ function buildExternalId(ev: Record<string, unknown>, placa: string, day: string
   if ((ev as { _id?: unknown })._id != null) return `re:${(ev as { _id: unknown })._id}`;
   const ts = getEventMs(ev) || Date.parse(`${day}T00:00:00Z`);
   const { raw } = extractEventType(ev);
+  const motorista = ev.motorista as Record<string, unknown> | undefined;
+  const motoristaId = motorista?.id ?? ev.motorista_id ?? "sem-motorista";
+  const lat = extractNumber(ev, ["latitude", "lat", "y"]) ?? "";
+  const lng = extractNumber(ev, ["longitude", "long", "lng", "x"]) ?? "";
   const dur = extractNumber(ev, ["tempo_evento", "duracao", "tempo", "duration"]) ?? "";
   const end = ev.endereco ? String(ev.endereco) : "";
-  return `synth:${placa}|${ts}|${raw}|${dur}|${end}`;
+  return `synth:${placa}|${ts}|${raw}|${motoristaId}|${lat}|${lng}|${dur}|${end}`;
 }
 
 // ---------- Pool de concorrência ----------
@@ -410,7 +414,7 @@ async function processJob(
   const windows: DriverWindow[] = buildDriverWindows(entries, job.adesao_id, job.day, parseDateMs);
 
   // 2) Resolve motorista para CADA evento usando as janelas
-  const eventRows = eventos.map((ev) => {
+    const eventRows = eventos.map((ev) => {
     const evMs = getEventMs(ev);
     const { type, raw: rawType } = extractEventType(ev);
     const fallbackMot = (ev.motorista as Record<string, unknown> | undefined);
@@ -438,7 +442,7 @@ async function processJob(
       raw: ev,
       synced_at: new Date().toISOString(),
     };
-  });
+  }).filter((row, index, all) => all.findIndex((candidate) => candidate.external_id === row.external_id) === index);
 
   // 3) Sessões de KM (1 linha por entry do log_motorista, sem distribuição artificial de telemetria)
   // A coluna `telemetrias` aqui fica 0; o dashboard conta direto em vehicle_telemetry_events.
