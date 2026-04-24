@@ -453,6 +453,25 @@ Deno.serve(async (req) => {
     const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
     const dryRun: boolean = body.dry_run === true;
 
+    // ============================================================
+    // GUARD: TELEMETRY_WRITES_FROZEN
+    // Quando "true", bloqueia toda escrita em vehicle_telemetry_events
+    // e daily_vehicle_km. Permite apenas execuções dry_run (somente leitura).
+    // Use para congelar a tabela durante backfill/auditoria/migração.
+    // ============================================================
+    const writesFrozen = (Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "").toLowerCase() === "true";
+    if (writesFrozen && !dryRun) {
+      console.warn("[sync-daily-km] BLOCKED: TELEMETRY_WRITES_FROZEN=true; rejecting non-dry-run call");
+      return new Response(JSON.stringify({
+        error: "telemetry_writes_frozen",
+        message: "Escritas em vehicle_telemetry_events estão congeladas (TELEMETRY_WRITES_FROZEN=true). Use dry_run=true para validar sem persistir.",
+        frozen: true,
+      }), {
+        status: 423, // Locked
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Filtro de eventos opcional. Default [1,2,3,4]; o painel oficial usa [1,2,4].
     // Aceita Array<number> ou Array<string>; valida contra o conjunto suportado.
     const ALLOWED_EVENTS: number[] = [1, 2, 3, 4];
