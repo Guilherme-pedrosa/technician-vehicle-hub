@@ -2239,7 +2239,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 // ═══════════════════════════════════════════
 
 export default function Checklist() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
@@ -2250,6 +2250,7 @@ export default function Checklist() {
   const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
+  const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
