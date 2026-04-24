@@ -610,14 +610,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // FREEZE GUARD (manutenção): bloqueia escrita quando TELEMETRY_WRITES_FROZEN=1
-    if (Deno.env.get("TELEMETRY_WRITES_FROZEN") === "1") {
-      console.warn("[sync-daily-km] writes frozen for maintenance — skipping persistence");
+    // FREEZE GUARD (manutenção): bloqueia escrita quando TELEMETRY_WRITES_FROZEN está setado para algo truthy
+    const freezeRaw = Deno.env.get("TELEMETRY_WRITES_FROZEN");
+    console.log(`[sync-daily-km] freeze check: raw=${JSON.stringify(freezeRaw)} type=${typeof freezeRaw}`);
+    const freezeNorm = (freezeRaw ?? "").trim().toLowerCase();
+    const isFrozen = freezeNorm === "1" || freezeNorm === "true" || freezeNorm === "yes" || freezeNorm === "on";
+    if (isFrozen) {
+      console.warn(`[sync-daily-km] writes frozen for maintenance — skipping persistence (value=${JSON.stringify(freezeRaw)})`);
       return new Response(JSON.stringify({
         ...stats,
         totals,
         ok: false,
         reason: "writes_frozen_for_maintenance",
+        freeze_value: freezeRaw,
       }), {
         status: 423,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
