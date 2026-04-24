@@ -407,6 +407,17 @@ Deno.serve(async (req) => {
     const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
     const dryRun: boolean = body.dry_run === true;
 
+    // Filtro de eventos opcional. Default [1,2,3,4]; o painel oficial usa [1,2,4].
+    // Aceita Array<number> ou Array<string>; valida contra o conjunto suportado.
+    const ALLOWED_EVENTS = [1, 2, 3, 4];
+    let eventos: number[] = [1, 2, 3, 4];
+    if (Array.isArray(body.eventos)) {
+      const parsed = body.eventos
+        .map((x: unknown) => Number(x))
+        .filter((n: number) => Number.isInteger(n) && ALLOWED_EVENTS.includes(n));
+      if (parsed.length > 0) eventos = Array.from(new Set(parsed)).sort();
+    }
+
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -432,7 +443,7 @@ Deno.serve(async (req) => {
     const jobs: JobInput[] = [];
     for (const v of vehicles) {
       for (const day of days) {
-        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day });
+        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos });
       }
     }
 
