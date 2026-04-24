@@ -2637,6 +2637,20 @@ export default function Checklist() {
           )}
         </CardContent>
       </Card>
+
+      {releaseDialog && (
+        <LiberarBloqueioDialog
+          open={releaseDialog.open}
+          onOpenChange={(open) => setReleaseDialog((prev) => (prev ? { ...prev, open } : null))}
+          checklist={releaseDialog.checklist}
+          vehiclePlaca={releaseDialog.vehiclePlaca}
+          mode={releaseDialog.mode}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+            setReleaseDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }
