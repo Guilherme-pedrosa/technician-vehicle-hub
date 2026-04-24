@@ -149,9 +149,10 @@ function urlLogMotorista(adesao: string, day: string): string {
   return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
 }
 
-function urlDirigibilidade(adesao: string, day: string): string {
+function urlDirigibilidade(adesao: string, day: string, eventos: number[]): string {
   // Eventos suportados oficialmente: 1=Aceleração, 2=Freada, 3=Colisão, 4=Curva.
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos: [1, 2, 3, 4] });
+  // Default [1,2,3,4]; o painel oficial usa [1,2,4] (sem colisão) — passe via body.eventos.
+  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos });
   return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
 }
 
@@ -259,7 +260,7 @@ async function runPool<T, R>(
 }
 
 // ---------- Job result ----------
-type JobInput = { adesao_id: string; placa: string; day: string };
+type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[] };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
 type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
@@ -283,7 +284,7 @@ async function processJob(
 
   const [logRes, dirRes] = await Promise.all([
     fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
-    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day), token, parseList),
+    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos), token, parseList),
   ]);
 
   if (!logRes.ok) {
@@ -406,6 +407,19 @@ Deno.serve(async (req) => {
     const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
     const dryRun: boolean = body.dry_run === true;
 
+    // Filtro de eventos opcional. Default [1,2,3,4]; o painel oficial usa [1,2,4].
+    // Aceita Array<number> ou Array<string>; valida contra o conjunto suportado.
+    const ALLOWED_EVENTS: number[] = [1, 2, 3, 4];
+    let eventos: number[] = [1, 2, 3, 4];
+    if (Array.isArray(body.eventos)) {
+      const parsed: number[] = (body.eventos as unknown[])
+        .map((x) => Number(x))
+        .filter((n): n is number => Number.isInteger(n) && ALLOWED_EVENTS.includes(n));
+      if (parsed.length > 0) {
+        eventos = Array.from(new Set<number>(parsed)).sort((a, b) => a - b);
+      }
+    }
+
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -431,13 +445,13 @@ Deno.serve(async (req) => {
     const jobs: JobInput[] = [];
     for (const v of vehicles) {
       for (const day of days) {
-        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day });
+        jobs.push({ adesao_id: v.adesao_id!, placa: v.placa, day, eventos });
       }
     }
 
     const token = await getToken();
 
-    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
+    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} eventos=[${eventos.join(",")}] jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
 
     const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
@@ -453,6 +467,7 @@ Deno.serve(async (req) => {
     const stats = {
       mode,
       dry_run: dryRun,
+      eventos,
       total_jobs: jobs.length,
       ok,
       failed,
