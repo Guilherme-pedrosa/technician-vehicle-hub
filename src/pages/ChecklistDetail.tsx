@@ -23,6 +23,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 import { updateOdometro } from "@/services/rotaexata";
+import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
+import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
@@ -346,6 +348,8 @@ export default function ChecklistDetail() {
   const [revalidating, setRevalidating] = useState(false);
   const [scanningKm, setScanningKm] = useState(false);
   const [syncingKmRota, setSyncingKmRota] = useState(false);
+  const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; mode: "liberar" | "rebloquear" } | null>(null);
+  const [releaseLogKey, setReleaseLogKey] = useState(0);
 
   const handleScanKm = async () => {
     setScanningKm(true);
@@ -721,6 +725,20 @@ export default function ChecklistDetail() {
                 {scanningKm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gauge className="w-4 h-4" />}
                 {scanningKm ? "Verificando..." : "Verificar KM"}
               </Button>
+              {(cl as any).resultado === "bloqueado" && (
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-success text-success-foreground hover:bg-success/90"
+                  onClick={() => setReleaseDialog({ open: true, mode: "liberar" })}
+                >
+                  <ShieldCheck className="w-4 h-4" /> Liberar veículo
+                </Button>
+              )}
+              {(cl as any).resultado === "liberado_obs" && (
+                <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setReleaseDialog({ open: true, mode: "rebloquear" })}>
+                  <ShieldAlert className="w-4 h-4" /> Re-bloquear
+                </Button>
+              )}
             </>
           )}
           {editing && (
@@ -1110,6 +1128,24 @@ export default function ChecklistDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Timeline de bloqueio/liberação */}
+      <ReleaseLogTimeline checklistId={(cl as any).id} refreshKey={releaseLogKey} />
+
+      {releaseDialog && (
+        <LiberarBloqueioDialog
+          open={releaseDialog.open}
+          onOpenChange={(open) => setReleaseDialog((prev) => (prev ? { ...prev, open } : null))}
+          checklist={{ id: (cl as any).id, vehicle_id: (cl as any).vehicle_id, resultado: (cl as any).resultado }}
+          vehiclePlaca={vehicle?.placa}
+          mode={releaseDialog.mode}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ["checklist-detail"] });
+            setReleaseLogKey((k) => k + 1);
+            setReleaseDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }

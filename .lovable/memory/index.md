@@ -42,6 +42,7 @@
 - [Technician Attribution](mem://features/vehicle-checklist/technician-attribution) — Auto-linked via `drivers` and auth `user_id`
 - [Admin Management](mem://features/vehicle-checklist/admin-management) — Editing sent checklists restricted to admins
 - [Compliance Automation](mem://features/vehicle-checklist/compliance-automation) — Resend email alerts for negative checklists
+- [Release Log](mem://features/vehicle-checklist/release-log) — Admins liberam checklists bloqueados com justificativa; tudo registrado em log auditável
 - [Approval Rules](mem://logic/checklist-approval-rules) — Justification required for 'Bloqueado', not for 'Liberado com observação'
 - [Maintenance Validation](mem://logic/maintenance-validation-rules) — Oil check against next oil change KM
 - [Mobile Memory Optimization](mem://performance/mobile-memory-optimization) — Image compression and RAM management for Android

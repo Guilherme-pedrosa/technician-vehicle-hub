@@ -19,6 +19,7 @@ import Configuracoes from "./pages/Configuracoes";
 import EmailLogs from "./pages/EmailLogs";
 import ManutencaoPreventiva from "./pages/ManutencaoPreventiva";
 import CustosFlota from "./pages/CustosFlota";
+import AuditoriaLiberacoes from "./pages/AuditoriaLiberacoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/custos" element={<CustosFlota />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/emails" element={<EmailLogs />} />
+              <Route path="/auditoria-liberacoes" element={<AuditoriaLiberacoes />} />
               <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />

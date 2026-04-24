@@ -16,6 +16,7 @@ import {
   ChevronDown,
   X,
   Mail,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,6 +78,7 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
     label: "Sistema",
     items: [
       { title: "E-mails", icon: Mail, href: "/emails" },
+      { title: "Auditoria", icon: History, href: "/auditoria-liberacoes" },
       { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
     adminOnly: true,

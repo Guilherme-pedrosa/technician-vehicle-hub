@@ -137,6 +137,60 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_release_log: {
+        Row: {
+          action: string
+          checklist_id: string
+          created_at: string
+          created_by: string
+          created_by_name: string | null
+          id: string
+          motivo: string
+          new_resultado: string
+          previous_resultado: string
+          vehicle_id: string
+        }
+        Insert: {
+          action: string
+          checklist_id: string
+          created_at?: string
+          created_by: string
+          created_by_name?: string | null
+          id?: string
+          motivo: string
+          new_resultado: string
+          previous_resultado: string
+          vehicle_id: string
+        }
+        Update: {
+          action?: string
+          checklist_id?: string
+          created_at?: string
+          created_by?: string
+          created_by_name?: string | null
+          id?: string
+          motivo?: string
+          new_resultado?: string
+          previous_resultado?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_release_log_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_release_log_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_vehicle_km: {
         Row: {
           adesao_id: string

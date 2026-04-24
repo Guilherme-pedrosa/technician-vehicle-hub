@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
+import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 
 // ═══════════════════════════════════════════
 // PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
@@ -2238,7 +2239,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
 // ═══════════════════════════════════════════
 
 export default function Checklist() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
@@ -2249,6 +2250,7 @@ export default function Checklist() {
   const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
+  const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -2433,59 +2435,85 @@ export default function Checklist() {
                   const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                   const kmDivergente = !!kmPainel?.divergente;
                   return (
-                    <button
+                    <div
                       key={cl.id}
-                      className={`w-full text-left px-4 py-3 flex flex-col gap-2 active:bg-muted/50 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
-                      onClick={() => navigate(`/checklist/${cl.id}`)}
+                      className={`px-4 py-3 flex flex-col gap-2 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
-                          <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {fotoCount > 0 && (
-                            <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
-                              <ImageIcon className="w-3 h-3" /> {fotoCount}
+                      <button
+                        type="button"
+                        className="w-full text-left flex flex-col gap-2 active:opacity-70"
+                        onClick={() => navigate(`/checklist/${cl.id}`)}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {fotoCount > 0 && (
+                              <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
+                                <ImageIcon className="w-3 h-3" /> {fotoCount}
+                              </span>
+                            )}
+                            {hasBadPhotos && (
+                              <span className="text-xs flex items-center gap-0.5 text-destructive font-bold">
+                                <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length}
+                              </span>
+                            )}
+                            {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
+                             res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
+                             <ShieldAlert className="w-4 h-4 text-destructive" />}
+                            <span className="text-xs text-muted-foreground tabular-nums flex flex-col items-end leading-tight">
+                              <span>{new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</span>
+                              <span className="text-[10px] opacity-80">{new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
                             </span>
-                          )}
-                          {hasBadPhotos && (
-                            <span className="text-xs flex items-center gap-0.5 text-destructive font-bold">
-                              <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length}
-                            </span>
-                          )}
-                          {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
-                           res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
-                           <ShieldAlert className="w-4 h-4 text-destructive" />}
-                          <span className="text-xs text-muted-foreground tabular-nums flex flex-col items-end leading-tight">
-                            <span>{new Date(cl.checklist_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</span>
-                            <span className="text-[10px] opacity-80">{new Date(cl.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-                          </span>
+                          </div>
                         </div>
-                      </div>
 
-                      {hasBadPhotos && (
-                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
-                          </p>
-                          <p className="mt-1 text-[11px] text-destructive/90 line-clamp-2">
-                            {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
-                          </p>
-                        </div>
-                      )}
+                        {hasBadPhotos && (
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Fotos fora do padrão
+                            </p>
+                            <p className="mt-1 text-[11px] text-destructive/90 line-clamp-2">
+                              {allBadPhotos.map((item: any) => item.label).filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(", ")}
+                            </p>
+                          </div>
+                        )}
 
-                      {kmDivergente && kmPainel && (
-                        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
-                            <Gauge className="w-3.5 h-3.5" /> KM divergente do cadastro
-                          </p>
-                          <p className="mt-1 text-[11px] text-destructive/90">
-                            Painel: {kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: {kmPainel.esperado.toLocaleString("pt-BR")} km · Δ {kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km
-                          </p>
-                        </div>
+                        {kmDivergente && kmPainel && (
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                              <Gauge className="w-3.5 h-3.5" /> KM divergente do cadastro
+                            </p>
+                            <p className="mt-1 text-[11px] text-destructive/90">
+                              Painel: {kmPainel.lido.toLocaleString("pt-BR")} km · Cadastro: {kmPainel.esperado.toLocaleString("pt-BR")} km · Δ {kmPainel.diferenca > 0 ? "+" : ""}{kmPainel.diferenca.toLocaleString("pt-BR")} km
+                            </p>
+                          </div>
+                        )}
+                      </button>
+
+                      {isAdmin && cl.resultado === "bloqueado" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs border-success/40 text-success hover:bg-success/10 hover:text-success"
+                          onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "liberar" })}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" /> Liberar veículo
+                        </Button>
                       )}
-                    </button>
+                      {isAdmin && cl.resultado === "liberado_obs" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "rebloquear" })}
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" /> Re-bloquear
+                        </Button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -2573,9 +2601,31 @@ export default function Checklist() {
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
-                              <Eye className="w-3.5 h-3.5" /> Ver
-                            </Button>
+                            <div className="inline-flex items-center gap-1">
+                              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                                <Eye className="w-3.5 h-3.5" /> Ver
+                              </Button>
+                              {isAdmin && cl.resultado === "bloqueado" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 text-xs border-success/40 text-success hover:bg-success/10 hover:text-success"
+                                  onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "liberar" })}
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Liberar
+                                </Button>
+                              )}
+                              {isAdmin && cl.resultado === "liberado_obs" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => setReleaseDialog({ open: true, checklist: cl, vehiclePlaca: vehicle?.placa, mode: "rebloquear" })}
+                                >
+                                  <ShieldAlert className="w-3.5 h-3.5" /> Re-bloquear
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -2587,6 +2637,20 @@ export default function Checklist() {
           )}
         </CardContent>
       </Card>
+
+      {releaseDialog && (
+        <LiberarBloqueioDialog
+          open={releaseDialog.open}
+          onOpenChange={(open) => setReleaseDialog((prev) => (prev ? { ...prev, open } : null))}
+          checklist={releaseDialog.checklist}
+          vehiclePlaca={releaseDialog.vehiclePlaca}
+          mode={releaseDialog.mode}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+            setReleaseDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }
