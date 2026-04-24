@@ -313,8 +313,8 @@ async function processJob(
   const empty: EmptyDay[] = [];
 
   const [logRes, dirRes] = await Promise.all([
-    fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
-    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos), token, parseList),
+    fetchWithRetry(urlLogMotorista(job.adesao_id, job.day, job.motoristaIds), token, parseList),
+    fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day, job.eventos, job.motoristaIds), token, parseList),
   ]);
 
   if (!logRes.ok) {
