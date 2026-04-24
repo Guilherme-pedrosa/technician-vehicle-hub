@@ -1,4 +1,4 @@
-// Debug: conta eventos de /dirigibilidade direto da API Rota Exata para validar 381
+// Debug: puxa /dirigibilidade do mês inteiro por veículo e agrega por motorista
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,42 +27,65 @@ Deno.serve(async (req) => {
     const dataInicio = url.searchParams.get("inicio") || "2026-03-01";
     const dataFim = url.searchParams.get("fim") || "2026-03-31";
     const eventos = (url.searchParams.get("eventos") || "1,2,3,4").split(",").map(Number);
+    const adesoesParam = url.searchParams.get("adesoes");
 
     const token = await login();
 
-    // 1) Tenta puxar o período inteiro de uma vez (sem adesao_id)
-    const whereGlobal = JSON.stringify({
-      data_inicio: dataInicio,
-      data_fim: dataFim,
-      eventos,
-    });
-    const urlGlobal = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(whereGlobal)}`;
-    const resGlobal = await fetch(urlGlobal, {
-      headers: { "Content-Type": "application/json", Authorization: token },
-    });
-    const bodyGlobal = await resGlobal.text();
-    let parsedGlobal: unknown = null;
-    try { parsedGlobal = JSON.parse(bodyGlobal); } catch { /* ignore */ }
+    // Pega lista de adesoes do banco
+    const supaUrl = Deno.env.get("SUPABASE_URL")!;
+    const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    let adesoes: string[] = [];
+    if (adesoesParam) {
+      adesoes = adesoesParam.split(",");
+    } else {
+      const r = await fetch(`${supaUrl}/rest/v1/vehicles?select=adesao_id&adesao_id=not.is.null`, {
+        headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` },
+      });
+      const arr = (await r.json()) as Array<{ adesao_id: string }>;
+      adesoes = [...new Set(arr.map(v => v.adesao_id).filter(Boolean))];
+    }
 
-    const arrGlobal = Array.isArray(parsedGlobal)
-      ? parsedGlobal
-      : ((parsedGlobal as { data?: unknown[] })?.data ?? []);
-
-    // Agrega por motorista
+    // Tenta puxar período por adesao (intervalo data_inicio/data_fim)
     const porMotorista: Record<string, number> = {};
-    for (const ev of arrGlobal as Array<{ motorista?: { nome?: string } }>) {
-      const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
-      porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+    let totalGlobal = 0;
+    const perVehicle: Record<string, { total: number; status: number }> = {};
+    const errors: Array<{ adesao: string; status: number; body: string }> = [];
+
+    for (const adesao of adesoes) {
+      // Tentativa 1: data_inicio/data_fim
+      const where = JSON.stringify({
+        adesao_id: Number(adesao),
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        eventos,
+      });
+      const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+      const res = await fetch(u, {
+        headers: { "Content-Type": "application/json", Authorization: token },
+      });
+      const text = await res.text();
+      let parsed: unknown = null;
+      try { parsed = JSON.parse(text); } catch {/**/}
+      const arr = Array.isArray(parsed) ? parsed : ((parsed as { data?: unknown[] })?.data ?? []);
+      perVehicle[adesao] = { total: arr.length, status: res.status };
+      if (!res.ok || arr.length === 0 && res.status !== 200) {
+        errors.push({ adesao, status: res.status, body: text.slice(0, 200) });
+        continue;
+      }
+      totalGlobal += arr.length;
+      for (const ev of arr as Array<{ motorista?: { nome?: string } }>) {
+        const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
+        porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+      }
     }
 
     return new Response(
       JSON.stringify({
-        params: { dataInicio, dataFim, eventos },
-        global_status: resGlobal.status,
-        global_total: arrGlobal.length,
-        global_por_motorista: porMotorista,
-        global_sample: arrGlobal.slice(0, 2),
-        global_body_preview: bodyGlobal.slice(0, 500),
+        params: { dataInicio, dataFim, eventos, adesoes_count: adesoes.length },
+        total_global: totalGlobal,
+        por_motorista: Object.entries(porMotorista).sort((a,b)=>b[1]-a[1]),
+        per_vehicle: perVehicle,
+        errors_sample: errors.slice(0, 5),
       }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
