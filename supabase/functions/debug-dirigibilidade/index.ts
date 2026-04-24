@@ -1,4 +1,4 @@
-// Debug: puxa /dirigibilidade do mês inteiro por veículo e agrega por motorista
+// Debug: itera dia-a-dia × veículo, sem gravar no banco. Conta por motorista.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +19,16 @@ async function login(): Promise<string> {
   return data.token || data.access_token || data.authorization;
 }
 
+function eachDay(start: string, end: string): string[] {
+  const out: string[] = [];
+  const s = new Date(start + "T00:00:00Z");
+  const e = new Date(end + "T00:00:00Z");
+  for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -27,72 +37,53 @@ Deno.serve(async (req) => {
     const dataInicio = url.searchParams.get("inicio") || "2026-03-01";
     const dataFim = url.searchParams.get("fim") || "2026-03-31";
     const eventos = (url.searchParams.get("eventos") || "1,2,3,4").split(",").map(Number);
-    const adesoesParam = url.searchParams.get("adesoes");
 
     const token = await login();
-
-    // Pega lista de adesoes do banco
     const supaUrl = Deno.env.get("SUPABASE_URL")!;
     const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    let adesoes: string[] = [];
-    if (adesoesParam) {
-      adesoes = adesoesParam.split(",");
-    } else {
-      const r = await fetch(`${supaUrl}/rest/v1/vehicles?select=adesao_id&adesao_id=not.is.null`, {
-        headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` },
-      });
-      const arr = (await r.json()) as Array<{ adesao_id: string }>;
-      adesoes = [...new Set(arr.map(v => v.adesao_id).filter(Boolean))];
-    }
+    const r = await fetch(`${supaUrl}/rest/v1/vehicles?select=adesao_id,placa&adesao_id=not.is.null`, {
+      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` },
+    });
+    const veiculos = (await r.json()) as Array<{ adesao_id: string; placa: string }>;
 
-    // Tenta puxar período por adesao (intervalo data_inicio/data_fim)
+    const dias = eachDay(dataInicio, dataFim);
     const porMotorista: Record<string, number> = {};
-    let totalGlobal = 0;
-    const perVehicle: Record<string, { total: number; status: number }> = {};
-    const errors: Array<{ adesao: string; status: number; body: string }> = [];
+    const eventosUnicosKey = new Set<string>();
+    let totalBruto = 0;
 
-    for (const adesao of adesoes) {
-      // Tentativa 1: data_inicio/data_fim
-      const where = JSON.stringify({
-        adesao_id: Number(adesao),
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        eventos,
+    // paraleliza por dia mas sequencial por veículo dentro do dia (rate limit)
+    for (const dia of dias) {
+      const calls = veiculos.map(async (v) => {
+        const where = JSON.stringify({ adesao_id: Number(v.adesao_id), data: dia, eventos });
+        const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
+        const res = await fetch(u, { headers: { "Content-Type": "application/json", Authorization: token } });
+        if (!res.ok) return [];
+        const j = await res.json();
+        const arr = Array.isArray(j) ? j : (j?.data ?? []);
+        return arr as Array<{ data?: string; evento?: string; motorista?: { nome?: string; id?: number }; vei_placa?: string }>;
       });
-      const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
-      const res = await fetch(u, {
-        headers: { "Content-Type": "application/json", Authorization: token },
-      });
-      const text = await res.text();
-      let parsed: unknown = null;
-      try { parsed = JSON.parse(text); } catch {/**/}
-      const arr = Array.isArray(parsed) ? parsed : ((parsed as { data?: unknown[] })?.data ?? []);
-      perVehicle[adesao] = { total: arr.length, status: res.status };
-      if (!res.ok || arr.length === 0 && res.status !== 200) {
-        errors.push({ adesao, status: res.status, body: text.slice(0, 200) });
-        continue;
-      }
-      totalGlobal += arr.length;
-      for (const ev of arr as Array<{ motorista?: { nome?: string } }>) {
-        const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
-        porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+      const resultsArr = await Promise.all(calls);
+      for (const arr of resultsArr) {
+        for (const ev of arr) {
+          totalBruto++;
+          const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
+          porMotorista[nome] = (porMotorista[nome] || 0) + 1;
+          eventosUnicosKey.add(`${ev.vei_placa}|${ev.data}|${ev.evento}|${ev.motorista?.id ?? ""}`);
+        }
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        params: { dataInicio, dataFim, eventos, adesoes_count: adesoes.length },
-        total_global: totalGlobal,
-        por_motorista: Object.entries(porMotorista).sort((a,b)=>b[1]-a[1]),
-        per_vehicle: perVehicle,
-        errors_sample: errors.slice(0, 5),
-      }, null, 2),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    const sorted = Object.entries(porMotorista).sort((a, b) => b[1] - a[1]);
+    return new Response(JSON.stringify({
+      periodo: { dataInicio, dataFim, eventos, dias: dias.length, veiculos: veiculos.length },
+      total_bruto: totalBruto,
+      total_unico: eventosUnicosKey.size,
+      por_motorista_bruto: sorted,
+      por_motorista_total: sorted.reduce((s, [, n]) => s + n, 0),
+    }, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
