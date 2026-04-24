@@ -151,6 +151,7 @@ function SyncKmHistoricoDialog() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] }),
       queryClient.invalidateQueries({ queryKey: ["telemetry-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["daily-km-sync-status"] }),
     ]);
     toast.success(`Sincronização histórica: ${totalSynced} registros atualizados`);
   }, [startDate, endDate, queryClient]);
