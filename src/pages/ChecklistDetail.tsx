@@ -23,6 +23,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 import { updateOdometro } from "@/services/rotaexata";
+import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
+import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
