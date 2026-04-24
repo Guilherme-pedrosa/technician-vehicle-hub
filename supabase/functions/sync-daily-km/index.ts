@@ -290,7 +290,7 @@ async function runPool<T, R>(
 }
 
 // ---------- Job result ----------
-type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[] };
+type JobInput = { adesao_id: string; placa: string; day: string; eventos: number[]; motoristaIds: number[] };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
 type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
