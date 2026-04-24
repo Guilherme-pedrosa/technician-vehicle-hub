@@ -29,7 +29,7 @@ export type ResolvedDriver = {
 
 const UNKNOWN: ResolvedDriver = {
   driver_id: null,
-  driver_name: "Sem condutor vinculado",
+  driver_name: "Desconhecido",
   vinculo_tipo: null,
   source: "unknown",
 };
@@ -67,7 +67,7 @@ export function buildDriverWindows(
         : "";
     const driver_name = nomeRaw && nomeRaw !== "Desconhecido"
       ? nomeRaw
-      : "Sem condutor vinculado";
+      : "Desconhecido";
 
     const start_ms = parseDateMs(
       entry.horario_vinculo ?? entry.hr_vinculo ?? entry.dt_inicio ?? entry.hora_inicio,
