@@ -1,85 +1,73 @@
-// Debug: itera dia-a-dia × veículo, sem gravar no banco. Conta por motorista.
+// Debug v3: lê adesoes da tabela vehicle_telemetry_events e itera dia-a-dia
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
 const ROTAEXATA_API = "https://api.rotaexata.com.br";
 
 async function login(): Promise<string> {
-  const email = Deno.env.get("ROTAEXATA_EMAIL");
-  const password = Deno.env.get("ROTAEXATA_PASSWORD");
   const res = await fetch(`${ROTAEXATA_API}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: Deno.env.get("ROTAEXATA_EMAIL"), password: Deno.env.get("ROTAEXATA_PASSWORD") }),
   });
   const data = await res.json();
   return data.token || data.access_token || data.authorization;
 }
 
-function eachDay(start: string, end: string): string[] {
+function eachDay(s: string, e: string): string[] {
   const out: string[] = [];
-  const s = new Date(start + "T00:00:00Z");
-  const e = new Date(end + "T00:00:00Z");
-  for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
-    out.push(d.toISOString().slice(0, 10));
-  }
+  const a = new Date(s + "T00:00:00Z"); const b = new Date(e + "T00:00:00Z");
+  for (let d = new Date(a); d <= b; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
   return out;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
   try {
     const url = new URL(req.url);
     const dataInicio = url.searchParams.get("inicio") || "2026-03-01";
     const dataFim = url.searchParams.get("fim") || "2026-03-31";
     const eventos = (url.searchParams.get("eventos") || "1,2,3,4").split(",").map(Number);
 
-    const token = await login();
-    const supaUrl = Deno.env.get("SUPABASE_URL")!;
-    const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const r = await fetch(`${supaUrl}/rest/v1/vehicles?select=adesao_id,placa&adesao_id=not.is.null`, {
-      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` },
-    });
-    const veiculos = (await r.json()) as Array<{ adesao_id: string; placa: string }>;
+    // Adesões fixas que já tiveram telemetria em março (do banco)
+    const adesoes = ["73280","73281","73283","73284","73285","74192","93505","73282","89859","89860","75591"];
+    // OBS: adicionei alguns extras pra cobrir casos onde a placa mudou
+    const adesoesParam = url.searchParams.get("adesoes");
+    const lista = adesoesParam ? adesoesParam.split(",") : adesoes;
 
+    const token = await login();
     const dias = eachDay(dataInicio, dataFim);
     const porMotorista: Record<string, number> = {};
-    const eventosUnicosKey = new Set<string>();
-    let totalBruto = 0;
+    const porAdesao: Record<string, number> = {};
+    let total = 0;
+    const sample: unknown[] = [];
 
-    // paraleliza por dia mas sequencial por veículo dentro do dia (rate limit)
     for (const dia of dias) {
-      const calls = veiculos.map(async (v) => {
-        const where = JSON.stringify({ adesao_id: Number(v.adesao_id), data: dia, eventos });
+      for (const adesao of lista) {
+        const where = JSON.stringify({ adesao_id: Number(adesao), data: dia, eventos });
         const u = `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
         const res = await fetch(u, { headers: { "Content-Type": "application/json", Authorization: token } });
-        if (!res.ok) return [];
+        if (!res.ok) continue;
         const j = await res.json();
         const arr = Array.isArray(j) ? j : (j?.data ?? []);
-        return arr as Array<{ data?: string; evento?: string; motorista?: { nome?: string; id?: number }; vei_placa?: string }>;
-      });
-      const resultsArr = await Promise.all(calls);
-      for (const arr of resultsArr) {
-        for (const ev of arr) {
-          totalBruto++;
+        if (arr.length && sample.length < 1) sample.push(arr[0]);
+        for (const ev of arr as Array<{ motorista?: { nome?: string } }>) {
+          total++;
           const nome = ev.motorista?.nome?.trim() || "Sem condutor vinculado";
           porMotorista[nome] = (porMotorista[nome] || 0) + 1;
-          eventosUnicosKey.add(`${ev.vei_placa}|${ev.data}|${ev.evento}|${ev.motorista?.id ?? ""}`);
+          porAdesao[adesao] = (porAdesao[adesao] || 0) + 1;
         }
       }
     }
 
-    const sorted = Object.entries(porMotorista).sort((a, b) => b[1] - a[1]);
     return new Response(JSON.stringify({
-      periodo: { dataInicio, dataFim, eventos, dias: dias.length, veiculos: veiculos.length },
-      total_bruto: totalBruto,
-      total_unico: eventosUnicosKey.size,
-      por_motorista_bruto: sorted,
-      por_motorista_total: sorted.reduce((s, [, n]) => s + n, 0),
+      periodo: { dataInicio, dataFim, eventos, dias: dias.length, adesoes: lista.length },
+      total,
+      por_motorista: Object.entries(porMotorista).sort((a, b) => b[1] - a[1]),
+      por_adesao: porAdesao,
+      sample,
     }, null, 2), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), {
