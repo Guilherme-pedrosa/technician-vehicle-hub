@@ -334,7 +334,23 @@ async function processJob(
   }
 
   const entries = (logRes as { ok: true; data: Record<string, unknown>[] }).data;
-  const eventos = (dirRes as { ok: true; data: Record<string, unknown>[] }).data;
+  const eventosRaw = (dirRes as { ok: true; data: Record<string, unknown>[] }).data;
+
+  // FILTRO MOTORISTAS ATIVOS: replica exatamente o painel oficial.
+  // Mesmo passando `motoristas: [...]` na query, a API às vezes ainda devolve
+  // eventos de motoristas fora da lista — descarta no client.
+  // Eventos com motorista_id ausente passam (serão resolvidos pela janela).
+  const activeSet = new Set<number>(job.motoristaIds);
+  const eventos = job.motoristaIds.length === 0
+    ? eventosRaw
+    : eventosRaw.filter((ev) => {
+        const m = ev.motorista as Record<string, unknown> | undefined;
+        const idRaw = m?.id ?? ev.motorista_id;
+        if (idRaw == null || idRaw === "") return true; // sem id → tenta janela
+        const idNum = Number(idRaw);
+        if (!Number.isInteger(idNum)) return true;
+        return activeSet.has(idNum);
+      });
 
   // 1) Constrói janelas de motorista a partir do log_motorista
   const windows: DriverWindow[] = buildDriverWindows(entries, job.adesao_id, job.day, parseDateMs);
