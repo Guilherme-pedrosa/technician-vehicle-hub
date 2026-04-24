@@ -196,16 +196,17 @@ serve(async (req) => {
           results.push({ email, status: "sent", resend_id: resBody.id });
         }
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`[NOTIFY-NC] Error sending to ${email}:`, err);
         await supabase.from("email_send_log").insert({
           checklist_id,
           recipient_email: email,
           subject,
           status: "failed",
-          error_message: err.message,
+          error_message: errMsg,
           metadata: { placa, modelo, tecnico, resultado },
         });
-        results.push({ email, status: "failed", error: err.message });
+        results.push({ email, status: "failed", error: errMsg });
       }
     }
 
@@ -219,8 +220,9 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in notify-checklist-nc:", error);
+    const message = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

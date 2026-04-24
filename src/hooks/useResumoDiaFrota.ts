@@ -111,7 +111,7 @@ export function useResumoDiaFrota(dateStr?: string) {
           const motoristaId =
             typeof entry.motorista?.id === "number" ? entry.motorista.id : undefined;
           const isDesconhecido = !entry.motorista?.nome || entry.motorista.nome === "Desconhecido";
-          const motoristaNome = isDesconhecido ? "Sem condutor vinculado" : entry.motorista!.nome;
+          const motoristaNome = isDesconhecido ? "Desconhecido" : entry.motorista!.nome;
 
           allSegments.push({
             adesaoId,
@@ -182,7 +182,7 @@ export function useResumoDiaFrota(dateStr?: string) {
       if (row.kmHoje === 0) return;
 
       const key = row.motoristaId ? String(row.motoristaId) : "sem-condutor";
-      const nome = row.motoristaNome ?? "Sem condutor vinculado";
+      const nome = row.motoristaNome ?? "Desconhecido";
 
       if (!groups.has(key)) {
         groups.set(key, { nome, kmHoje: 0, placas: new Set() });

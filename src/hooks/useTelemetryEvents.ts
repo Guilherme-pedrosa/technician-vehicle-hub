@@ -103,9 +103,9 @@ export function useTelemetryEvents(startDate: Date, endDate: Date) {
   const byDriver = useMemo(() => {
     const map = new Map<string, { nome: string; total: number; freada: number; aceleracao: number; curva: number; placas: Set<string> }>();
     for (const ev of events) {
-      const isSemCondutor = !ev.motorista_id || ev.motorista_nome === "Sem condutor vinculado";
+      const isSemCondutor = !ev.motorista_id || ev.motorista_nome === "Desconhecido" || ev.motorista_nome === "Sem condutor vinculado";
       const key = isSemCondutor ? "sem-condutor" : String(ev.motorista_id);
-      const nome = isSemCondutor ? "Sem condutor vinculado" : (ev.motorista_nome ?? "Desconhecido");
+      const nome = isSemCondutor ? "Desconhecido" : (ev.motorista_nome ?? "Desconhecido");
       if (!map.has(key)) {
         map.set(key, { nome, total: 0, freada: 0, aceleracao: 0, curva: 0, placas: new Set() });
       }
@@ -132,7 +132,7 @@ export function useTelemetryEvents(startDate: Date, endDate: Date) {
   const byDriverPlaca = useMemo(() => {
     const map = new Map<string, number>();
     for (const ev of events) {
-      const driverKey = ev.motorista_id && ev.motorista_nome !== "Sem condutor vinculado"
+      const driverKey = ev.motorista_id && ev.motorista_nome !== "Desconhecido" && ev.motorista_nome !== "Sem condutor vinculado"
         ? String(ev.motorista_id)
         : "sem-condutor";
       const k = `${driverKey}|${ev.placa}`;

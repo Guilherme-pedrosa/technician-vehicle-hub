@@ -113,7 +113,7 @@ export function useKmPorTecnicoPeriodo(startDate: Date, endDate: Date) {
 
           const motorista = entry.motorista;
           const isDesconhecido = !motorista?.nome || motorista.nome === "Desconhecido";
-          const nome = isDesconhecido ? "Sem condutor vinculado" : motorista!.nome!;
+          const nome = isDesconhecido ? "Desconhecido" : motorista!.nome!;
           const key = isDesconhecido
             ? "sem-condutor"
             : (typeof motorista?.id === "number" ? String(motorista.id) : nome);
