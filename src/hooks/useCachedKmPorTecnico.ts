@@ -21,6 +21,7 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
   const totalDaysInRange = differenceInCalendarDays(endDate, startDate) + 1;
+  const intervalDays = eachDayOfInterval({ start: startDate, end: endDate }).map((day) => format(day, "yyyy-MM-dd"));
 
   // KM por técnico = log_motorista (gravado em daily_vehicle_km.km_percorrido)
   const query = useQuery({
@@ -38,14 +39,41 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     staleTime: 30 * 1000,
   });
 
+  const syncStatusQuery = useQuery({
+    queryKey: ["daily-km-sync-status", startStr, endStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("daily_km_sync_status")
+        .select("data, total_jobs, processed_jobs, failed_jobs")
+        .gte("data", startStr)
+        .lte("data", endStr);
+
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30 * 1000,
+  });
+
   // Telemetrias = eventos brutos do /dirigibilidade (gravados em vehicle_telemetry_events)
   const telemetry = useTelemetryEvents(startDate, endDate);
 
   const syncedDays = useMemo(() => {
     const rows = query.data ?? [];
-    const uniqueDays = new Set(rows.map((r) => r.data));
-    return uniqueDays.size;
-  }, [query.data]);
+    const cachedDays = new Set(rows.map((r) => r.data));
+    const statusByDay = new Map(
+      (syncStatusQuery.data ?? []).map((row) => [row.data, row])
+    );
+
+    return intervalDays.reduce((count, day) => {
+      const status = statusByDay.get(day);
+      if (status) {
+        const isDayComplete = status.total_jobs > 0 && status.processed_jobs >= status.total_jobs && status.failed_jobs === 0;
+        return count + (isDayComplete ? 1 : 0);
+      }
+
+      return count + (cachedDays.has(day) ? 1 : 0);
+    }, 0);
+  }, [intervalDays, query.data, syncStatusQuery.data]);
 
   const driverRows = useMemo<DriverPeriodRow[]>(() => {
     const rows = query.data ?? [];
@@ -119,8 +147,8 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
     totalKm: Math.round(totalKm * 100) / 100,
     totalTelemetrias,
     totalExcessos,
-    isLoading: query.isLoading || telemetry.isLoading,
-    isError: query.isError || telemetry.isError,
+    isLoading: query.isLoading || telemetry.isLoading || syncStatusQuery.isLoading,
+    isError: query.isError || telemetry.isError || syncStatusQuery.isError,
     isEmpty: (query.data ?? []).length === 0,
     syncedDays,
     totalDaysInRange,
@@ -145,6 +173,7 @@ export function useSyncDailyKm() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["cached-km-tecnico"] }),
       queryClient.invalidateQueries({ queryKey: ["telemetry-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["daily-km-sync-status"] }),
     ]);
   }, [queryClient]);
 
