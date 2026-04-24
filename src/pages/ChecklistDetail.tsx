@@ -1128,6 +1128,24 @@ export default function ChecklistDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Timeline de bloqueio/liberação */}
+      <ReleaseLogTimeline checklistId={(cl as any).id} refreshKey={releaseLogKey} />
+
+      {releaseDialog && (
+        <LiberarBloqueioDialog
+          open={releaseDialog.open}
+          onOpenChange={(open) => setReleaseDialog((prev) => (prev ? { ...prev, open } : null))}
+          checklist={{ id: (cl as any).id, vehicle_id: (cl as any).vehicle_id, resultado: (cl as any).resultado }}
+          vehiclePlaca={vehicle?.placa}
+          mode={releaseDialog.mode}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ["checklist-detail"] });
+            setReleaseLogKey((k) => k + 1);
+            setReleaseDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }
