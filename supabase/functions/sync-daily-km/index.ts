@@ -529,6 +529,7 @@ Deno.serve(async (req) => {
       mode,
       dry_run: dryRun,
       eventos,
+      motoristas_ativos_count: motoristaIds.length,
       total_jobs: jobs.length,
       ok,
       failed,
