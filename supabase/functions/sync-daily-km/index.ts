@@ -459,7 +459,8 @@ Deno.serve(async (req) => {
     // e daily_vehicle_km. Permite apenas execuções dry_run (somente leitura).
     // Use para congelar a tabela durante backfill/auditoria/migração.
     // ============================================================
-    const writesFrozen = (Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "").toLowerCase() === "true";
+    const freezeRaw = (Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "").trim().toLowerCase();
+    const writesFrozen = ["1", "true", "yes", "on"].includes(freezeRaw);
     if (writesFrozen && !dryRun) {
       console.warn("[sync-daily-km] BLOCKED: TELEMETRY_WRITES_FROZEN=true; rejecting non-dry-run call");
       return new Response(JSON.stringify({
