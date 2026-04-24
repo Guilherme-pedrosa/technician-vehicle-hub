@@ -55,25 +55,79 @@ const POOL_SIZE = 5;
 // ---------- Auth ----------
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
+let loginPromise: Promise<string> | null = null;
 
-async function getToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+async function doLogin(): Promise<string> {
   const email = Deno.env.get("ROTAEXATA_EMAIL");
   const password = Deno.env.get("ROTAEXATA_PASSWORD");
   if (!email || !password) throw new Error("ROTAEXATA credentials missing");
 
-  const res = await fetch(`${ROTAEXATA_API}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+  const MAX_RETRIES = 5;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    console.log(`[sync-daily-km] login attempt ${attempt}/${MAX_RETRIES}`);
+
+    let res: Response;
+    try {
+      res = await fetch(`${ROTAEXATA_API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[sync-daily-km] login network error: ${message}`);
+      if (attempt < MAX_RETRIES) {
+        const delay = Math.min(attempt * 3000, 15000);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw new Error(`Login failed after ${MAX_RETRIES} attempts: ${message}`);
+    }
+
+    const responseText = await res.text();
+    if (res.ok) {
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Login response is not JSON: ${responseText.slice(0, 200)}`);
+      }
+
+      const token = data.token || data.access_token || data.authorization;
+      if (!token || typeof token !== "string") throw new Error("No token in login response");
+      cachedToken = token;
+      tokenExpiry = Date.now() + 55 * 60 * 1000;
+      return token;
+    }
+
+    const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
+    console.warn(`[sync-daily-km] login failed [${res.status}] ${responseText.slice(0, 200)}`);
+    if (!retryable) {
+      throw new Error(`Login failed [${res.status}]: ${responseText.slice(0, 300)}`);
+    }
+
+    if (attempt < MAX_RETRIES) {
+      const delay = Math.min(attempt * 3000, 15000);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
+    throw new Error(`Login failed: ${res.status}`);
+  }
+
+  throw new Error("Unreachable");
+}
+
+async function getToken(): Promise<string> {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  if (loginPromise) return loginPromise;
+
+  loginPromise = doLogin().finally(() => {
+    loginPromise = null;
   });
-  if (!res.ok) throw new Error(`Login failed: ${res.status}`);
-  const data = await res.json();
-  const token = data.token || data.access_token || data.authorization;
-  if (!token) throw new Error("No token in login response");
-  cachedToken = token;
-  tokenExpiry = Date.now() + 50 * 60 * 1000;
-  return token;
+
+  return loginPromise;
 }
 
 // ---------- Fetch com retry/backoff ----------
@@ -459,7 +513,9 @@ Deno.serve(async (req) => {
     // e daily_vehicle_km. Permite apenas execuções dry_run (somente leitura).
     // Use para congelar a tabela durante backfill/auditoria/migração.
     // ============================================================
-    const freezeRaw = (Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "").trim().toLowerCase();
+    const freezeRawEnv = Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "";
+    console.log("[FREEZE DEBUG] raw=", freezeRawEnv);
+    const freezeRaw = freezeRawEnv.trim().toLowerCase();
     const writesFrozen = ["1", "true", "yes", "on"].includes(freezeRaw);
     if (writesFrozen && !dryRun) {
       console.warn("[sync-daily-km] BLOCKED: TELEMETRY_WRITES_FROZEN=true; rejecting non-dry-run call");
