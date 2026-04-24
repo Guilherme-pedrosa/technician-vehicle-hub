@@ -6,7 +6,11 @@
 //     vínculo motorista<->veículo (janelas) e KM rodado por sessão.
 //   - GET /relatorios/rastreamento/dirigibilidade    => Eventos brutos de
 //     telemetria (aceleração=1, freada=2, colisão=3, curva=4). NÃO existe 5.
-//   - GET /resumo-dia/{adesao}/{data}                => Velocidade máxima.
+//
+// VELOCIDADE/EXCESSOS: NÃO sincronizamos aqui. /resumo-dia conta no máximo 1
+// excesso/dia/veículo e atribui ao motorista de maior KM — não bate com a
+// planilha oficial. A fonte certa é /ocorrencias_simples_analitico (a validar)
+// e ficará em uma sincronização separada (vehicle_speed_violations).
 //
 // CONTRATO da API: cada chamada é (1 adesao_id, 1 dia). Não há range/paginação.
 //
@@ -17,8 +21,14 @@
 //   - resilient (p/ sync diário em produção): continua processando, grava o
 //     que conseguir, retorna 207 com failed_pairs.
 //
-// CONCORRÊNCIA: pool fixo de 5 requisições simultâneas (cada job dispara 3
-// chamadas em paralelo, então ficamos em ~15 conexões reais).
+// DRY_RUN: quando body.dry_run === true, executa todas as chamadas mas NÃO
+// persiste nada. Retorna resumo agregado por motorista para validação cruzada
+// com a planilha oficial antes de commit.
+//
+// ATOMICIDADE: persistência usa a RPC `sync_replace_day_telemetry` que faz
+// delete + insert dentro de uma única transação por (adesao, dia).
+//
+// CONCORRÊNCIA: pool fixo de 5 requisições simultâneas.
 // RETRY: exponencial em 429/5xx/timeout: 500ms, 1500ms, 4000ms.
 // =====================================================
 
@@ -99,7 +109,6 @@ async function fetchWithRetry<T>(
         return { ok: true, data: parser(json), status: res.status };
       }
 
-      // 429/5xx => retryable
       const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
       lastError = await res.text().catch(() => "");
       if (!retryable) {
@@ -109,10 +118,8 @@ async function fetchWithRetry<T>(
       clearTimeout(timer);
       lastStatus = 0;
       lastError = err instanceof Error ? err.message : String(err);
-      // timeout / network => retryable
     }
 
-    // Não foi a última tentativa => aguarda backoff
     if (attempt < RETRY_DELAYS_MS.length) {
       await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
     }
@@ -134,13 +141,8 @@ function urlLogMotorista(adesao: string, day: string): string {
 
 function urlDirigibilidade(adesao: string, day: string): string {
   // Eventos suportados oficialmente: 1=Aceleração, 2=Freada, 3=Colisão, 4=Curva.
-  // Valor 5 NÃO existe e era a causa de o dia 06/03 vir com totais errados.
   const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos: [1, 2, 3, 4] });
   return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
-}
-
-function urlResumoDia(adesao: string, day: string): string {
-  return `${ROTAEXATA_API}/resumo-dia/${adesao}/${day}`;
 }
 
 const parseList = (raw: unknown): Record<string, unknown>[] => {
@@ -149,17 +151,6 @@ const parseList = (raw: unknown): Record<string, unknown>[] => {
     return (raw as { data: Record<string, unknown>[] }).data;
   }
   return [];
-};
-
-const parseResumo = (raw: unknown): { velocidadeMaxima: number } => {
-  if (!raw || typeof raw !== "object") return { velocidadeMaxima: 0 };
-  const r = raw as Record<string, unknown>;
-  const basico = (r.basico ?? (r.data as Record<string, unknown>)?.basico ?? r) as Record<string, unknown>;
-  const vel = (basico?.velocidade as Record<string, unknown> | undefined);
-  const v = Number(
-    vel?.maxima ?? basico?.velocidade_maxima ?? basico?.vel_maxima ?? 0,
-  ) || 0;
-  return { velocidadeMaxima: v };
 };
 
 // ---------- Helpers de evento ----------
@@ -224,9 +215,7 @@ function extractKm(entry: Record<string, unknown>): number {
   return 0;
 }
 
-// Chave determinística do evento. Prioriza id externo da RotaExata; se ausente,
-// monta uma chave composta estável (placa+timestamp+tipo+endereço+duração) para
-// que o índice UNIQUE em external_id evite duplicatas em re-syncs.
+// Chave determinística do evento (id externo da RotaExata ou synthetic).
 function buildExternalId(ev: Record<string, unknown>, placa: string, day: string): string {
   if (ev.id != null) return `re:${ev.id}`;
   if ((ev as { _id?: unknown })._id != null) return `re:${(ev as { _id: unknown })._id}`;
@@ -276,14 +265,12 @@ type JobOutput = {
 async function processJob(
   job: JobInput,
   token: string,
-  limiteVelocidade: number,
 ): Promise<JobOutput> {
   const fails: FailedPair[] = [];
 
-  const [logRes, dirRes, resumoRes] = await Promise.all([
+  const [logRes, dirRes] = await Promise.all([
     fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
     fetchWithRetry(urlDirigibilidade(job.adesao_id, job.day), token, parseList),
-    fetchWithRetry(urlResumoDia(job.adesao_id, job.day), token, parseResumo),
   ]);
 
   if (!logRes.ok) {
@@ -292,9 +279,6 @@ async function processJob(
   if (!dirRes.ok) {
     fails.push({ ...job, endpoint: "dirigibilidade", status: dirRes.status, error: dirRes.error, attempts: dirRes.attempts });
   }
-  if (!resumoRes.ok) {
-    fails.push({ ...job, endpoint: "resumo-dia", status: resumoRes.status, error: resumoRes.error, attempts: resumoRes.attempts });
-  }
 
   if (fails.length > 0) {
     return { ...job, ok: false, failed: fails, events: [], sessions: [] };
@@ -302,7 +286,6 @@ async function processJob(
 
   const entries = (logRes as { ok: true; data: Record<string, unknown>[] }).data;
   const eventos = (dirRes as { ok: true; data: Record<string, unknown>[] }).data;
-  const resumo = (resumoRes as { ok: true; data: { velocidadeMaxima: number } }).data;
 
   // 1) Constrói janelas de motorista a partir do log_motorista
   const windows: DriverWindow[] = buildDriverWindows(entries, job.adesao_id, job.day, parseDateMs);
@@ -338,40 +321,12 @@ async function processJob(
     };
   });
 
-  // 3) Sessões de KM (1 linha por entry do log_motorista)
-  // Telemetrias por sessão = eventos cujo motorista resolvido bate com o motorista da sessão
-  const telPorMotorista = new Map<string, number>();
-  for (const r of eventRows) {
-    telPorMotorista.set(r.motorista_nome, (telPorMotorista.get(r.motorista_nome) ?? 0) + 1);
-  }
-  const sessoesPorMotorista = new Map<string, number>();
-  for (const entry of entries) {
+  // 3) Sessões de KM (1 linha por entry do log_motorista, sem distribuição artificial de telemetria)
+  // A coluna `telemetrias` aqui fica 0; o dashboard conta direto em vehicle_telemetry_events.
+  const sessionRows: Record<string, unknown>[] = entries.map((entry) => {
     const motorista = entry.motorista as Record<string, unknown> | undefined;
     const nomeRaw = motorista?.nome ? String(motorista.nome) : "";
-    const nome = nomeRaw && nomeRaw !== "Desconhecido" ? nomeRaw : "Sem condutor vinculado";
-    sessoesPorMotorista.set(nome, (sessoesPorMotorista.get(nome) ?? 0) + 1);
-  }
-
-  // Distribui telemetrias entre as sessões do mesmo motorista
-  const telDistribuidas = new Map<string, { porSessao: number; resto: number }>();
-  telPorMotorista.forEach((total, nome) => {
-    const n = sessoesPorMotorista.get(nome) ?? 0;
-    if (n === 0) telDistribuidas.set(nome, { porSessao: 0, resto: total });
-    else {
-      const porSessao = Math.floor(total / n);
-      const resto = total - porSessao * n;
-      telDistribuidas.set(nome, { porSessao, resto });
-    }
-  });
-
-  let donaVelMax: { nome: string; hr: string } | null = null;
-  let maiorKm = -1;
-  const sessionRows: Record<string, unknown>[] = [];
-
-  for (const entry of entries) {
-    const motorista = entry.motorista as Record<string, unknown> | undefined;
-    const nomeRaw = motorista?.nome ? String(motorista.nome) : "";
-    const nome = nomeRaw && nomeRaw !== "Desconhecido" ? nomeRaw : "Sem condutor vinculado";
+    const nome = nomeRaw && nomeRaw !== "Desconhecido" ? nomeRaw : "Desconhecido";
     const id = motorista?.id
       ? String(motorista.id)
       : entry.motorista_id ? String(entry.motorista_id) : null;
@@ -383,17 +338,7 @@ async function processJob(
       (entry.hora_inicio as string) ??
       new Date().toISOString();
 
-    const dist = telDistribuidas.get(nome) ?? { porSessao: 0, resto: 0 };
-    let telSessao = dist.porSessao;
-    if (dist.resto > 0) {
-      telSessao += 1;
-      telDistribuidas.set(nome, { porSessao: dist.porSessao, resto: dist.resto - 1 });
-    }
-    if (km > maiorKm) {
-      maiorKm = km;
-      donaVelMax = { nome, hr: hrVinculo };
-    }
-    sessionRows.push({
+    return {
       adesao_id: job.adesao_id,
       placa,
       data: job.day,
@@ -404,41 +349,11 @@ async function processJob(
       tipo_vinculo: (entry.tipo_vinculo as string) ??
         ((entry.motorista as Record<string, unknown>)?.tipo_vinculo as string) ?? null,
       hr_vinculo: hrVinculo,
-      telemetrias: telSessao,
-      velocidade_maxima: 0,
+      telemetrias: 0,            // não distribuímos artificialmente
+      velocidade_maxima: 0,      // não é fonte certa — tabela dedicada virá depois
       excessos_velocidade: 0,
       synced_at: new Date().toISOString(),
-    });
-  }
-
-  if (donaVelMax && resumo.velocidadeMaxima > 0) {
-    const target = sessionRows.find(
-      (r) => r.motorista_nome === donaVelMax!.nome && r.hr_vinculo === donaVelMax!.hr,
-    );
-    if (target) {
-      target.velocidade_maxima = resumo.velocidadeMaxima;
-      target.excessos_velocidade = resumo.velocidadeMaxima > limiteVelocidade ? 1 : 0;
-    }
-  }
-
-  // Telemetrias órfãs: motoristas que aparecem em eventos mas sem sessão no log_motorista
-  telPorMotorista.forEach((total, nome) => {
-    const n = sessoesPorMotorista.get(nome) ?? 0;
-    if (n === 0 && total > 0) {
-      sessionRows.push({
-        adesao_id: job.adesao_id,
-        placa: job.placa,
-        data: job.day,
-        motorista_nome: nome,
-        motorista_id: null,
-        km_percorrido: 0,
-        hr_vinculo: `00:00:00-${nome}`,
-        telemetrias: total,
-        velocidade_maxima: 0,
-        excessos_velocidade: 0,
-        synced_at: new Date().toISOString(),
-      });
-    }
+    };
   });
 
   return { ...job, ok: true, events: eventRows, sessions: sessionRows };
@@ -471,6 +386,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { start_date, end_date } = body;
     const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
+    const dryRun: boolean = body.dry_run === true;
 
     if (!start_date || !end_date) {
       return new Response(JSON.stringify({ error: "start_date and end_date required (YYYY-MM-DD)" }), {
@@ -478,22 +394,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    let limiteVelocidade = 120;
-    try {
-      const { data: setting } = await supabase
-        .from("app_settings").select("value").eq("key", "limite_velocidade_kmh").single();
-      if (setting?.value) limiteVelocidade = Number(setting.value) || 120;
-    } catch { /* default */ }
-
     const { data: vehicles } = await supabase
       .from("vehicles").select("adesao_id, placa").not("adesao_id", "is", null);
     if (!vehicles?.length) {
-      return new Response(JSON.stringify({ mode, synced: 0, message: "No vehicles" }), {
+      return new Response(JSON.stringify({ mode, dry_run: dryRun, synced: 0, message: "No vehicles" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Monta lista de dias
     const days: string[] = [];
     const d = new Date(start_date + "T00:00:00Z");
     const endD = new Date(end_date + "T00:00:00Z");
@@ -511,10 +419,9 @@ Deno.serve(async (req) => {
 
     const token = await getToken();
 
-    console.log(`[sync-daily-km] mode=${mode} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
+    console.log(`[sync-daily-km] mode=${mode} dry_run=${dryRun} jobs=${jobs.length} (${vehicles.length} veículos × ${days.length} dias)`);
 
-    // Roda todos os jobs em pool
-    const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token, limiteVelocidade));
+    const results = await runPool(jobs, POOL_SIZE, (j) => processJob(j, token));
 
     const failed_pairs: FailedPair[] = [];
     let ok = 0, failed = 0;
@@ -525,14 +432,15 @@ Deno.serve(async (req) => {
 
     const stats = {
       mode,
+      dry_run: dryRun,
       total_jobs: jobs.length,
       ok,
       failed,
-      total_attempts: jobs.length * 3, // 3 endpoints por job
+      total_attempts: jobs.length * 2, // 2 endpoints por job
       failed_pairs,
     };
 
-    console.log(`[sync-daily-km] result mode=${mode} ok=${ok} failed=${failed} failures=${failed_pairs.length}`);
+    console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length}`);
     if (failed_pairs.length > 0) {
       console.log(`[sync-daily-km] failed pairs sample:`, JSON.stringify(failed_pairs.slice(0, 5)));
     }
@@ -549,60 +457,88 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Persistência: só persiste o que foi ok. Em strict, só chega aqui se 100% ok.
     const okResults = results.filter((r) => r.ok);
 
-    // Limpa janela alvo (idempotência)
-    if (okResults.length > 0) {
-      // Um único delete por veículo/dia processado com sucesso
-      const cleanups = okResults.map((r) =>
-        Promise.all([
-          supabase.from("daily_vehicle_km").delete().eq("adesao_id", r.adesao_id).eq("data", r.day),
-          supabase.from("vehicle_telemetry_events").delete().eq("adesao_id", r.adesao_id).eq("data", r.day),
-        ])
-      );
-      // Em lotes de 20 para não estourar conexões
-      for (let i = 0; i < cleanups.length; i += 20) {
-        await Promise.all(cleanups.slice(i, i + 20));
+    // Resumo agregado por motorista (sempre incluso — usado no dry_run e como amostra no real)
+    type DriverAgg = { km: number; telemetrias: number; placas: Set<string> };
+    const porMotorista = new Map<string, DriverAgg>();
+    for (const r of okResults) {
+      for (const s of r.sessions) {
+        const nome = String(s.motorista_nome);
+        const km = Number(s.km_percorrido) || 0;
+        if (!porMotorista.has(nome)) porMotorista.set(nome, { km: 0, telemetrias: 0, placas: new Set() });
+        const a = porMotorista.get(nome)!;
+        a.km += km;
+        a.placas.add(String(s.placa));
+      }
+      for (const e of r.events) {
+        const nome = String(e.motorista_nome);
+        if (!porMotorista.has(nome)) porMotorista.set(nome, { km: 0, telemetrias: 0, placas: new Set() });
+        const a = porMotorista.get(nome)!;
+        a.telemetrias += 1;
+        a.placas.add(String(e.placa));
       }
     }
+    const summary = Array.from(porMotorista.entries())
+      .map(([nome, a]) => ({
+        nome,
+        km_rodado: Math.round(a.km * 100) / 100,
+        telemetrias: a.telemetrias,
+        placas: Array.from(a.placas),
+      }))
+      .sort((a, b) => b.km_rodado - a.km_rodado || b.telemetrias - a.telemetrias);
 
-    // Insere eventos (em chunks) usando upsert por external_id (idempotente)
-    const allEvents = okResults.flatMap((r) => r.events);
+    const totals = {
+      events: okResults.reduce((s, r) => s + r.events.length, 0),
+      sessions: okResults.reduce((s, r) => s + r.sessions.length, 0),
+      drivers: porMotorista.size,
+    };
+
+    // DRY-RUN: não persiste, retorna resumo
+    if (dryRun) {
+      return new Response(JSON.stringify({
+        ...stats,
+        totals,
+        por_motorista: summary,
+      }), {
+        status: failed > 0 ? 207 : 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Persistência ATÔMICA via RPC: 1 chamada por (adesao,dia) — delete+insert em transação.
+    // Roda em pool para não estourar conexões.
     let insertedEvents = 0;
-    if (allEvents.length > 0) {
-      const CHUNK = 200;
-      for (let i = 0; i < allEvents.length; i += CHUNK) {
-        const slice = allEvents.slice(i, i + CHUNK);
-        const { error } = await supabase
-          .from("vehicle_telemetry_events")
-          .upsert(slice, { onConflict: "external_id", ignoreDuplicates: false });
-        if (error) {
-          console.warn(`[telemetry-events] upsert failed:`, error.message);
-        } else {
-          insertedEvents += slice.length;
-        }
-      }
-    }
-
-    // Insere sessões
-    const allSessions = okResults.flatMap((r) => r.sessions);
     let insertedSessions = 0;
-    if (allSessions.length > 0) {
-      const CHUNK = 200;
-      for (let i = 0; i < allSessions.length; i += CHUNK) {
-        const slice = allSessions.slice(i, i + CHUNK);
-        const { error } = await supabase.from("daily_vehicle_km").insert(slice);
-        if (error) console.warn(`[daily_vehicle_km] insert failed:`, error.message);
-        else insertedSessions += slice.length;
+    const persistFails: { adesao_id: string; day: string; error: string }[] = [];
+
+    await runPool(okResults, 8, async (r) => {
+      const { data, error } = await supabase.rpc("sync_replace_day_telemetry", {
+        p_adesao_id: r.adesao_id,
+        p_data: r.day,
+        p_events: r.events,
+        p_sessions: r.sessions,
+      });
+      if (error) {
+        persistFails.push({ adesao_id: r.adesao_id, day: r.day, error: error.message });
+        return;
       }
+      const d = data as { inserted_events?: number; inserted_sessions?: number } | null;
+      insertedEvents += d?.inserted_events ?? 0;
+      insertedSessions += d?.inserted_sessions ?? 0;
+    });
+
+    if (persistFails.length > 0) {
+      console.warn(`[sync-daily-km] persist failures:`, JSON.stringify(persistFails.slice(0, 5)));
     }
 
-    const status = mode === "resilient" && failed > 0 ? 207 : 200;
+    const status = (mode === "resilient" && (failed > 0 || persistFails.length > 0)) ? 207 : 200;
     return new Response(JSON.stringify({
       ...stats,
+      totals,
       inserted_events: insertedEvents,
       inserted_sessions: insertedSessions,
+      persist_failures: persistFails,
       vehicles: vehicles.length,
       days: days.length,
     }), {
