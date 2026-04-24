@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
       empty_days,
     };
 
-    console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length}`);
+    console.log(`[sync-daily-km] result mode=${mode} dry_run=${dryRun} ok=${ok} failed=${failed} failures=${failed_pairs.length} empty_days=${empty_days.length}`);
     if (failed_pairs.length > 0) {
       console.log(`[sync-daily-km] failed pairs sample:`, JSON.stringify(failed_pairs.slice(0, 5)));
     }
