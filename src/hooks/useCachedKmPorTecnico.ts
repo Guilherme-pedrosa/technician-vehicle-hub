@@ -55,9 +55,9 @@ export function useCachedKmPorTecnico(startDate: Date, endDate: Date) {
       if (isExcludedPlaca(row.placa)) continue;
       const km = Number(row.km_percorrido) || 0;
       if (km <= 0) continue;
-      const isSemCondutor = !row.motorista_id || row.motorista_nome === "Sem condutor vinculado";
+      const isSemCondutor = !row.motorista_id || row.motorista_nome === "Desconhecido" || row.motorista_nome === "Sem condutor vinculado";
       const key = isSemCondutor ? "sem-condutor" : (row.motorista_id ?? row.motorista_nome);
-      const nome = isSemCondutor ? "Sem condutor vinculado" : row.motorista_nome;
+      const nome = isSemCondutor ? "Desconhecido" : row.motorista_nome;
       if (!groups.has(key)) {
         groups.set(key, { nome, km: 0, excessos: 0, velMax: 0, placas: new Set() });
       }
