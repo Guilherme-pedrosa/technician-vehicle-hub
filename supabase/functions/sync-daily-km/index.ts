@@ -261,12 +261,14 @@ async function runPool<T, R>(
 // ---------- Job result ----------
 type JobInput = { adesao_id: string; placa: string; day: string };
 type FailedPair = { adesao_id: string; placa: string; day: string; endpoint: string; status: number; error: string; attempts: number };
+type EmptyDay = { adesao_id: string; placa: string; day: string; endpoint: string };
 type JobOutput = {
   adesao_id: string;
   placa: string;
   day: string;
   ok: boolean;
   failed?: FailedPair[];
+  empty?: EmptyDay[];
   // dados a serem persistidos quando ok=true
   events: Record<string, unknown>[];
   sessions: Record<string, unknown>[];
@@ -277,6 +279,7 @@ async function processJob(
   token: string,
 ): Promise<JobOutput> {
   const fails: FailedPair[] = [];
+  const empty: EmptyDay[] = [];
 
   const [logRes, dirRes] = await Promise.all([
     fetchWithRetry(urlLogMotorista(job.adesao_id, job.day), token, parseList),
@@ -285,13 +288,18 @@ async function processJob(
 
   if (!logRes.ok) {
     fails.push({ ...job, endpoint: "log_motorista", status: logRes.status, error: logRes.error, attempts: logRes.attempts });
+  } else if (logRes.status === 400 || logRes.status === 404) {
+    // Sucesso vazio "legítimo" (dia sem posições) — visibilidade separada.
+    empty.push({ adesao_id: job.adesao_id, placa: job.placa, day: job.day, endpoint: "log_motorista" });
   }
   if (!dirRes.ok) {
     fails.push({ ...job, endpoint: "dirigibilidade", status: dirRes.status, error: dirRes.error, attempts: dirRes.attempts });
+  } else if (dirRes.status === 400 || dirRes.status === 404) {
+    empty.push({ adesao_id: job.adesao_id, placa: job.placa, day: job.day, endpoint: "dirigibilidade" });
   }
 
   if (fails.length > 0) {
-    return { ...job, ok: false, failed: fails, events: [], sessions: [] };
+    return { ...job, ok: false, failed: fails, empty, events: [], sessions: [] };
   }
 
   const entries = (logRes as { ok: true; data: Record<string, unknown>[] }).data;
