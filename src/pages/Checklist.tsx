@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
+import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 
 // ═══════════════════════════════════════════
 // PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
