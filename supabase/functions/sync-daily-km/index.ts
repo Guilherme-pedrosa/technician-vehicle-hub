@@ -149,9 +149,10 @@ function urlLogMotorista(adesao: string, day: string): string {
   return `${ROTAEXATA_API}/relatorios/rastreamento/log_motorista?where=${encodeURIComponent(where)}`;
 }
 
-function urlDirigibilidade(adesao: string, day: string): string {
+function urlDirigibilidade(adesao: string, day: string, eventos: number[]): string {
   // Eventos suportados oficialmente: 1=Aceleração, 2=Freada, 3=Colisão, 4=Curva.
-  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos: [1, 2, 3, 4] });
+  // Default [1,2,3,4]; o painel oficial usa [1,2,4] (sem colisão) — passe via body.eventos.
+  const where = JSON.stringify({ adesao_id: Number(adesao), data: day, eventos });
   return `${ROTAEXATA_API}/relatorios/rastreamento/dirigibilidade?where=${encodeURIComponent(where)}`;
 }
 
