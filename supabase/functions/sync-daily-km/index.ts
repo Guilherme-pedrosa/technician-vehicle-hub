@@ -453,6 +453,26 @@ Deno.serve(async (req) => {
     const mode: "strict" | "resilient" = body.mode === "resilient" ? "resilient" : "strict";
     const dryRun: boolean = body.dry_run === true;
 
+    // ============================================================
+    // GUARD: TELEMETRY_WRITES_FROZEN
+    // Quando "true", bloqueia toda escrita em vehicle_telemetry_events
+    // e daily_vehicle_km. Permite apenas execuções dry_run (somente leitura).
+    // Use para congelar a tabela durante backfill/auditoria/migração.
+    // ============================================================
+    const freezeRaw = (Deno.env.get("TELEMETRY_WRITES_FROZEN") ?? "").trim().toLowerCase();
+    const writesFrozen = ["1", "true", "yes", "on"].includes(freezeRaw);
+    if (writesFrozen && !dryRun) {
+      console.warn("[sync-daily-km] BLOCKED: TELEMETRY_WRITES_FROZEN=true; rejecting non-dry-run call");
+      return new Response(JSON.stringify({
+        error: "telemetry_writes_frozen",
+        message: "Escritas em vehicle_telemetry_events estão congeladas (TELEMETRY_WRITES_FROZEN=true). Use dry_run=true para validar sem persistir.",
+        frozen: true,
+      }), {
+        status: 423, // Locked
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Filtro de eventos opcional. Default [1,2,3,4]; o painel oficial usa [1,2,4].
     // Aceita Array<number> ou Array<string>; valida contra o conjunto suportado.
     const ALLOWED_EVENTS: number[] = [1, 2, 3, 4];
@@ -610,24 +630,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // FREEZE GUARD (manutenção): bloqueia escrita quando TELEMETRY_WRITES_FROZEN está setado para algo truthy
-    const freezeRaw = Deno.env.get("TELEMETRY_WRITES_FROZEN");
-    console.log(`[sync-daily-km] freeze check: raw=${JSON.stringify(freezeRaw)} type=${typeof freezeRaw}`);
-    const freezeNorm = (freezeRaw ?? "").trim().toLowerCase();
-    const isFrozen = freezeNorm === "1" || freezeNorm === "true" || freezeNorm === "yes" || freezeNorm === "on";
-    if (isFrozen) {
-      console.warn(`[sync-daily-km] writes frozen for maintenance — skipping persistence (value=${JSON.stringify(freezeRaw)})`);
-      return new Response(JSON.stringify({
-        ...stats,
-        totals,
-        ok: false,
-        reason: "writes_frozen_for_maintenance",
-        freeze_value: freezeRaw,
-      }), {
-        status: 423,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // (Guard TELEMETRY_WRITES_FROZEN já foi avaliado no início do handler.
+    //  A defesa em profundidade abaixo só é alcançável se o guard inicial não rodou
+    //  por algum motivo de hot-reload — mantida intencionalmente.)
+
 
     // Persistência ATÔMICA via RPC: 1 chamada por (adesao,dia) — delete+insert em transação.
     // Roda em pool para não estourar conexões.
@@ -635,21 +641,26 @@ Deno.serve(async (req) => {
     let insertedSessions = 0;
     const persistFails: { adesao_id: string; day: string; error: string }[] = [];
 
-    await runPool(okResults, 8, async (r) => {
-      const { data, error } = await supabase.rpc("sync_replace_day_telemetry", {
-        p_adesao_id: r.adesao_id,
-        p_data: r.day,
-        p_events: r.events,
-        p_sessions: r.sessions,
+    // Defesa em profundidade: nunca chama a RPC se o guard estiver ativo.
+    if (writesFrozen) {
+      console.warn("[sync-daily-km] writesFrozen=true → pulando persistência (RPC sync_replace_day_telemetry)");
+    } else {
+      await runPool(okResults, 8, async (r) => {
+        const { data, error } = await supabase.rpc("sync_replace_day_telemetry", {
+          p_adesao_id: r.adesao_id,
+          p_data: r.day,
+          p_events: r.events,
+          p_sessions: r.sessions,
+        });
+        if (error) {
+          persistFails.push({ adesao_id: r.adesao_id, day: r.day, error: error.message });
+          return;
+        }
+        const d = data as { inserted_events?: number; inserted_sessions?: number } | null;
+        insertedEvents += d?.inserted_events ?? 0;
+        insertedSessions += d?.inserted_sessions ?? 0;
       });
-      if (error) {
-        persistFails.push({ adesao_id: r.adesao_id, day: r.day, error: error.message });
-        return;
-      }
-      const d = data as { inserted_events?: number; inserted_sessions?: number } | null;
-      insertedEvents += d?.inserted_events ?? 0;
-      insertedSessions += d?.inserted_sessions ?? 0;
-    });
+    }
 
     if (persistFails.length > 0) {
       console.warn(`[sync-daily-km] persist failures:`, JSON.stringify(persistFails.slice(0, 5)));
