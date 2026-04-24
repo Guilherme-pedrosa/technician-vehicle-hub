@@ -726,6 +726,71 @@ Deno.serve(async (req) => {
       console.warn(`[sync-daily-km] persist failures:`, JSON.stringify(persistFails.slice(0, 5)));
     }
 
+    const syncStatusByDay = new Map<string, {
+      total_jobs: number;
+      processed_jobs: number;
+      failed_jobs: number;
+      empty_jobs: number;
+      inserted_events: number;
+      inserted_sessions: number;
+    }>();
+
+    for (const day of days) {
+      syncStatusByDay.set(day, {
+        total_jobs: 0,
+        processed_jobs: 0,
+        failed_jobs: 0,
+        empty_jobs: 0,
+        inserted_events: 0,
+        inserted_sessions: 0,
+      });
+    }
+
+    for (const result of results) {
+      const statsForDay = syncStatusByDay.get(result.day);
+      if (!statsForDay) continue;
+      statsForDay.total_jobs += 1;
+
+      if (result.ok) {
+        statsForDay.processed_jobs += 1;
+        if ((result.empty?.length ?? 0) > 0 && result.events.length === 0 && result.sessions.length === 0) {
+          statsForDay.empty_jobs += 1;
+        }
+        statsForDay.inserted_events += result.events.length;
+        statsForDay.inserted_sessions += result.sessions.length;
+      } else {
+        statsForDay.failed_jobs += 1;
+      }
+    }
+
+    for (const persistFail of persistFails) {
+      const statsForDay = syncStatusByDay.get(persistFail.day);
+      if (!statsForDay) continue;
+      statsForDay.failed_jobs += 1;
+      statsForDay.processed_jobs = Math.max(0, statsForDay.processed_jobs - 1);
+    }
+
+    const syncStatusRows = Array.from(syncStatusByDay.entries()).map(([day, statsForDay]) => ({
+      data: day,
+      total_jobs: statsForDay.total_jobs,
+      processed_jobs: statsForDay.processed_jobs,
+      failed_jobs: statsForDay.failed_jobs,
+      empty_jobs: statsForDay.empty_jobs,
+      inserted_events: statsForDay.inserted_events,
+      inserted_sessions: statsForDay.inserted_sessions,
+      synced_at: new Date().toISOString(),
+    }));
+
+    if (!dryRun && syncStatusRows.length > 0) {
+      const { error: syncStatusError } = await supabase
+        .from("daily_km_sync_status")
+        .upsert(syncStatusRows, { onConflict: "data" });
+
+      if (syncStatusError) {
+        console.warn("[sync-daily-km] sync status upsert failed:", syncStatusError.message);
+      }
+    }
+
     const status = (mode === "resilient" && (failed > 0 || persistFails.length > 0)) ? 207 : 200;
     return new Response(JSON.stringify({
       ...stats,
