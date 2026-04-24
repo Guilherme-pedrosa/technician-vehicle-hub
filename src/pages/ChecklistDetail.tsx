@@ -348,6 +348,8 @@ export default function ChecklistDetail() {
   const [revalidating, setRevalidating] = useState(false);
   const [scanningKm, setScanningKm] = useState(false);
   const [syncingKmRota, setSyncingKmRota] = useState(false);
+  const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; mode: "liberar" | "rebloquear" } | null>(null);
+  const [releaseLogKey, setReleaseLogKey] = useState(0);
 
   const handleScanKm = async () => {
     setScanningKm(true);
