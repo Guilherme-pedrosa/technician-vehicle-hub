@@ -480,7 +480,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   limpezaClaim?: string;
   uploadStates?: Array<{ status: "uploading" | "uploaded" | "error" }>;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
   const hasEnough = photos.length >= meta.min;
 
@@ -567,7 +568,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
-                  <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
+                  <PhotoPreview file={file} />
                   {v?.status === "validating" && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -612,18 +613,40 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         </div>
       )}
 
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => {
           const selectedFiles = Array.from(e.target.files ?? []);
           e.target.value = "";
           if (selectedFiles.length > 0) void handleCapture(selectedFiles);
         }} />
-      <Button type="button" variant={hasEnough ? "outline" : "default"} className="w-full gap-2 h-12 text-base active:scale-[0.97]"
-        onClick={() => inputRef.current?.click()}>
-        <Camera className="w-5 h-5" /> {hasEnough ? "Tirar Outra" : "Tirar Foto"}
-      </Button>
+      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => {
+          const selectedFiles = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (selectedFiles.length > 0) void handleCapture(selectedFiles);
+        }} />
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant={hasEnough ? "outline" : "default"} className="gap-2 h-12 text-base active:scale-[0.97]"
+          onClick={() => cameraInputRef.current?.click()}>
+          <Camera className="w-5 h-5" /> Câmera
+        </Button>
+        <Button type="button" variant="outline" className="gap-2 h-12 text-base active:scale-[0.97]"
+          onClick={() => galleryInputRef.current?.click()}>
+          <ImageIcon className="w-5 h-5" /> Galeria
+        </Button>
+      </div>
     </div>
   );
+}
+
+function PhotoPreview({ file }: { file: File }) {
+  const src = useMemo(() => URL.createObjectURL(file), [file]);
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(src);
+  }, [src]);
+
+  return <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />;
 }
 
 // ═══════════════════════════════════════════
