@@ -535,7 +535,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         allValidations[newIdx] = { status: "valid", result };
         const coverage = getInteriorCoverage(allValidations);
         if (!coverage.ok) {
-          toast.info(`📸 Cobertura parcial do interior. Faltam: ${missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
+          toast.info(`📸 Cobertura parcial do interior. Faltam: ${coverage.missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
         }
       }
     }));
