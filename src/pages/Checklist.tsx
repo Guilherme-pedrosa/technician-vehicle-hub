@@ -305,7 +305,7 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
 
     const body: Record<string, any> = {
       image_base64: base64,
-      category,
+      category: category === "danos" && limpezaClaim === "nao" ? "exc_limpeza_organizacao" : category,
       vehicle_marca: vehicleMarca || null,
       vehicle_modelo: vehicleModelo || null,
     };
@@ -1381,7 +1381,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
                         vehicleMarca={selectedVehicle?.marca}
                         vehicleModelo={selectedVehicle?.modelo}
-                        limpezaClaim={answers.limpeza_organizacao} />
+                        limpezaClaim={field.key === "limpeza_organizacao" ? "nao" : undefined} />
                     </div>
                   )}
                 </div>
@@ -1500,7 +1500,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                         onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
                         vehicleMarca={selectedVehicle?.marca}
                         vehicleModelo={selectedVehicle?.modelo}
-                        limpezaClaim={answers.limpeza_organizacao} />
+                        limpezaClaim={field.key === "limpeza_organizacao" ? "nao" : undefined} />
                     </div>
                   )}
                 </div>
@@ -1746,7 +1746,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       onValidationUpdate={(_, idx, validation) => handleValidationUpdateByStorageKey(`exc_${field.key}`, idx, validation)}
                       vehicleMarca={selectedVehicle?.marca}
                       vehicleModelo={selectedVehicle?.modelo}
-                      limpezaClaim={answers.limpeza_organizacao} />
+                      limpezaClaim={field.key === "limpeza_organizacao" ? "nao" : undefined} />
                   </div>
                 )}
               </div>
