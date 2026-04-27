@@ -1416,7 +1416,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                 {selectedVehicle && kmProximaTroca && (
                   <div className="space-y-2">
                     <div className={`rounded-lg p-2 text-xs font-medium ${
-                      trocaOleoVencida
+                      trocaOleoIntervaloInvalido
+                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : trocaOleoVencida
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
                         : trocaOleoProxima
                           ? "bg-warning/10 text-warning border border-warning/30"
@@ -1424,6 +1426,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     }`}>
                       {(() => {
                         const restante = parseInt(kmProximaTroca) - selectedVehicle.km_atual;
+                        if (restante > KM_OLEO_MAX_INTERVALO_FUTURO) {
+                          return `❌ INVÁLIDO — Próxima troca ${restante.toLocaleString("pt-BR")} km à frente. O limite aceito é ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km.`;
+                        }
                         if (restante <= 0) {
                           return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
                         }
@@ -1434,10 +1439,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       })()}
                     </div>
                     {odoDiscrepancy && (
-                      <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
-                        ⚠️ ATENÇÃO — Diferença de {(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km é muito grande.
-                        O odômetro do veículo no sistema pode estar incorreto (mostra {selectedVehicle.km_atual.toLocaleString("pt-BR")} km).
-                        Corrija em Veículos → Corrigir Odômetro.
+                      <div className="rounded-lg p-2 text-xs font-medium bg-destructive/10 text-destructive border border-destructive/30">
+                        Não é permitido avançar com próxima troca acima de {KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km do KM atual.
+                        Confira o adesivo ou corrija o KM informado.
                       </div>
                     )}
                   </div>
