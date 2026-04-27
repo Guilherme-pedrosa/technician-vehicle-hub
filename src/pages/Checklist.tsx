@@ -880,16 +880,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   // - "vencida" (crítico) só quando KM atual ≥ KM próxima troca (kmRestante ≤ 0)
   // - "próximo da troca" (observação) quando faltam ≤ 1000 km, mas ainda não venceu
   const KM_OLEO_ALERTA_MARGEM = 1000;
+  const KM_OLEO_MAX_INTERVALO_FUTURO = 10_000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
   const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
+  const trocaOleoIntervaloInvalido = kmRestanteOleo !== null ? kmRestanteOleo > KM_OLEO_MAX_INTERVALO_FUTURO : false;
   const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= 0 : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
-  const KM_DISCREPANCY_THRESHOLD = 50_000;
   const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
-    ? (kmTrocaNum - selectedVehicle.km_atual) > KM_DISCREPANCY_THRESHOLD
+    ? trocaOleoIntervaloInvalido
     : false;
 
   const nonConformeFields = useMemo(() =>
@@ -914,6 +915,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       if (photoUploadSummary.hasErrors) {
         throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
+      }
+
+      if (trocaOleoIntervaloInvalido) {
+        throw new Error(`KM da próxima troca inválido: a troca não pode estar mais de ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km à frente do KM atual.`);
       }
 
       const date = format(now, "yyyy-MM-dd");
