@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A foto deve mostrar o INTERIOR do veículo. Seja MÁXIMO PERMISSIVO: ACEITE qualquer foto onde seja possível identificar ao menos 1 componente interno do veículo (bancos dianteiros ou traseiros, encosto, apoio de cabeça, painel, volante, console, câmbio, forros de porta, teto, cinto, retrovisor interno, tapete ou acabamento interno). NÃO exija visão ampla, NÃO exija dois elementos, NÃO exija enquadramento panorâmico. Fotos mostrando APENAS bancos traseiros, APENAS bancos dianteiros, APENAS um banco, APENAS encostos/cabeceiras ou parte do habitáculo DEVEM ser ACEITAS se claramente forem do interior do carro. A foto pode estar rotacionada, inclinada, parcial, muito próxima, cortada ou com iluminação irregular — isso NÃO é motivo para rejeitar. REJEITE EXCLUSIVAMENTE se: (a) a foto não mostrar interior de veículo nenhum; (b) a foto estiver totalmente ilegível a ponto de não ser possível identificar NENHUM componente automotivo interno; (c) a foto mostrar apenas o exterior. Em caso de dúvida → ACEITE. Inclua 'detected_elements' no JSON com os elementos visíveis.",
+    criterio: "A foto deve mostrar uma VISÃO ÚTIL DO HABITÁCULO do veículo para inspeção de limpeza/organização. Para ACEITAR, precisa mostrar claramente pelo menos 2 áreas internas relevantes entre: bancos dianteiros, bancos traseiros, painel/console, volante/câmbio, forros de porta, assoalho/tapetes. REJEITE OBRIGATORIAMENTE se a foto mostrar apenas uma área isolada em close-up, como somente porta, somente alto-falante, somente soleira, somente tapete/assoalho, somente pedal, somente puxador/maçaneta ou apenas um canto do carro. REJEITE também se o enquadramento não permite avaliar minimamente o estado geral do interior. A foto enviada como exemplo com porta aberta, alto-falante, soleira e tapete parcial deve ser REJEITADA porque não mostra visão ampla/útil do habitáculo. Na reason, diga objetivamente quais áreas faltam. Inclua 'detected_elements' no JSON com os elementos visíveis.",
     has_critical: false,
     has_cleanliness_check: true,
   },
@@ -367,18 +367,15 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
-        if (
-          category === "interior" &&
-          result.valid === false &&
-          result.vehicle_match === true &&
-          result.focus_ok === true &&
-          result.quality !== "ruim" &&
-          INTERIOR_OVERSTRICT_REJECTION_PATTERNS.some((pattern) => pattern.test(result.reason || ""))
-        ) {
-          console.log(`[interior] Rejeição excessiva detectada; aceitando fallback. reason="${result.reason}"`);
-          result.target_match = true;
-          result.valid = true;
-          result.reason = "Interior do veículo identificável na foto, mesmo com enquadramento parcial.";
+        if (category === "interior") {
+          const visible = Array.isArray(result.detected_elements) ? result.detected_elements.length : 0;
+          const closeUpOnly = /apenas|somente|close|porta|alto-?falante|soleira|tapete|assoalho|puxador|maçaneta|pedal/i.test(result.reason || "");
+          if (visible < 2 || closeUpOnly) {
+            console.log(`[interior] Rejeitado por enquadramento insuficiente. detected=${visible}, reason="${result.reason}"`);
+            result.valid = false;
+            result.target_match = false;
+            result.reason = "Foto do interior insuficiente: mostre uma visão mais ampla com bancos, painel/console e/ou assoalho, não apenas porta/tapete/soleira.";
+          }
         }
       } else {
         result = {
