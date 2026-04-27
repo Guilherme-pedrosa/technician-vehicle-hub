@@ -59,7 +59,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
   itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
-  interior: { label: "🪑 Interior do Veículo", hint: "Bancos, painel e forros de porta visíveis", min: 1 },
+  interior: { label: "🪑 Interior do Veículo", hint: "Envie várias fotos cobrindo bancos, painel/console, portas e assoalho/tapetes", min: 3 },
   danos: { label: "⚠️ Registro de Dano/Avaria", hint: "Foto detalhada do dano encontrado", min: 1 },
   avaria: { label: "⚠️ Nova Avaria", hint: "Foto obrigatória da avaria encontrada", min: 1 },
 };
@@ -223,6 +223,25 @@ type PhotoValidation = {
   status: "idle" | "validating" | "valid" | "invalid" | "forced";
   result?: ValidationResult;
 };
+
+function getInteriorCoverage(validations: PhotoValidation[] = []) {
+  const allElements = new Set<string>();
+  validations.forEach((validation) => {
+    if (validation?.status !== "valid" && validation?.status !== "forced") return;
+    validation.result?.detected_elements?.forEach((element) => allElements.add(element));
+  });
+
+  const hasSeats = allElements.has("bancos_dianteiros") || allElements.has("bancos_traseiros");
+  const hasDash = allElements.has("painel_console") || allElements.has("volante_cambio");
+  const hasDoorOrFloor = allElements.has("forros_porta") || allElements.has("assoalho_tapetes");
+
+  const missing: string[] = [];
+  if (!hasSeats) missing.push("bancos");
+  if (!hasDash) missing.push("painel/console");
+  if (!hasDoorOrFloor) missing.push("portas ou assoalho/tapetes");
+
+  return { ok: missing.length === 0, missing };
+}
 
 async function compressImage(file: File, maxDim = 1280, quality = 0.75): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -514,20 +533,9 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       if (category === "interior" && result.valid && result.detected_elements) {
         const allValidations = validations ? [...validations] : [];
         allValidations[newIdx] = { status: "valid", result };
-        const allElements = new Set<string>();
-        allValidations.forEach(v => {
-          v?.result?.detected_elements?.forEach(el => allElements.add(el));
-        });
-        const hasSeats = allElements.has("bancos_dianteiros") || allElements.has("bancos_traseiros");
-        const hasDash = allElements.has("painel_console");
-        const hasDoors = allElements.has("forros_porta");
-        const coverage = [hasSeats, hasDash, hasDoors].filter(Boolean).length;
-        if (coverage < 2) {
-          const missing: string[] = [];
-          if (!hasSeats) missing.push("bancos");
-          if (!hasDash) missing.push("painel/console");
-          if (!hasDoors) missing.push("forros de porta");
-          toast.info(`📸 Cobertura parcial do interior. Faltam: ${missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
+        const coverage = getInteriorCoverage(allValidations);
+        if (!coverage.ok) {
+          toast.info(`📸 Cobertura parcial do interior. Faltam: ${coverage.missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
         }
       }
     }));
@@ -1185,6 +1193,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const kmTrocaParsed = parseInt(kmTrocaInput.replace(/[^\d]/g, ""), 10);
       if (isNaN(kmTrocaParsed) || kmTrocaParsed <= 0) return false;
       if (selectedVehicle && kmTrocaParsed - selectedVehicle.km_atual > KM_OLEO_MAX_INTERVALO_FUTURO) return false;
+    }
+    if (currentStep.id === "interior") {
+      const interiorVals = photoValidations.interior ?? [];
+      const hasPendingInterior = interiorVals.some((v) => v?.status === "validating");
+      if (hasPendingInterior) return false;
+      if (!getInteriorCoverage(interiorVals).ok) return false;
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
