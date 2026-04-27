@@ -1184,6 +1184,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (!kmTrocaInput) return false;
       const kmTrocaParsed = parseInt(kmTrocaInput.replace(/[^\d]/g, ""), 10);
       if (isNaN(kmTrocaParsed) || kmTrocaParsed <= 0) return false;
+      if (selectedVehicle && kmTrocaParsed - selectedVehicle.km_atual > KM_OLEO_MAX_INTERVALO_FUTURO) return false;
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
