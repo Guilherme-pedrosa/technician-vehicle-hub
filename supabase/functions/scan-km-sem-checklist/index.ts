@@ -136,12 +136,17 @@ Deno.serve(async (req) => {
     }
 
     let createdCount = 0;
-    const ticketsCriados: { placa: string; km: number; ticket_id: string }[] = [];
+    const ticketsCriados: { placa: string; km: number; ticket_id: string; motivo: string }[] = [];
 
     for (const v of vehiclesData ?? []) {
       const km = kmByPlaca.get(v.placa) ?? 0;
+      const telemetrias = telemetriasByPlaca.get(v.placa) ?? 0;
       const motoristaNome = motoristaPrincipalPorPlaca.get(v.placa) ?? null;
+      const checklistBloqueado = blockedChecklistByPlaca.get(v.placa);
+      const isBlockedMovement = Boolean(checklistBloqueado);
       const driver = motoristaNome ? driverByNome.get(motoristaNome) : null;
+      const driverId = driver?.id ?? checklistBloqueado?.driver_id ?? null;
+      const motivo = isBlockedMovement ? "bloqueado_em_movimento" : "sem_checklist";
 
       // Deduplicação: já existe ticket aberto hoje p/ esse veículo c/ esse motivo?
       const { data: existing } = await supabase
@@ -150,26 +155,30 @@ Deno.serve(async (req) => {
         .eq("vehicle_id", v.id)
         .eq("tipo", "nao_conformidade")
         .gte("created_at", `${today}T00:00:00`)
-        .ilike("titulo", "%sem checklist%")
+        .ilike("titulo", isBlockedMovement ? "%bloqueado rodou%" : "%sem checklist%")
         .limit(1);
 
       if (existing && existing.length > 0) continue;
 
-      const titulo = `Veículo rodou ${km.toFixed(0)}km sem checklist — ${v.placa}`;
+      const titulo = isBlockedMovement
+        ? `URGENTE: veículo bloqueado rodou ${km.toFixed(1)}km — ${v.placa}`
+        : `Veículo rodou ${km.toFixed(0)}km sem checklist — ${v.placa}`;
       const tecnicoLinha = motoristaNome
         ? `Condutor identificado pela telemetria: ${motoristaNome}.`
         : `Sem condutor identificado pela telemetria.`;
-      const descricao = `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.\n\n${tecnicoLinha}`;
+      const descricao = isBlockedMovement
+        ? `O veículo ${v.placa} (${v.modelo}) está com checklist BLOQUEADO e mesmo assim registrou movimentação em ${today}.\n\n• KM registrado: ${km.toFixed(1)}km\n• Telemetrias: ${telemetrias}\n• Checklist bloqueado: ${checklistBloqueado?.id ?? "—"}\n\n${tecnicoLinha}\n\nRegra: veículo bloqueado não pode rodar. Só é permitido movimentar quando o resultado estiver Liberado ou Liberado c/ observação.`
+        : `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.\n\n${tecnicoLinha}`;
 
       const { data: novoTicket, error: insertErr } = await supabase
         .from("maintenance_tickets")
         .insert({
           vehicle_id: v.id,
-          driver_id: driver?.id ?? null,
+          driver_id: driverId,
           titulo,
           descricao,
           tipo: "nao_conformidade",
-          prioridade: "alta",
+          prioridade: isBlockedMovement ? "critica" : "alta",
           status: "aberto",
           created_by: createdBy,
         })
@@ -182,7 +191,7 @@ Deno.serve(async (req) => {
       }
 
       createdCount++;
-      ticketsCriados.push({ placa: v.placa, km, ticket_id: novoTicket?.id ?? "" });
+      ticketsCriados.push({ placa: v.placa, km, ticket_id: novoTicket?.id ?? "", motivo });
       console.log(`[scan-km-sem-checklist] Ticket criado: ${v.placa} (${km.toFixed(1)}km) — motorista: ${motoristaNome ?? "—"}`);
 
       try {
@@ -193,9 +202,15 @@ Deno.serve(async (req) => {
             modelo: v.modelo,
             tecnico: motoristaNome ?? "— (sem condutor identificado)",
             data: today,
-            resultado: `KM SEM CHECKLIST (${km.toFixed(1)}km)`,
+            resultado: isBlockedMovement ? `VEÍCULO BLOQUEADO EM MOVIMENTO (${km.toFixed(1)}km)` : `KM SEM CHECKLIST (${km.toFixed(1)}km)`,
             itens_problema: [
-              { label: "Checklist Pré-Operação", valor: "nao_conforme", observacao: `Veículo rodou ${km.toFixed(1)}km sem checklist preenchido.` },
+              {
+                label: isBlockedMovement ? "Veículo bloqueado" : "Checklist Pré-Operação",
+                valor: "nao_conforme",
+                observacao: isBlockedMovement
+                  ? `Veículo com checklist bloqueado registrou ${km.toFixed(1)}km e ${telemetrias} telemetria(s). Bloqueado não pode rodar.`
+                  : `Veículo rodou ${km.toFixed(1)}km sem checklist preenchido.`,
+              },
             ],
             fotos_problema: [],
             troca_oleo_vencida: false,
