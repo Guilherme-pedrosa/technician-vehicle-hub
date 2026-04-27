@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A foto deve mostrar uma VISÃO ÚTIL DO HABITÁCULO do veículo para inspeção de limpeza/organização. Para ACEITAR, precisa mostrar claramente pelo menos 2 áreas internas relevantes entre: bancos dianteiros, bancos traseiros, painel/console, volante/câmbio, forros de porta, assoalho/tapetes. REJEITE OBRIGATORIAMENTE se a foto mostrar apenas uma área isolada em close-up, como somente porta, somente alto-falante, somente soleira, somente tapete/assoalho, somente pedal, somente puxador/maçaneta ou apenas um canto do carro. REJEITE também se o enquadramento não permite avaliar minimamente o estado geral do interior. A foto enviada como exemplo com porta aberta, alto-falante, soleira e tapete parcial deve ser REJEITADA porque não mostra visão ampla/útil do habitáculo. Na reason, diga objetivamente quais áreas faltam. Inclua 'detected_elements' no JSON com os elementos visíveis.",
+    criterio: "A validação do INTERIOR é feita pelo CONJUNTO de fotos, então uma foto individual pode mostrar apenas parte do habitáculo. Para esta foto individual, ACEITE se ela mostrar com nitidez pelo menos uma área interna útil para inspeção entre: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes. REJEITE apenas se a foto não mostrar interior de veículo, estiver sem foco/escura demais, ou for um close-up inútil que não ajude a inspecionar limpeza/organização (ex: só alto-falante, só maçaneta, só soleira, só pedal, só um canto sem contexto). Se mostrar porta/assoalho/tapete junto com parte da cabine, aceite como cobertura parcial. Inclua obrigatoriamente 'detected_elements' no JSON usando somente estes valores: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes.",
     has_critical: false,
     has_cleanliness_check: true,
   },
@@ -368,13 +368,17 @@ Critério esperado: ${finalCriterio}`;
         }
 
         if (category === "interior") {
-          const visible = Array.isArray(result.detected_elements) ? result.detected_elements.length : 0;
-          const closeUpOnly = /apenas|somente|close|porta|alto-?falante|soleira|tapete|assoalho|puxador|maçaneta|pedal/i.test(result.reason || "");
-          if (visible < 2 || closeUpOnly) {
-            console.log(`[interior] Rejeitado por enquadramento insuficiente. detected=${visible}, reason="${result.reason}"`);
+          const allowedElements = new Set(["bancos_dianteiros", "bancos_traseiros", "painel_console", "volante_cambio", "forros_porta", "assoalho_tapetes"]);
+          result.detected_elements = Array.isArray(result.detected_elements)
+            ? result.detected_elements.filter((element: unknown) => typeof element === "string" && allowedElements.has(element))
+            : [];
+          const visible = result.detected_elements.length;
+          const uselessCloseUp = /alto-?falante|maçaneta|puxador|soleira|pedal/i.test(result.reason || "") && visible === 0;
+          if (visible < 1 || uselessCloseUp) {
+            console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, reason="${result.reason}"`);
             result.valid = false;
             result.target_match = false;
-            result.reason = "Foto do interior insuficiente: mostre uma visão mais ampla com bancos, painel/console e/ou assoalho, não apenas porta/tapete/soleira.";
+            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas ou assoalho/tapetes.";
           }
         }
       } else {
