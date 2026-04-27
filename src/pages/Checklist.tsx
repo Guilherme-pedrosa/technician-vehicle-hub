@@ -533,19 +533,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       if (category === "interior" && result.valid && result.detected_elements) {
         const allValidations = validations ? [...validations] : [];
         allValidations[newIdx] = { status: "valid", result };
-        const allElements = new Set<string>();
-        allValidations.forEach(v => {
-          v?.result?.detected_elements?.forEach(el => allElements.add(el));
-        });
-        const hasSeats = allElements.has("bancos_dianteiros") || allElements.has("bancos_traseiros");
-        const hasDash = allElements.has("painel_console");
-        const hasDoors = allElements.has("forros_porta");
-        const coverage = [hasSeats, hasDash, hasDoors].filter(Boolean).length;
-        if (coverage < 2) {
-          const missing: string[] = [];
-          if (!hasSeats) missing.push("bancos");
-          if (!hasDash) missing.push("painel/console");
-          if (!hasDoors) missing.push("forros de porta");
+        const coverage = getInteriorCoverage(allValidations);
+        if (!coverage.ok) {
           toast.info(`📸 Cobertura parcial do interior. Faltam: ${missing.join(", ")}. Adicione mais fotos.`, { duration: 6000 });
         }
       }
