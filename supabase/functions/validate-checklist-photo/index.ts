@@ -94,6 +94,11 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     has_critical: false,
     has_cleanliness_check: true,
   },
+  exc_limpeza_organizacao: {
+    label: "Evidência de limpeza/organização",
+    criterio: "Esta foto documenta uma NÃO CONFORMIDADE de limpeza/organização que o técnico já identificou. ACEITE se a imagem mostrar evidência relacionada a sujeira, lixo, objetos soltos, itens retirados de dentro do carro, bagunça, para-sol/objetos fora do lugar, ou qualquer material usado para comprovar que o veículo não estava limpo/organizado. NÃO exija que apareça uma peça do veículo: lixo retirado do carro, objetos removidos da cabine ou itens fotografados fora do veículo continuam sendo evidência relevante. REJEITE apenas se a foto não tiver relação nenhuma com limpeza/organização ou estiver impossível de entender.",
+    has_critical: false,
+  },
   danos: {
     label: "Dano/avaria",
     criterio: "Esta foto documenta um dano/avaria que o TÉCNICO já identificou — sua função NÃO é decidir se existe defeito, e sim CONFIRMAR que a foto mostra alguma parte de um veículo. ACEITE OBRIGATORIAMENTE se a imagem mostrar qualquer componente automotivo (interior, exterior, motor, porta-malas, vão do motor, soleira, alavancas, cabos, forros, painéis, parafusos, encaixes, mecanismos, etc.), seja em close-up ou em contexto. NUNCA rejeite com justificativas como 'parece ser apenas um mecanismo normal', 'é o cabo de abertura do capô', 'é uma peça funcional', 'não vejo dano óbvio' — o técnico é quem identifica o problema; você só valida que é foto de veículo. REJEITE EXCLUSIVAMENTE se a foto não tiver nada de automotivo (pessoa, paisagem, comida, tela de celular, objeto sem relação com veículo). Em caso de dúvida → ACEITE.",
