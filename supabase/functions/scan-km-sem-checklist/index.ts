@@ -2,8 +2,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 /**
  * scan-km-sem-checklist — Varre veículos que rodaram >threshold km HOJE
- * sem ter checklist preenchido. Abre 1 chamado de não-conformidade por
- * veículo (deduplicado no dia) e dispara e-mail aos admins.
+ * sem ter checklist preenchido OU qualquer veículo com checklist bloqueado
+ * que teve movimentação. Abre 1 chamado de não-conformidade por veículo
+ * (deduplicado no dia) e dispara e-mail aos admins.
  *
  * Disparado:
  *  - Diariamente às 10:30 (Brasília) via pg_cron
@@ -39,17 +40,20 @@ Deno.serve(async (req) => {
     // KM total por placa hoje + motorista que mais rodou
     const { data: kmRows } = await supabase
       .from("daily_vehicle_km")
-      .select("placa, km_percorrido, motorista_nome")
+      .select("placa, km_percorrido, motorista_nome, telemetrias")
       .eq("data", today);
 
     const kmByPlaca = new Map<string, number>();
+    const telemetriasByPlaca = new Map<string, number>();
     // placa -> Map<motorista_nome, km_acumulado>
     const motoristasPorPlaca = new Map<string, Map<string, number>>();
     for (const row of kmRows ?? []) {
       const p = String(row.placa);
       if (EXCLUDED_PLACAS.has(p)) continue;
       const km = Number(row.km_percorrido ?? 0);
+      const telemetrias = Number(row.telemetrias ?? 0);
       kmByPlaca.set(p, (kmByPlaca.get(p) ?? 0) + km);
+      telemetriasByPlaca.set(p, (telemetriasByPlaca.get(p) ?? 0) + telemetrias);
 
       const nome = String(row.motorista_nome ?? "").trim();
       if (nome && nome.toLowerCase() !== "desconhecido") {
@@ -69,24 +73,35 @@ Deno.serve(async (req) => {
     // Placas com checklist hoje
     const { data: checklistsHoje } = await supabase
       .from("vehicle_checklists")
-      .select("vehicle_id, vehicles!inner(placa)")
+      .select("id, vehicle_id, resultado, driver_id, vehicles!inner(placa)")
       .eq("checklist_date", today);
 
     const placasComChecklist = new Set<string>(
       (checklistsHoje ?? []).map((c: any) => c.vehicles?.placa).filter(Boolean)
     );
+    const blockedChecklistByPlaca = new Map<string, any>();
+    for (const cl of checklistsHoje ?? []) {
+      const placa = (cl as any).vehicles?.placa;
+      if (!placa || EXCLUDED_PLACAS.has(placa)) continue;
+      const km = kmByPlaca.get(placa) ?? 0;
+      const telemetrias = telemetriasByPlaca.get(placa) ?? 0;
+      if ((cl as any).resultado === "bloqueado" && (km > 0 || telemetrias > 0)) {
+        blockedChecklistByPlaca.set(placa, cl);
+      }
+    }
 
     const placasSemChecklist = [...kmByPlaca.entries()]
       .filter(([placa, km]) => km > KM_THRESHOLD && !placasComChecklist.has(placa));
+    const placasBloqueadasComMovimento = [...blockedChecklistByPlaca.keys()];
 
-    if (placasSemChecklist.length === 0) {
+    if (placasSemChecklist.length === 0 && placasBloqueadasComMovimento.length === 0) {
       console.log("[scan-km-sem-checklist] Nenhuma divergência encontrada");
       return new Response(JSON.stringify({ created: 0, checked: kmByPlaca.size, date: today }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const placasList = placasSemChecklist.map(([p]) => p);
+    const placasList = [...new Set([...placasSemChecklist.map(([p]) => p), ...placasBloqueadasComMovimento])];
     const { data: vehiclesData } = await supabase
       .from("vehicles")
       .select("id, placa, modelo")
@@ -121,12 +136,17 @@ Deno.serve(async (req) => {
     }
 
     let createdCount = 0;
-    const ticketsCriados: { placa: string; km: number; ticket_id: string }[] = [];
+    const ticketsCriados: { placa: string; km: number; ticket_id: string; motivo: string }[] = [];
 
     for (const v of vehiclesData ?? []) {
       const km = kmByPlaca.get(v.placa) ?? 0;
+      const telemetrias = telemetriasByPlaca.get(v.placa) ?? 0;
       const motoristaNome = motoristaPrincipalPorPlaca.get(v.placa) ?? null;
+      const checklistBloqueado = blockedChecklistByPlaca.get(v.placa);
+      const isBlockedMovement = Boolean(checklistBloqueado);
       const driver = motoristaNome ? driverByNome.get(motoristaNome) : null;
+      const driverId = driver?.id ?? checklistBloqueado?.driver_id ?? null;
+      const motivo = isBlockedMovement ? "bloqueado_em_movimento" : "sem_checklist";
 
       // Deduplicação: já existe ticket aberto hoje p/ esse veículo c/ esse motivo?
       const { data: existing } = await supabase
@@ -135,26 +155,30 @@ Deno.serve(async (req) => {
         .eq("vehicle_id", v.id)
         .eq("tipo", "nao_conformidade")
         .gte("created_at", `${today}T00:00:00`)
-        .ilike("titulo", "%sem checklist%")
+        .ilike("titulo", isBlockedMovement ? "%bloqueado rodou%" : "%sem checklist%")
         .limit(1);
 
       if (existing && existing.length > 0) continue;
 
-      const titulo = `Veículo rodou ${km.toFixed(0)}km sem checklist — ${v.placa}`;
+      const titulo = isBlockedMovement
+        ? `URGENTE: veículo bloqueado rodou ${km.toFixed(1)}km — ${v.placa}`
+        : `Veículo rodou ${km.toFixed(0)}km sem checklist — ${v.placa}`;
       const tecnicoLinha = motoristaNome
         ? `Condutor identificado pela telemetria: ${motoristaNome}.`
         : `Sem condutor identificado pela telemetria.`;
-      const descricao = `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.\n\n${tecnicoLinha}`;
+      const descricao = isBlockedMovement
+        ? `O veículo ${v.placa} (${v.modelo}) está com checklist BLOQUEADO e mesmo assim registrou movimentação em ${today}.\n\n• KM registrado: ${km.toFixed(1)}km\n• Telemetrias: ${telemetrias}\n• Checklist bloqueado: ${checklistBloqueado?.id ?? "—"}\n\n${tecnicoLinha}\n\nRegra: veículo bloqueado não pode rodar. Só é permitido movimentar quando o resultado estiver Liberado ou Liberado c/ observação.`
+        : `O veículo ${v.placa} (${v.modelo}) registrou ${km.toFixed(1)}km de deslocamento em ${today} sem que o checklist pré-operação tenha sido preenchido.\n\n${tecnicoLinha}`;
 
       const { data: novoTicket, error: insertErr } = await supabase
         .from("maintenance_tickets")
         .insert({
           vehicle_id: v.id,
-          driver_id: driver?.id ?? null,
+          driver_id: driverId,
           titulo,
           descricao,
           tipo: "nao_conformidade",
-          prioridade: "alta",
+          prioridade: isBlockedMovement ? "critica" : "alta",
           status: "aberto",
           created_by: createdBy,
         })
@@ -167,7 +191,7 @@ Deno.serve(async (req) => {
       }
 
       createdCount++;
-      ticketsCriados.push({ placa: v.placa, km, ticket_id: novoTicket?.id ?? "" });
+      ticketsCriados.push({ placa: v.placa, km, ticket_id: novoTicket?.id ?? "", motivo });
       console.log(`[scan-km-sem-checklist] Ticket criado: ${v.placa} (${km.toFixed(1)}km) — motorista: ${motoristaNome ?? "—"}`);
 
       try {
@@ -178,9 +202,15 @@ Deno.serve(async (req) => {
             modelo: v.modelo,
             tecnico: motoristaNome ?? "— (sem condutor identificado)",
             data: today,
-            resultado: `KM SEM CHECKLIST (${km.toFixed(1)}km)`,
+            resultado: isBlockedMovement ? `VEÍCULO BLOQUEADO EM MOVIMENTO (${km.toFixed(1)}km)` : `KM SEM CHECKLIST (${km.toFixed(1)}km)`,
             itens_problema: [
-              { label: "Checklist Pré-Operação", valor: "nao_conforme", observacao: `Veículo rodou ${km.toFixed(1)}km sem checklist preenchido.` },
+              {
+                label: isBlockedMovement ? "Veículo bloqueado" : "Checklist Pré-Operação",
+                valor: "nao_conforme",
+                observacao: isBlockedMovement
+                  ? `Veículo com checklist bloqueado registrou ${km.toFixed(1)}km e ${telemetrias} telemetria(s). Bloqueado não pode rodar.`
+                  : `Veículo rodou ${km.toFixed(1)}km sem checklist preenchido.`,
+              },
             ],
             fotos_problema: [],
             troca_oleo_vencida: false,
