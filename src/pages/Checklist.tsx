@@ -880,16 +880,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   // - "vencida" (crítico) só quando KM atual ≥ KM próxima troca (kmRestante ≤ 0)
   // - "próximo da troca" (observação) quando faltam ≤ 1000 km, mas ainda não venceu
   const KM_OLEO_ALERTA_MARGEM = 1000;
+  const KM_OLEO_MAX_INTERVALO_FUTURO = 10_000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
   const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
+  const trocaOleoIntervaloInvalido = kmRestanteOleo !== null ? kmRestanteOleo > KM_OLEO_MAX_INTERVALO_FUTURO : false;
   const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= 0 : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
-  const KM_DISCREPANCY_THRESHOLD = 50_000;
   const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
-    ? (kmTrocaNum - selectedVehicle.km_atual) > KM_DISCREPANCY_THRESHOLD
+    ? trocaOleoIntervaloInvalido
     : false;
 
   const nonConformeFields = useMemo(() =>
@@ -914,6 +915,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       if (photoUploadSummary.hasErrors) {
         throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
+      }
+
+      if (trocaOleoIntervaloInvalido) {
+        throw new Error(`KM da próxima troca inválido: a troca não pode estar mais de ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km à frente do KM atual.`);
       }
 
       const date = format(now, "yyyy-MM-dd");
@@ -1179,6 +1184,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (!kmTrocaInput) return false;
       const kmTrocaParsed = parseInt(kmTrocaInput.replace(/[^\d]/g, ""), 10);
       if (isNaN(kmTrocaParsed) || kmTrocaParsed <= 0) return false;
+      if (selectedVehicle && kmTrocaParsed - selectedVehicle.km_atual > KM_OLEO_MAX_INTERVALO_FUTURO) return false;
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
@@ -1410,7 +1416,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                 {selectedVehicle && kmProximaTroca && (
                   <div className="space-y-2">
                     <div className={`rounded-lg p-2 text-xs font-medium ${
-                      trocaOleoVencida
+                      trocaOleoIntervaloInvalido
+                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : trocaOleoVencida
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
                         : trocaOleoProxima
                           ? "bg-warning/10 text-warning border border-warning/30"
@@ -1418,6 +1426,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     }`}>
                       {(() => {
                         const restante = parseInt(kmProximaTroca) - selectedVehicle.km_atual;
+                        if (restante > KM_OLEO_MAX_INTERVALO_FUTURO) {
+                          return `❌ INVÁLIDO — Próxima troca ${restante.toLocaleString("pt-BR")} km à frente. O limite aceito é ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km.`;
+                        }
                         if (restante <= 0) {
                           return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${parseInt(kmProximaTroca).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
                         }
@@ -1428,10 +1439,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       })()}
                     </div>
                     {odoDiscrepancy && (
-                      <div className="rounded-lg p-2 text-xs font-medium bg-warning/10 text-warning border border-warning/30">
-                        ⚠️ ATENÇÃO — Diferença de {(parseInt(kmProximaTroca) - selectedVehicle.km_atual).toLocaleString("pt-BR")} km é muito grande.
-                        O odômetro do veículo no sistema pode estar incorreto (mostra {selectedVehicle.km_atual.toLocaleString("pt-BR")} km).
-                        Corrija em Veículos → Corrigir Odômetro.
+                      <div className="rounded-lg p-2 text-xs font-medium bg-destructive/10 text-destructive border border-destructive/30">
+                        Não é permitido avançar com próxima troca acima de {KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km do KM atual.
+                        Confira o adesivo ou corrija o KM informado.
                       </div>
                     )}
                   </div>
