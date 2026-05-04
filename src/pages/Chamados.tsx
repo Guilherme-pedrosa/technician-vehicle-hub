@@ -649,9 +649,9 @@ function NewTicketDialog({
               <Select value={tipo} onValueChange={setTipo}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="corretiva">Corretiva</SelectItem>
-                  <SelectItem value="preventiva">Preventiva</SelectItem>
-                  <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+                  {availableTypes.map((t) => (
+                    <SelectItem key={t} value={t}>{TYPE_LABEL[t]?.label ?? t}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
