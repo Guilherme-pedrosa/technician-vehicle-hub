@@ -2292,6 +2292,8 @@ export default function Checklist() {
   const today = format(new Date(), "yyyy-MM-dd");
   const [filterStart, setFilterStart] = useState(today);
   const [filterEnd, setFilterEnd] = useState(today);
+  const [filterVehicleId, setFilterVehicleId] = useState("");
+  const [filterResultado, setFilterResultado] = useState("");
   // Auto-invert if start > end
   const effectiveStart = filterStart <= filterEnd ? filterStart : filterEnd;
   const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
@@ -2331,16 +2333,33 @@ export default function Checklist() {
     },
   });
 
-  
+  const vehicleOptions = useMemo(() => 
+    vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.marca} ${v.modelo}` })),
+    [vehicles]
+  );
+
+  const resultadoOptions = [
+    { value: "liberado", label: "Liberado" },
+    { value: "liberado_obs", label: "Liberado c/ observação" },
+    { value: "bloqueado", label: "Bloqueado" },
+  ];
+
+  const filteredChecklists = useMemo(() => {
+    let result = checklists;
+    if (filterVehicleId) result = result.filter((cl: any) => cl.vehicle_id === filterVehicleId);
+    if (filterResultado) result = result.filter((cl: any) => cl.resultado === filterResultado);
+    return result;
+  }, [checklists, filterVehicleId, filterResultado]);
+
   const totalVehicles = vehicles.length;
-  const filledCount = checklists.length;
+  const filledCount = filteredChecklists.length;
 
   const blockedCount = useMemo(() =>
-    checklists.filter((cl: any) => cl.resultado === "bloqueado").length, [checklists]);
+    filteredChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [filteredChecklists]);
   const nonConformeCount = useMemo(() =>
-    checklists.filter((cl: any) =>
+    filteredChecklists.filter((cl: any) =>
       CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
-    ).length, [checklists]);
+    ).length, [filteredChecklists]);
 
   useEffect(() => {
     const legacyChecklists = checklists.filter((cl: any) => {
@@ -2431,33 +2450,65 @@ export default function Checklist() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
-          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-primary" /> Checklists
-            <span className="text-xs text-muted-foreground font-normal">({checklists.length})</span>
-            {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
-              <Label className="text-[10px] text-muted-foreground">Início</Label>
-              <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
-                className="w-full sm:w-36 h-8 text-xs" max={today} />
+        <CardHeader className="flex flex-col gap-3 p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-primary" /> Checklists
+              <span className="text-xs text-muted-foreground font-normal">({filteredChecklists.length})</span>
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            </CardTitle>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+                <Label className="text-[10px] text-muted-foreground">Início</Label>
+                <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
+                  className="w-full sm:w-36 h-8 text-xs" max={today} />
+              </div>
+              <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+                <Label className="text-[10px] text-muted-foreground">Fim</Label>
+                <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
+                  className="w-full sm:w-36 h-8 text-xs" max={today} />
+              </div>
+              {(filterStart !== today || filterEnd !== today) && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
+                  onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
+                  Hoje
+                </Button>
+              )}
             </div>
-            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
-              <Label className="text-[10px] text-muted-foreground">Fim</Label>
-              <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
-                className="w-full sm:w-36 h-8 text-xs" max={today} />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col gap-0.5 flex-1 sm:max-w-[280px]">
+              <Label className="text-[10px] text-muted-foreground">Veículo</Label>
+              <SearchableSelect
+                options={vehicleOptions}
+                value={filterVehicleId}
+                onValueChange={setFilterVehicleId}
+                placeholder="Todos os veículos"
+                searchPlaceholder="Buscar placa ou modelo..."
+                className="h-8 text-xs"
+              />
             </div>
-            {(filterStart !== today || filterEnd !== today) && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
-                onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
-                Hoje
+            <div className="flex flex-col gap-0.5 flex-1 sm:max-w-[200px]">
+              <Label className="text-[10px] text-muted-foreground">Resultado</Label>
+              <SearchableSelect
+                options={resultadoOptions}
+                value={filterResultado}
+                onValueChange={setFilterResultado}
+                placeholder="Todos"
+                searchPlaceholder="Buscar..."
+                className="h-8 text-xs"
+              />
+            </div>
+            {(filterVehicleId || filterResultado) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs mt-auto"
+                onClick={() => { setFilterVehicleId(""); setFilterResultado(""); }}>
+                <X className="w-3 h-3 mr-1" /> Limpar filtros
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
-          {checklists.length === 0 ? (
+          {filteredChecklists.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-muted-foreground">
               <ClipboardCheck className="w-10 h-10 mb-3 opacity-30" />
               <p className="text-sm font-medium">Nenhum checklist preenchido</p>
@@ -2467,7 +2518,7 @@ export default function Checklist() {
             <>
               {/* Mobile */}
               <div className="sm:hidden divide-y divide-border">
-                {checklists.map((cl: any) => {
+                {filteredChecklists.map((cl: any) => {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
@@ -2493,7 +2544,7 @@ export default function Checklist() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"}</p>
+                            <p className="font-medium text-sm truncate">{vehicle?.placa ?? "—"} <span className="font-normal text-muted-foreground">— {vehicle?.marca} {vehicle?.modelo}</span></p>
                             <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -2570,7 +2621,7 @@ export default function Checklist() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium">Placa</th>
+                      <th className="text-left p-3 font-medium">Veículo</th>
                       <th className="text-left p-3 font-medium">Técnico</th>
                       <th className="text-center p-3 font-medium">Fotos</th>
                       <th className="text-center p-3 font-medium">Resultado</th>
@@ -2579,7 +2630,7 @@ export default function Checklist() {
                     </tr>
                   </thead>
                   <tbody>
-                    {checklists.map((cl: any) => {
+                    {filteredChecklists.map((cl: any) => {
                       const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
@@ -2598,7 +2649,7 @@ export default function Checklist() {
                         <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
-                              <p>{vehicle?.placa ?? "—"}</p>
+                              <p>{vehicle?.placa ?? "—"} <span className="text-muted-foreground font-normal">— {vehicle?.marca} {vehicle?.modelo}</span></p>
                               {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
