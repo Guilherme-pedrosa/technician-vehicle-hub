@@ -152,66 +152,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Now sync ticket_actions as subtasks
-    if (ticket_id && parentTaskId) {
-      const { data: actions } = await supabase
-        .from("ticket_actions")
-        .select("id, descricao, concluida, prazo, sort_order")
-        .eq("ticket_id", ticket_id)
-        .order("sort_order", { ascending: true });
-
-      if (actions && actions.length > 0) {
-        console.log(`[forward-ticket] Syncing ${actions.length} subtasks for ticket ${ticket_id}`);
-        let synced = 0;
-
-        for (const action of actions) {
-          const subRef = `fleetdesk-action-${action.id}`;
-          const subPayload: Record<string, unknown> = {
-            title: action.descricao,
-            parent_id: parentTaskId,
-            external_ref: subRef,
-            external_source: "fleetdesk",
-            priority: "p4",
-          };
-
-          if (action.prazo) {
-            subPayload.due_at = new Date(action.prazo + "T12:00:00Z").toISOString();
-          }
-
-          if (action.concluida) {
-            subPayload.status = "done";
-            subPayload.completed_at = new Date().toISOString();
-          }
-
-          try {
-            const subRes = await fetch(EXTERNAL_ENDPOINT, {
-              method: "POST",
-              headers: {
-                "x-api-key": apiKey,
-                "Content-Type": "application/json",
-                "x-sync-source": "fleetdesk",
-              },
-              body: JSON.stringify(subPayload),
-            });
-
-            if (subRes.ok) {
-              synced++;
-            } else {
-              const err = await subRes.json().catch(() => ({}));
-              console.warn(`[forward-ticket] Subtask ${action.id} failed:`, err);
-            }
-          } catch (e) {
-            console.warn(`[forward-ticket] Subtask ${action.id} error:`, e);
-          }
-
-          // Small delay between subtasks
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        console.log(`[forward-ticket] Synced ${synced}/${actions.length} subtasks`);
-      }
-    }
-
     return json({ ok: true, external_task: result });
   } catch (err) {
     console.error("[forward-ticket] Error:", err);
