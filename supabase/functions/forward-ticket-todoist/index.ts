@@ -25,6 +25,21 @@ const STATUS_MAP: Record<string, string> = {
   cancelado: "cancelled",
 };
 
+const extractProblemItems = (descricao?: string): string[] => {
+  if (!descricao) return [];
+
+  const match = descricao.match(/Itens com problema:\s*([\s\S]*?)(?:\n\s*\n(?:Observações|Fotos com problemas|Veículo|Técnico|Data|Resultado):|$)/i);
+  if (!match?.[1]) return [];
+
+  return match[1]
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("•"))
+    .map((line) => line.replace(/^•\s*/, ""));
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -67,18 +82,38 @@ Deno.serve(async (req) => {
     );
 
     const subtasks: Record<string, unknown>[] = [];
+    const problemItems = tipo === "nao_conformidade" ? extractProblemItems(descricao) : [];
+
+    for (const [index, item] of problemItems.entries()) {
+      subtasks.push({
+        title: item,
+        external_ref: ticket_id ? `fleetdesk-${ticket_id}-problem-${index}` : undefined,
+        priority: "p4",
+      });
+    }
+
     if (ticket_id) {
-      const { data: actions, error: actionsErr } = await supabase
-        .from("ticket_actions")
-        .select("id, descricao, concluida, prazo, sort_order")
-        .eq("ticket_id", ticket_id)
-        .order("sort_order", { ascending: true });
+      let actions: Array<{ id: string; descricao: string; concluida: boolean; prazo: string | null; sort_order: number }> | null = null;
+      let actionsErr: unknown = null;
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const { data, error } = await supabase
+          .from("ticket_actions")
+          .select("id, descricao, concluida, prazo, sort_order")
+          .eq("ticket_id", ticket_id)
+          .order("sort_order", { ascending: true });
+
+        actions = data;
+        actionsErr = error;
+        if (error || (data?.length ?? 0) > 0 || problemItems.length > 0) break;
+        await wait(400);
+      }
 
       if (actionsErr) {
         console.warn("[forward-ticket] Failed to fetch ticket actions:", actionsErr);
       }
 
-      for (const action of actions ?? []) {
+      for (const action of problemItems.length > 0 ? [] : actions ?? []) {
         const subtask: Record<string, unknown> = {
           title: action.descricao,
           external_ref: `fleetdesk-action-${action.id}`,
