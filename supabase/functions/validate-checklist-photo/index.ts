@@ -373,7 +373,7 @@ Critério esperado: ${finalCriterio}`;
         }
 
         if (category === "interior") {
-          const allowedElements = new Set(["bancos_dianteiros", "bancos_traseiros", "painel_console", "volante_cambio", "forros_porta", "assoalho_tapetes"]);
+          const allowedElements = new Set(["bancos_dianteiros", "bancos_traseiros", "painel_console", "volante_cambio", "forros_porta", "assoalho_tapetes", "quebra_sol", "teto_forro"]);
           result.detected_elements = Array.isArray(result.detected_elements)
             ? result.detected_elements.filter((element: unknown) => typeof element === "string" && allowedElements.has(element))
             : [];
@@ -383,7 +383,14 @@ Critério esperado: ${finalCriterio}`;
             console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, reason="${result.reason}"`);
             result.valid = false;
             result.target_match = false;
-            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas ou assoalho/tapetes.";
+            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas, assoalho/tapetes, quebra-sol ou teto.";
+          }
+
+          // Server-side blur rejection for interior
+          if (result.quality === "ruim" || result.focus_ok === false) {
+            console.log(`[interior] Rejeitado por falta de foco/qualidade. quality=${result.quality}, focus_ok=${result.focus_ok}`);
+            result.valid = false;
+            result.reason = result.reason || "Foto desfocada/borrada. Tire outra foto com mais nitidez.";
           }
         }
       } else {
