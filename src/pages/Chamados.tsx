@@ -373,7 +373,7 @@ function TicketDetailDialog({
               <div className="bg-muted/40 rounded-lg p-3 space-y-2">
                 <Label className="text-sm font-semibold">Ações</Label>
                 <div className="flex flex-wrap gap-2">
-                  {COLUMNS.map((col) => (
+                  {statusColumns.map((col) => (
                     <Button
                       key={col.id}
                       size="sm"
