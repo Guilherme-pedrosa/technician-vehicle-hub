@@ -592,27 +592,32 @@ function NewTicketDialog({
   vehicles,
   drivers,
   onSave,
+  availableTypes,
+  boardLabel,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
   onSave: (data: any) => void;
+  availableTypes: TicketType[];
+  boardLabel: string;
 }) {
+  const defaultTipo = availableTypes[0] || "corretiva";
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [driverId, setDriverId] = useState("");
-  const [tipo, setTipo] = useState<string>("corretiva");
+  const [tipo, setTipo] = useState<string>(defaultTipo);
   const [prioridade, setPrioridade] = useState<string>("media");
 
-  const reset = () => { setTitulo(""); setDescricao(""); setVehicleId(""); setDriverId(""); setTipo("corretiva"); setPrioridade("media"); };
+  const reset = () => { setTitulo(""); setDescricao(""); setVehicleId(""); setDriverId(""); setTipo(defaultTipo); setPrioridade("media"); };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo Chamado</DialogTitle>
+          <DialogTitle>{boardLabel === "chamados" ? "Novo Chamado" : "Nova Ocorrência"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
