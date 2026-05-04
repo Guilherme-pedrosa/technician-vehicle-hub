@@ -1088,7 +1088,7 @@ export default function Chamados() {
           onDragEnd={handleDndDragEnd}
         >
           <div className="flex gap-3 overflow-x-auto pb-4">
-            {COLUMNS.map((col) => (
+            {currentColumns.map((col) => (
               <KanbanColumn
                 key={col.id}
                 column={col}
