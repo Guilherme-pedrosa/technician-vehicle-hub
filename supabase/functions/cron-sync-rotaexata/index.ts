@@ -351,6 +351,15 @@ Deno.serve(async (req) => {
       console.warn("[cron-sync] Position sync error:", (err as Error).message);
     }
 
+    // Após sync, dispara scan de veículos sem motorista vinculado
+    try {
+      console.log("[cron-sync] Disparando scan-veiculos-sem-motorista...");
+      await supabase.functions.invoke("scan-veiculos-sem-motorista", { body: {} });
+      console.log("[cron-sync] scan-veiculos-sem-motorista concluído");
+    } catch (scanErr) {
+      console.warn("[cron-sync] Erro ao chamar scan-veiculos-sem-motorista:", (scanErr as Error).message);
+    }
+
     const result = { synced: totalSynced, errors: totalErrors, vehicles: vehicles.length, date: today };
     console.log(`[cron-sync] Done:`, JSON.stringify(result));
 
