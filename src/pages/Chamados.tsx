@@ -1018,21 +1018,35 @@ export default function Chamados() {
           Carregando chamados...
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              column={col}
-              tickets={grouped[col.id]}
-              onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
-              deadlinesByTicket={deadlinesByTicket}
-              onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+          onDragCancel={() => setActiveId(null)}
+          onDragEnd={handleDndDragEnd}
+        >
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {COLUMNS.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                tickets={grouped[col.id]}
+                onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
+                deadlinesByTicket={deadlinesByTicket}
+                onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
+              />
+            ))}
+          </div>
+
+          <DragOverlay>
+            {activeTicket && (
+              <div className="rounded-md border border-border bg-card shadow-lg px-3 py-2 text-sm w-[260px]">
+                <span className="text-xs font-mono text-muted-foreground mr-1.5">#{(activeTicket as any).ticket_number ?? "?"}</span>
+                {activeTicket.titulo}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Duplicados */}
