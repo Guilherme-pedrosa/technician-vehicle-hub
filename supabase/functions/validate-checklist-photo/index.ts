@@ -357,6 +357,15 @@ Critério esperado: ${finalCriterio}`;
           lanternas_observacao: typeof parsed.lanternas_observacao === "string" ? parsed.lanternas_observacao : "",
         };
 
+        // GATE SERVER-SIDE GLOBAL: rejeitar fotos desfocadas/borradas em TODAS as categorias
+        if (result.quality === "ruim" && result.focus_ok === false) {
+          console.log(`[${category}] Rejeitado globalmente por foto desfocada/borrada. quality=${result.quality}, focus_ok=${result.focus_ok}`);
+          result.valid = false;
+          if (!result.reason || !/desfocad|borrad|tremid|n[ií]tid/i.test(result.reason)) {
+            result.reason = "Foto desfocada/borrada — tire outra foto com mais nitidez. " + (result.reason || "");
+          }
+        }
+
         // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)
         if (category === "painel") {
           const kmDigits = result.km_lido || "";
