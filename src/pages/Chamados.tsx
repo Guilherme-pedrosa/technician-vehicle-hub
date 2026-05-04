@@ -699,7 +699,10 @@ export default function Chamados() {
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
+  const [activeBoard, setActiveBoard] = useState<BoardTab>("chamados");
   
+  const currentColumns = activeBoard === "chamados" ? CHAMADOS_COLUMNS : OCORRENCIAS_COLUMNS;
+  const boardTypes = activeBoard === "chamados" ? CHAMADOS_TYPES : OCORRENCIAS_TYPES;
 
   // Fetch tickets
   const { data: tickets = [], isLoading } = useQuery({
