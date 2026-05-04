@@ -20,9 +20,10 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const url = new URL(req.url);
-    const ticketId = url.searchParams.get("ticket_id");
-    const limit = Number(url.searchParams.get("limit") ?? "10");
-    const offset = Number(url.searchParams.get("offset") ?? "0");
+    const body = await req.json().catch(() => ({}));
+    const ticketId = body.ticket_id ?? url.searchParams.get("ticket_id");
+    const limit = Number(body.limit ?? url.searchParams.get("limit") ?? "10");
+    const offset = Number(body.offset ?? url.searchParams.get("offset") ?? "0");
 
     let query = admin
       .from("maintenance_tickets")
@@ -50,7 +51,9 @@ Deno.serve(async (req) => {
         .select("id", { count: "exact", head: true })
         .eq("ticket_id", ticket.id);
 
-      if (!count) {
+      const hasProblemItems = /Itens com problema:\s*[\s\S]*?•/i.test(ticket.descricao ?? "");
+
+      if (!count && !hasProblemItems) {
         skipped++;
         continue;
       }
