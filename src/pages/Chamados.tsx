@@ -51,7 +51,9 @@ import { cn } from "@/lib/utils";
 
 type TicketStatus = "aberto" | "em_andamento" | "aguardando_peca" | "concluido";
 type TicketPriority = "baixa" | "media" | "alta" | "critica";
-type TicketType = "preventiva" | "corretiva" | "nao_conformidade";
+type TicketType = "preventiva" | "corretiva" | "nao_conformidade" | "preenchimento_incorreto" | "alerta_telemetria";
+
+type BoardTab = "chamados" | "ocorrencias";
 
 type Ticket = Tables<"maintenance_tickets"> & {
   vehicles?: { placa: string; modelo: string } | null;
@@ -60,12 +62,24 @@ type Ticket = Tables<"maintenance_tickets"> & {
   duplicate_of?: string | null;
 };
 
-const COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
+const CHAMADOS_TYPES: TicketType[] = ["preventiva", "corretiva", "nao_conformidade"];
+const OCORRENCIAS_TYPES: TicketType[] = ["preenchimento_incorreto", "alerta_telemetria"];
+
+const CHAMADOS_COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
   { id: "aberto", label: "Aberto", icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-600", bgClass: "bg-red-50 border-red-200" },
   { id: "em_andamento", label: "Em Andamento", icon: <Clock className="w-4 h-4" />, color: "text-amber-600", bgClass: "bg-amber-50 border-amber-200" },
   { id: "aguardando_peca", label: "Aguardando Peça", icon: <Package className="w-4 h-4" />, color: "text-blue-600", bgClass: "bg-blue-50 border-blue-200" },
   { id: "concluido", label: "Concluído", icon: <CheckCircle className="w-4 h-4" />, color: "text-emerald-600", bgClass: "bg-emerald-50 border-emerald-200" },
 ];
+
+const OCORRENCIAS_COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
+  { id: "aberto", label: "Novo", icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-600", bgClass: "bg-red-50 border-red-200" },
+  { id: "em_andamento", label: "Em Análise", icon: <Clock className="w-4 h-4" />, color: "text-amber-600", bgClass: "bg-amber-50 border-amber-200" },
+  { id: "concluido", label: "Resolvido", icon: <CheckCircle className="w-4 h-4" />, color: "text-emerald-600", bgClass: "bg-emerald-50 border-emerald-200" },
+  { id: "aguardando_peca", label: "Descartado", icon: <X className="w-4 h-4" />, color: "text-slate-500", bgClass: "bg-slate-50 border-slate-200" },
+];
+
+const COLUMNS = CHAMADOS_COLUMNS;
 
 const PRIORITY_BADGE: Record<TicketPriority, { label: string; className: string }> = {
   baixa: { label: "Baixa", className: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -74,10 +88,12 @@ const PRIORITY_BADGE: Record<TicketPriority, { label: string; className: string 
   critica: { label: "Crítica", className: "bg-red-100 text-red-800 border-red-300 animate-pulse" },
 };
 
-const TYPE_LABEL: Record<TicketType, { label: string; className: string }> = {
+const TYPE_LABEL: Record<string, { label: string; className: string }> = {
   preventiva: { label: "Preventiva", className: "bg-emerald-100 text-emerald-800" },
   corretiva: { label: "Corretiva", className: "bg-amber-100 text-amber-800" },
   nao_conformidade: { label: "Não Conformidade", className: "bg-red-100 text-red-800" },
+  preenchimento_incorreto: { label: "Preench. Incorreto", className: "bg-violet-100 text-violet-800" },
+  alerta_telemetria: { label: "Alerta Telemetria", className: "bg-sky-100 text-sky-800" },
 };
 
 // ═══════════════════════════════════════════
