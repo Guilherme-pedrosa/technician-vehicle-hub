@@ -1068,7 +1068,6 @@ export default function Chamados() {
                   <div key={t.id} className="relative">
                     <TicketCard
                       ticket={t}
-                      onDragStart={handleDragStart}
                       onClick={() => { setSelectedTicket(t); setDetailOpen(true); }}
                       isDuplicate
                     />
