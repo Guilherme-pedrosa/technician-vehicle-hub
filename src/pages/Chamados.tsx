@@ -683,7 +683,7 @@ function NewTicketDialog({
               onOpenChange(false);
             }}
           >
-            <Plus className="w-4 h-4 mr-2" /> Criar Chamado
+            <Plus className="w-4 h-4 mr-2" /> {boardLabel === "chamados" ? "Criar Chamado" : "Criar Ocorrência"}
           </Button>
         </div>
       </DialogContent>
