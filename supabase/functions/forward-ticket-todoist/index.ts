@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("FROTA_EXTERNAL_API_KEY");
+    const apiKey = Deno.env.get("FROTA") || Deno.env.get("FROTA_EXTERNAL_API_KEY");
     if (!apiKey) {
-      console.error("[forward-ticket] FROTA_EXTERNAL_API_KEY not configured");
+      console.error("[forward-ticket] FROTA secret not configured");
       return new Response(
         JSON.stringify({ error: "External API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
