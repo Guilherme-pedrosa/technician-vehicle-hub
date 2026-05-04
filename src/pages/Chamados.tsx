@@ -819,6 +819,8 @@ export default function Chamados() {
             placa: vehicle?.placa,
             modelo: vehicle?.modelo,
             tipo: data.tipo ?? inserted.tipo,
+            ticket_id: inserted.id,
+            status: inserted.status,
           },
         });
       } catch (fwdErr) {
