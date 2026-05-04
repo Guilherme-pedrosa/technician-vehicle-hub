@@ -59,7 +59,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
   itens_seguranca: { label: "🔺 Itens de Segurança", hint: "Triângulo, macaco, chave de roda visíveis", min: 1 },
-  interior: { label: "🪑 Interior do Veículo", hint: "Envie várias fotos cobrindo bancos, painel/console, portas e assoalho/tapetes", min: 3 },
+  interior: { label: "🪑 Interior do Veículo", hint: "Envie várias fotos cobrindo bancos, painel/console, portas, assoalho/tapetes E quebra-sol/teto", min: 3 },
   danos: { label: "⚠️ Registro de Dano/Avaria", hint: "Foto detalhada do dano encontrado", min: 1 },
   avaria: { label: "⚠️ Nova Avaria", hint: "Foto obrigatória da avaria encontrada", min: 1 },
 };
