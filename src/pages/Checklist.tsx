@@ -2333,9 +2333,26 @@ export default function Checklist() {
     },
   });
 
-  
+  const vehicleOptions = useMemo(() => 
+    vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.marca} ${v.modelo}` })),
+    [vehicles]
+  );
+
+  const resultadoOptions = [
+    { value: "liberado", label: "Liberado" },
+    { value: "liberado_obs", label: "Liberado c/ observação" },
+    { value: "bloqueado", label: "Bloqueado" },
+  ];
+
+  const filteredChecklists = useMemo(() => {
+    let result = checklists;
+    if (filterVehicleId) result = result.filter((cl: any) => cl.vehicle_id === filterVehicleId);
+    if (filterResultado) result = result.filter((cl: any) => cl.resultado === filterResultado);
+    return result;
+  }, [checklists, filterVehicleId, filterResultado]);
+
   const totalVehicles = vehicles.length;
-  const filledCount = checklists.length;
+  const filledCount = filteredChecklists.length;
 
   const blockedCount = useMemo(() =>
     checklists.filter((cl: any) => cl.resultado === "bloqueado").length, [checklists]);
