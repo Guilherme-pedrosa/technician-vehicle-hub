@@ -45,22 +45,22 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   pneu_de: {
     label: "Pneu dianteiro esquerdo",
-    criterio: "Deve mostrar claramente o pneu dianteiro esquerdo com condição visual da banda de rodagem minimamente verificável.",
+    criterio: "Deve mostrar claramente um pneu de veículo. ACEITE se a foto mostrar um pneu com a banda de rodagem visível. NÃO FAÇA DIAGNÓSTICOS sobre o estado do pneu (murcho, careca, desgastado, calibragem, pressão) — isso NÃO é sua função. Você deve APENAS validar que a foto mostra um pneu real de veículo com enquadramento e foco adequados. Na 'reason', descreva apenas o enquadramento (ex: 'Pneu visível com banda de rodagem enquadrada'). NUNCA diga que o pneu está murcho, vazio, furado, careca ou qualquer diagnóstico — o técnico é quem avalia isso presencialmente.",
     has_critical: false,
   },
   pneu_dd: {
     label: "Pneu dianteiro direito",
-    criterio: "Deve mostrar claramente o pneu dianteiro direito com condição visual da banda de rodagem minimamente verificável.",
+    criterio: "Deve mostrar claramente um pneu de veículo. ACEITE se a foto mostrar um pneu com a banda de rodagem visível. NÃO FAÇA DIAGNÓSTICOS sobre o estado do pneu (murcho, careca, desgastado, calibragem, pressão) — isso NÃO é sua função. Você deve APENAS validar que a foto mostra um pneu real de veículo com enquadramento e foco adequados. Na 'reason', descreva apenas o enquadramento. NUNCA diga que o pneu está murcho, vazio, furado, careca ou qualquer diagnóstico.",
     has_critical: false,
   },
   pneu_te: {
     label: "Pneu traseiro esquerdo",
-    criterio: "Deve mostrar claramente o pneu traseiro esquerdo com condição visual da banda de rodagem minimamente verificável.",
+    criterio: "Deve mostrar claramente um pneu de veículo. ACEITE se a foto mostrar um pneu com a banda de rodagem visível. NÃO FAÇA DIAGNÓSTICOS sobre o estado do pneu (murcho, careca, desgastado, calibragem, pressão) — isso NÃO é sua função. Você deve APENAS validar que a foto mostra um pneu real de veículo com enquadramento e foco adequados. Na 'reason', descreva apenas o enquadramento. NUNCA diga que o pneu está murcho, vazio, furado, careca ou qualquer diagnóstico.",
     has_critical: false,
   },
   pneu_td: {
     label: "Pneu traseiro direito",
-    criterio: "Deve mostrar claramente o pneu traseiro direito com condição visual da banda de rodagem minimamente verificável.",
+    criterio: "Deve mostrar claramente um pneu de veículo. ACEITE se a foto mostrar um pneu com a banda de rodagem visível. NÃO FAÇA DIAGNÓSTICOS sobre o estado do pneu (murcho, careca, desgastado, calibragem, pressão) — isso NÃO é sua função. Você deve APENAS validar que a foto mostra um pneu real de veículo com enquadramento e foco adequados. Na 'reason', descreva apenas o enquadramento. NUNCA diga que o pneu está murcho, vazio, furado, careca ou qualquer diagnóstico.",
     has_critical: false,
   },
   calibracao: {
