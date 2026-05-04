@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { titulo, descricao, prioridade, placa, modelo, tipo } = body;
+    const { titulo, descricao, prioridade, placa, modelo, tipo, ticket_id } = body;
 
     if (!titulo) {
       return new Response(
@@ -51,19 +51,25 @@ Deno.serve(async (req) => {
 
     const priority = PRIORITY_MAP[prioridade?.toLowerCase()] ?? "p3";
 
-    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority}`);
+    // Build external_ref from ticket_id for upsert/traceability
+    const externalRef = ticket_id ? `fleetdesk-${ticket_id}` : null;
+
+    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority} ref=${externalRef}`);
 
     const res = await fetch(EXTERNAL_ENDPOINT, {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
         "Content-Type": "application/json",
+        "x-sync-source": "fleetdesk",
       },
       body: JSON.stringify({
         title: `[Frota] ${titulo}`,
         description: fullDescription,
         priority,
         due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        external_ref: externalRef,
+        external_source: "fleetdesk",
       }),
     });
 
