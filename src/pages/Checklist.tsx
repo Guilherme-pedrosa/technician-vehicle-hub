@@ -2649,7 +2649,7 @@ export default function Checklist() {
                         <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
-                              <p>{vehicle?.placa ?? "—"}</p>
+                              <p>{vehicle?.placa ?? "—"} <span className="text-muted-foreground font-normal">— {vehicle?.marca} {vehicle?.modelo}</span></p>
                               {hasBadPhotos && (
                                 <div className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                                   <AlertTriangle className="w-3 h-3" /> Fotos fora do padrão
