@@ -890,29 +890,23 @@ export default function Chamados() {
     return map;
   }, [nonDuplicates]);
 
-  // Drag & drop
-  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
-    dragIdRef.current = id;
-    e.dataTransfer.effectAllowed = "move";
-  }, []);
+  // Drag & drop (dnd-kit)
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const activeTicket = activeId ? tickets.find((t) => t.id === activeId) : null;
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, status: TicketStatus) => {
-    e.preventDefault();
-    const id = dragIdRef.current;
-    if (!id) return;
-    dragIdRef.current = null;
-    const ticket = tickets.find((t) => t.id === id);
-    if (ticket && ticket.status !== status) {
-      if (status === "concluido" && ticket.tipo === "preventiva") {
-        setConcluirTicket(ticket);
-      } else {
-        updateStatus.mutate({ id, status });
-      }
+  const handleDndDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const ticketId = String(active.id);
+    const newStatus = String(over.id) as TicketStatus;
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket || ticket.status === newStatus) return;
+    if (newStatus === "concluido" && ticket.tipo === "preventiva") {
+      setConcluirTicket(ticket);
+    } else {
+      updateStatus.mutate({ id: ticketId, status: newStatus });
     }
   }, [tickets, updateStatus]);
 
