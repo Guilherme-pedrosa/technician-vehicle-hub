@@ -2292,6 +2292,8 @@ export default function Checklist() {
   const today = format(new Date(), "yyyy-MM-dd");
   const [filterStart, setFilterStart] = useState(today);
   const [filterEnd, setFilterEnd] = useState(today);
+  const [filterVehicleId, setFilterVehicleId] = useState("");
+  const [filterResultado, setFilterResultado] = useState("");
   // Auto-invert if start > end
   const effectiveStart = filterStart <= filterEnd ? filterStart : filterEnd;
   const effectiveEnd = filterStart <= filterEnd ? filterEnd : filterStart;
