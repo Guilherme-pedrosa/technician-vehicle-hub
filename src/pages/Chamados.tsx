@@ -940,20 +940,27 @@ export default function Chamados() {
     }
   }, [tickets, updateStatus]);
 
-  // Stats
+  // Stats (board-scoped)
+  const boardTickets = useMemo(() => tickets.filter(t => boardTypes.includes(t.tipo as TicketType)), [tickets, boardTypes]);
   const stats = useMemo(() => ({
-    total: tickets.length,
-    abertos: tickets.filter((t) => t.status === "aberto").length,
-    criticos: tickets.filter((t) => t.prioridade === "critica" && t.status !== "concluido").length,
-    concluidos: tickets.filter((t) => t.status === "concluido").length,
-  }), [tickets]);
+    total: boardTickets.length,
+    abertos: boardTickets.filter((t) => t.status === "aberto").length,
+    criticos: boardTickets.filter((t) => t.prioridade === "critica" && t.status !== "concluido").length,
+    concluidos: boardTickets.filter((t) => t.status === "concluido").length,
+  }), [boardTickets]);
+
+  // Count for board tabs
+  const chamadosCount = useMemo(() => tickets.filter(t => CHAMADOS_TYPES.includes(t.tipo as TicketType) && t.status !== "concluido").length, [tickets]);
+  const ocorrenciasCount = useMemo(() => tickets.filter(t => OCORRENCIAS_TYPES.includes(t.tipo as TicketType) && t.status !== "concluido").length, [tickets]);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Chamados de Manutenção</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {activeBoard === "chamados" ? "Chamados de Manutenção" : "Ocorrências"}
+          </h1>
           <p className="text-muted-foreground text-sm">Arraste os cards para alterar o status</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
