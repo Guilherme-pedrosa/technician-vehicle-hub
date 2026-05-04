@@ -2621,7 +2621,7 @@ export default function Checklist() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 font-medium">Placa</th>
+                      <th className="text-left p-3 font-medium">Veículo</th>
                       <th className="text-left p-3 font-medium">Técnico</th>
                       <th className="text-center p-3 font-medium">Fotos</th>
                       <th className="text-center p-3 font-medium">Resultado</th>
