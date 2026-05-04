@@ -2450,27 +2450,59 @@ export default function Checklist() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
-          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-primary" /> Checklists
-            <span className="text-xs text-muted-foreground font-normal">({filteredChecklists.length})</span>
-            {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
-              <Label className="text-[10px] text-muted-foreground">Início</Label>
-              <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
-                className="w-full sm:w-36 h-8 text-xs" max={today} />
+        <CardHeader className="flex flex-col gap-3 p-3 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-primary" /> Checklists
+              <span className="text-xs text-muted-foreground font-normal">({filteredChecklists.length})</span>
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            </CardTitle>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+                <Label className="text-[10px] text-muted-foreground">Início</Label>
+                <Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)}
+                  className="w-full sm:w-36 h-8 text-xs" max={today} />
+              </div>
+              <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
+                <Label className="text-[10px] text-muted-foreground">Fim</Label>
+                <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
+                  className="w-full sm:w-36 h-8 text-xs" max={today} />
+              </div>
+              {(filterStart !== today || filterEnd !== today) && (
+                <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
+                  onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
+                  Hoje
+                </Button>
+              )}
             </div>
-            <div className="flex flex-col gap-0.5 flex-1 sm:flex-initial">
-              <Label className="text-[10px] text-muted-foreground">Fim</Label>
-              <Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)}
-                className="w-full sm:w-36 h-8 text-xs" max={today} />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col gap-0.5 flex-1 sm:max-w-[280px]">
+              <Label className="text-[10px] text-muted-foreground">Veículo</Label>
+              <SearchableSelect
+                options={vehicleOptions}
+                value={filterVehicleId}
+                onValueChange={setFilterVehicleId}
+                placeholder="Todos os veículos"
+                searchPlaceholder="Buscar placa ou modelo..."
+                className="h-8 text-xs"
+              />
             </div>
-            {(filterStart !== today || filterEnd !== today) && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs mt-3"
-                onClick={() => { setFilterStart(today); setFilterEnd(today); }}>
-                Hoje
+            <div className="flex flex-col gap-0.5 flex-1 sm:max-w-[200px]">
+              <Label className="text-[10px] text-muted-foreground">Resultado</Label>
+              <SearchableSelect
+                options={resultadoOptions}
+                value={filterResultado}
+                onValueChange={setFilterResultado}
+                placeholder="Todos"
+                searchPlaceholder="Buscar..."
+                className="h-8 text-xs"
+              />
+            </div>
+            {(filterVehicleId || filterResultado) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs mt-auto"
+                onClick={() => { setFilterVehicleId(""); setFilterResultado(""); }}>
+                <X className="w-3 h-3 mr-1" /> Limpar filtros
               </Button>
             )}
           </div>
