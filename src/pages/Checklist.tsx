@@ -234,11 +234,13 @@ function getInteriorCoverage(validations: PhotoValidation[] = []) {
   const hasSeats = allElements.has("bancos_dianteiros") || allElements.has("bancos_traseiros");
   const hasDash = allElements.has("painel_console") || allElements.has("volante_cambio");
   const hasDoorOrFloor = allElements.has("forros_porta") || allElements.has("assoalho_tapetes");
+  const hasUpperArea = allElements.has("quebra_sol") || allElements.has("teto_forro");
 
   const missing: string[] = [];
   if (!hasSeats) missing.push("bancos");
   if (!hasDash) missing.push("painel/console");
   if (!hasDoorOrFloor) missing.push("portas ou assoalho/tapetes");
+  if (!hasUpperArea) missing.push("quebra-sol/teto");
 
   return { ok: missing.length === 0, missing };
 }
