@@ -25,12 +25,12 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "A foto deve mostrar o PERFIL LATERAL ESQUERDO do veículo com cobertura suficiente para inspecionar a lataria. ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. Um ângulo 3/4 leve, perspectiva normal de celular, distância curta ou a traseira/dianteira aparentar menor por perspectiva NÃO é corte. Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado da lateral. Em caso de dúvida entre perspectiva normal e corte real, ACEITE.",
+    criterio: "A foto deve mostrar o PERFIL LATERAL ESQUERDO do veículo (lado do MOTORISTA em veículos brasileiros). ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. VERIFICAÇÃO DE LADO: Identifique se a foto mostra o lado esquerdo (motorista) ou direito (passageiro). Sinais: retrovisores, posição da placa, ângulo do volante visível através do vidro, posição relativa do escapamento. Se a foto CLARAMENTE mostra a lateral DIREITA ao invés da esquerda, REJEITE com target_match=false e explique na reason ('A foto mostra a lateral direita, não a esquerda'). Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "A foto deve mostrar o PERFIL LATERAL DIREITO do veículo com cobertura suficiente para inspecionar a lataria. ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. Um ângulo 3/4 leve, perspectiva normal de celular, distância curta ou a traseira/dianteira aparentar menor por perspectiva NÃO é corte. Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado da lateral. Em caso de dúvida entre perspectiva normal e corte real, ACEITE.",
+    criterio: "A foto deve mostrar o PERFIL LATERAL DIREITO do veículo (lado do PASSAGEIRO em veículos brasileiros). ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. VERIFICAÇÃO DE LADO: Identifique se a foto mostra o lado direito (passageiro) ou esquerdo (motorista). Sinais: retrovisores, posição da placa, ângulo do volante visível através do vidro, posição relativa do escapamento. Se a foto CLARAMENTE mostra a lateral ESQUERDA ao invés da direita, REJEITE com target_match=false e explique na reason ('A foto mostra a lateral esquerda, não a direita'). Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado.",
     has_critical: false,
   },
   nivel_oleo: {
@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A validação do INTERIOR é feita pelo CONJUNTO de fotos, então uma foto individual pode mostrar apenas parte do habitáculo. Para esta foto individual, ACEITE se ela mostrar com nitidez pelo menos uma área interna útil para inspeção entre: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes. REJEITE apenas se a foto não mostrar interior de veículo, estiver sem foco/escura demais, ou for um close-up inútil que não ajude a inspecionar limpeza/organização (ex: só alto-falante, só maçaneta, só soleira, só pedal, só um canto sem contexto). Se mostrar porta/assoalho/tapete junto com parte da cabine, aceite como cobertura parcial. Inclua obrigatoriamente 'detected_elements' no JSON usando somente estes valores: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes.",
+    criterio: "A validação do INTERIOR é feita pelo CONJUNTO de fotos, então uma foto individual pode mostrar apenas parte do habitáculo. Para esta foto individual, ACEITE se ela mostrar com nitidez pelo menos uma área interna útil para inspeção entre: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes, quebra_sol, teto_forro. REJEITE se a foto: (1) não mostrar interior de veículo; (2) estiver DESFOCADA/BORRADA a ponto de não identificar os elementos; (3) for um close-up inútil que não ajude a inspecionar (ex: só alto-falante, só maçaneta, só soleira, só pedal, só um canto sem contexto); (4) mostrar apenas um ângulo muito restrito sem contexto suficiente. ATENÇÃO ESPECIAL: Fotos que mostrem APENAS bancos sem contexto do restante do interior (sem ver quebra-sol, teto, portas ou assoalho) devem ser aceitas MAS devem listar APENAS 'bancos_dianteiros' ou 'bancos_traseiros' nos detected_elements — NÃO adicione elementos que não são visíveis. Inclua obrigatoriamente 'detected_elements' no JSON usando somente estes valores: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes, quebra_sol, teto_forro. SEJA RIGOROSO: só inclua um elemento em detected_elements se ele estiver REALMENTE VISÍVEL e IDENTIFICÁVEL na foto. NÃO presuma que quebra-sol está visível só porque aparece o teto — ele precisa estar claramente na foto.",
     has_critical: false,
     has_cleanliness_check: true,
   },
@@ -240,7 +240,7 @@ Regras:
   ? 'true se a imagem mostrar um veículo automotivo. Só marque false se a foto mostrar algo que DEFINITIVAMENTE NÃO É um veículo (ex: foto de pessoa, objeto aleatório). NÃO tente identificar marca/modelo específico — veículos da mesma frota podem ter adesivos, cores e versões diferentes. Variações como sedan vs hatch, cores diferentes, ou logotipos de empresa NÃO são motivo para rejeitar. Na dúvida, SEMPRE aceite como true.'
   : 'true (não aplicável para esta categoria)'}
 - "target_match": true somente se a imagem mostrar exatamente o item, peça ou área solicitada. Se mostrar algo completamente diferente (ex: foto de pessoa quando deveria ser pneu), false.
-- "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Desfoque leve é aceitável se ainda for possível identificar o item.
+- "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Se a foto estiver BORRADA, TREMIDA, DESFOCADA ao ponto que detalhes importantes (textos, bordas, contornos) não são nítidos, marque focus_ok=false e quality="ruim". NÃO aceite fotos desfocadas — o técnico pode e deve tirar outra foto. Uma leve perda de foco em áreas periféricas é tolerável, mas o ASSUNTO PRINCIPAL da foto deve estar nítido.
 - "critical_visible": ${catConfig.has_critical
   ? 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
   : 'true (não há dado crítico a ser verificado nesta categoria)'}
@@ -357,6 +357,15 @@ Critério esperado: ${finalCriterio}`;
           lanternas_observacao: typeof parsed.lanternas_observacao === "string" ? parsed.lanternas_observacao : "",
         };
 
+        // GATE SERVER-SIDE GLOBAL: rejeitar fotos desfocadas/borradas em TODAS as categorias
+        if (result.quality === "ruim" && result.focus_ok === false) {
+          console.log(`[${category}] Rejeitado globalmente por foto desfocada/borrada. quality=${result.quality}, focus_ok=${result.focus_ok}`);
+          result.valid = false;
+          if (!result.reason || !/desfocad|borrad|tremid|n[ií]tid/i.test(result.reason)) {
+            result.reason = "Foto desfocada/borrada — tire outra foto com mais nitidez. " + (result.reason || "");
+          }
+        }
+
         // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)
         if (category === "painel") {
           const kmDigits = result.km_lido || "";
@@ -373,7 +382,7 @@ Critério esperado: ${finalCriterio}`;
         }
 
         if (category === "interior") {
-          const allowedElements = new Set(["bancos_dianteiros", "bancos_traseiros", "painel_console", "volante_cambio", "forros_porta", "assoalho_tapetes"]);
+          const allowedElements = new Set(["bancos_dianteiros", "bancos_traseiros", "painel_console", "volante_cambio", "forros_porta", "assoalho_tapetes", "quebra_sol", "teto_forro"]);
           result.detected_elements = Array.isArray(result.detected_elements)
             ? result.detected_elements.filter((element: unknown) => typeof element === "string" && allowedElements.has(element))
             : [];
@@ -383,7 +392,14 @@ Critério esperado: ${finalCriterio}`;
             console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, reason="${result.reason}"`);
             result.valid = false;
             result.target_match = false;
-            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas ou assoalho/tapetes.";
+            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas, assoalho/tapetes, quebra-sol ou teto.";
+          }
+
+          // Server-side blur rejection for interior
+          if (result.quality === "ruim" || result.focus_ok === false) {
+            console.log(`[interior] Rejeitado por falta de foco/qualidade. quality=${result.quality}, focus_ok=${result.focus_ok}`);
+            result.valid = false;
+            result.reason = result.reason || "Foto desfocada/borrada. Tire outra foto com mais nitidez.";
           }
         }
       } else {
