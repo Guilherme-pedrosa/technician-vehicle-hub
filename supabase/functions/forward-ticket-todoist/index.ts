@@ -84,6 +84,33 @@ Deno.serve(async (req) => {
     }
 
     console.log("[forward-ticket] Success:", result);
+
+    // Save external refs back to maintenance_tickets
+    if (ticket_id && (result.id || result.external_ref)) {
+      try {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        );
+        const { error: updateErr } = await supabase
+          .from("maintenance_tickets")
+          .update({
+            external_ref: externalRef,
+            external_task_id: result.id || null,
+            external_synced_at: new Date().toISOString(),
+            last_sync_source: "forward-ticket",
+          })
+          .eq("id", ticket_id);
+        if (updateErr) {
+          console.warn("[forward-ticket] Failed to save external refs:", updateErr);
+        } else {
+          console.log(`[forward-ticket] Saved refs to ticket ${ticket_id}`);
+        }
+      } catch (e) {
+        console.warn("[forward-ticket] Error saving refs:", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({ ok: true, external_task: result }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
