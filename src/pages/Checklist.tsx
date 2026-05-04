@@ -2355,11 +2355,11 @@ export default function Checklist() {
   const filledCount = filteredChecklists.length;
 
   const blockedCount = useMemo(() =>
-    checklists.filter((cl: any) => cl.resultado === "bloqueado").length, [checklists]);
+    filteredChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [filteredChecklists]);
   const nonConformeCount = useMemo(() =>
-    checklists.filter((cl: any) =>
+    filteredChecklists.filter((cl: any) =>
       CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
-    ).length, [checklists]);
+    ).length, [filteredChecklists]);
 
   useEffect(() => {
     const legacyChecklists = checklists.filter((cl: any) => {
@@ -2453,7 +2453,7 @@ export default function Checklist() {
         <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between p-3 sm:p-6">
           <CardTitle className="text-sm sm:text-base flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-primary" /> Checklists
-            <span className="text-xs text-muted-foreground font-normal">({checklists.length})</span>
+            <span className="text-xs text-muted-foreground font-normal">({filteredChecklists.length})</span>
             {isLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </CardTitle>
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -2476,7 +2476,7 @@ export default function Checklist() {
           </div>
         </CardHeader>
         <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
-          {checklists.length === 0 ? (
+          {filteredChecklists.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-muted-foreground">
               <ClipboardCheck className="w-10 h-10 mb-3 opacity-30" />
               <p className="text-sm font-medium">Nenhum checklist preenchido</p>
@@ -2486,7 +2486,7 @@ export default function Checklist() {
             <>
               {/* Mobile */}
               <div className="sm:hidden divide-y divide-border">
-                {checklists.map((cl: any) => {
+                {filteredChecklists.map((cl: any) => {
                   const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                   const driver = localDrivers.find((d) => d.id === cl.driver_id);
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
@@ -2598,7 +2598,7 @@ export default function Checklist() {
                     </tr>
                   </thead>
                   <tbody>
-                    {checklists.map((cl: any) => {
+                    {filteredChecklists.map((cl: any) => {
                       const vehicle = vehicles.find((v) => v.id === cl.vehicle_id);
                       const driver = localDrivers.find((d) => d.id === cl.driver_id);
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
