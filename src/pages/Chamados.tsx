@@ -1160,6 +1160,8 @@ export default function Chamados() {
         vehicles={vehicles}
         drivers={drivers}
         onSave={(data) => createTicket.mutate(data)}
+        availableTypes={boardTypes}
+        boardLabel={activeBoard}
       />
       <TicketDetailDialog
         ticket={selectedTicket}
