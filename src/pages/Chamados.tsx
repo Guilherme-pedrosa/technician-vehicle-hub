@@ -1169,6 +1169,7 @@ export default function Chamados() {
         vehicles={vehicles}
         drivers={drivers}
         allTickets={tickets}
+        statusColumns={currentColumns}
       />
       {concluirTicket && (
         <ConcluirPreventivaDialog
