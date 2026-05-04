@@ -90,7 +90,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   interior: {
     label: "Interior do veículo",
-    criterio: "A validação do INTERIOR é feita pelo CONJUNTO de fotos, então uma foto individual pode mostrar apenas parte do habitáculo. Para esta foto individual, ACEITE se ela mostrar com nitidez pelo menos uma área interna útil para inspeção entre: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes, quebra_sol, teto_forro. REJEITE se a foto: (1) não mostrar interior de veículo; (2) estiver DESFOCADA/BORRADA a ponto de não identificar os elementos; (3) for um close-up inútil que não ajude a inspecionar (ex: só alto-falante, só maçaneta, só soleira, só pedal, só um canto sem contexto); (4) mostrar apenas um ângulo muito restrito sem contexto suficiente. ATENÇÃO ESPECIAL: Fotos que mostrem APENAS bancos sem contexto do restante do interior (sem ver quebra-sol, teto, portas ou assoalho) devem ser aceitas MAS devem listar APENAS 'bancos_dianteiros' ou 'bancos_traseiros' nos detected_elements — NÃO adicione elementos que não são visíveis. Inclua obrigatoriamente 'detected_elements' no JSON usando somente estes valores: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes, quebra_sol, teto_forro. SEJA RIGOROSO: só inclua um elemento em detected_elements se ele estiver REALMENTE VISÍVEL e IDENTIFICÁVEL na foto. NÃO presuma que quebra-sol está visível só porque aparece o teto — ele precisa estar claramente na foto.",
+    criterio: "A validação do INTERIOR é feita pelo CONJUNTO de fotos, então uma foto individual pode mostrar apenas parte do habitáculo. Para esta foto individual, ACEITE se ela mostrar com nitidez uma VISÃO AMPLA de pelo menos uma área interna útil para inspeção. REJEITE OBRIGATORIAMENTE se a foto: (1) não mostrar interior de veículo; (2) estiver DESFOCADA/BORRADA a ponto de não identificar os elementos; (3) for um CLOSE-UP restrito que mostra APENAS o câmbio, alavanca de marchas, console central, rádio/multimídia, volante, alto-falante, maçaneta, soleira, pedal ou qualquer detalhe isolado SEM CONTEXTO DO RESTANTE DO INTERIOR — esses close-ups NÃO servem para inspeção do interior; (4) mostrar apenas um ângulo muito restrito sem contexto suficiente. PARA SER ACEITA, a foto precisa ter uma visão que permita avaliar o ESTADO GERAL de pelo menos uma zona do interior (ex: visão dos bancos dianteiros COM parte do assoalho/portas visível; visão do teto COM quebra-sol; visão ampla desde o volante até os bancos traseiros). Inclua obrigatoriamente 'detected_elements' no JSON usando somente estes valores: bancos_dianteiros, bancos_traseiros, painel_console, volante_cambio, forros_porta, assoalho_tapetes, quebra_sol, teto_forro. SEJA RIGOROSO: só inclua um elemento em detected_elements se ele estiver REALMENTE VISÍVEL e IDENTIFICÁVEL na foto. NÃO presuma que quebra-sol está visível só porque aparece o teto — ele precisa estar claramente na foto (a aba/viseira rebatível). Close-ups do câmbio/alavanca = detected_elements VAZIO = REJEITAR.",
     has_critical: false,
     has_cleanliness_check: true,
   },
@@ -387,12 +387,12 @@ Critério esperado: ${finalCriterio}`;
             ? result.detected_elements.filter((element: unknown) => typeof element === "string" && allowedElements.has(element))
             : [];
           const visible = result.detected_elements.length;
-          const uselessCloseUp = /alto-?falante|maçaneta|puxador|soleira|pedal/i.test(result.reason || "") && visible === 0;
+          const uselessCloseUp = /alto-?falante|maçaneta|puxador|soleira|pedal|c[aâ]mbio|alavanca|marcha|console\s*central|r[aá]dio|multim[ií]dia|volante/i.test(result.reason || "") && visible <= 1;
           if (visible < 1 || uselessCloseUp) {
-            console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, reason="${result.reason}"`);
+            console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, uselessCloseUp=${uselessCloseUp}, reason="${result.reason}"`);
             result.valid = false;
             result.target_match = false;
-            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas, assoalho/tapetes, quebra-sol ou teto.";
+            result.reason = "Foto do interior não contribui para a inspeção: close-ups do câmbio, console ou volante não são válidos. Tire uma foto ampla mostrando bancos, quebra-sol/teto, portas ou assoalho.";
           }
 
           // Server-side blur rejection for interior
