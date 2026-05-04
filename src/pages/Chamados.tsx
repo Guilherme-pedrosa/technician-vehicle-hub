@@ -683,7 +683,7 @@ export default function Chamados() {
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
-  const dragIdRef = useRef<string | null>(null);
+  
 
   // Fetch tickets
   const { data: tickets = [], isLoading } = useQuery({
