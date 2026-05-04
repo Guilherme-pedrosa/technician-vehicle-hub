@@ -879,9 +879,11 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
-  // Filter tickets
+  // Filter tickets by board + filters
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
+      // Board filter: only show types belonging to the active board
+      if (!boardTypes.includes(t.tipo as TicketType)) return false;
       if (filterPriority !== "all" && t.prioridade !== filterPriority) return false;
       if (filterType !== "all" && t.tipo !== filterType) return false;
       if (search) {
@@ -894,7 +896,7 @@ export default function Chamados() {
       }
       return true;
     });
-  }, [tickets, filterPriority, filterType, search]);
+  }, [tickets, filterPriority, filterType, search, boardTypes]);
 
   // Split duplicates from main tickets
   const duplicates = useMemo(() => filtered.filter(t => (t as any).duplicate_of), [filtered]);
