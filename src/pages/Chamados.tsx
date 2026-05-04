@@ -86,19 +86,20 @@ const TYPE_LABEL: Record<TicketType, { label: string; className: string }> = {
 
 function TicketCard({
   ticket,
-  onDragStart,
   onClick,
   isDuplicate,
   earliestDeadline,
 }: {
   ticket: Ticket;
-  onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: () => void;
   isDuplicate?: boolean;
   earliestDeadline?: string | null;
 }) {
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: ticket.id });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
   // Compute deadline status
   let deadlineBadge: { label: string; className: string } | null = null;
@@ -121,52 +122,58 @@ function TicketCard({
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, ticket.id)}
-      onClick={onClick}
-      className={`group bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2 ${isDuplicate ? "border-muted-foreground/30 opacity-75" : "border-border"}`}
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group relative rounded-md bg-card border border-border/60 px-2.5 py-2 text-sm shadow-sm hover:shadow-md hover:border-border cursor-grab active:cursor-grabbing select-none transition-shadow",
+        isDragging && "opacity-40",
+        isDuplicate && "border-muted-foreground/30 opacity-75"
+      )}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      {...listeners}
+      {...attributes}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <span className="text-xs font-mono text-muted-foreground shrink-0">#{(ticket as any).ticket_number ?? "?"}</span>
-          <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+          <h4 className="text-[13px] font-medium leading-snug line-clamp-2 flex-1">{ticket.titulo}</h4>
         </div>
-        <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mt-1.5">
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${prio.className}`}>{prio.label}</Badge>
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${tipo.className}`}>{tipo.label}</Badge>
       </div>
 
       {deadlineBadge && (
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 w-full justify-center ${deadlineBadge.className}`}>
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 w-full justify-center mt-1.5 ${deadlineBadge.className}`}>
           {deadlineBadge.label}
         </Badge>
       )}
 
-      {ticket.vehicles && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Car className="w-3 h-3" />
-          <span>{ticket.vehicles.placa} — {ticket.vehicles.modelo}</span>
-        </div>
-      )}
+      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5 text-[10px] text-muted-foreground">
+        {ticket.vehicles && (
+          <span className="inline-flex items-center gap-1">
+            <Car className="w-3 h-3" />
+            {ticket.vehicles.placa} — {ticket.vehicles.modelo}
+          </span>
+        )}
+        {ticket.drivers && (
+          <span className="inline-flex items-center gap-1">
+            <User className="w-3 h-3" />
+            {ticket.drivers.full_name}
+          </span>
+        )}
+      </div>
 
-      {ticket.drivers && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <User className="w-3 h-3" />
-          <span>{ticket.drivers.full_name}</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1.5 mt-1.5 border-t border-border/50">
         <CalendarDays className="w-3 h-3" />
         <span>{format(new Date(ticket.created_at), "dd/MM/yy HH:mm")}</span>
       </div>
     </div>
   );
 }
-
 // ═══════════════════════════════════════════
 // KANBAN COLUMN
 // ═══════════════════════════════════════════
