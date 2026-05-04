@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +31,19 @@ import { TicketActions } from "@/components/chamados/TicketActions";
 import { ConcluirPreventivaDialog } from "@/components/chamados/ConcluirPreventivaDialog";
 import { KanbanConfigDialog } from "@/components/chamados/KanbanConfigDialog";
 import { Settings } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  closestCorners,
+} from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
@@ -73,19 +86,20 @@ const TYPE_LABEL: Record<TicketType, { label: string; className: string }> = {
 
 function TicketCard({
   ticket,
-  onDragStart,
   onClick,
   isDuplicate,
   earliestDeadline,
 }: {
   ticket: Ticket;
-  onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: () => void;
   isDuplicate?: boolean;
   earliestDeadline?: string | null;
 }) {
   const prio = PRIORITY_BADGE[ticket.prioridade as TicketPriority] ?? PRIORITY_BADGE.media;
   const tipo = TYPE_LABEL[ticket.tipo as TicketType] ?? TYPE_LABEL.corretiva;
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: ticket.id });
+  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
 
   // Compute deadline status
   let deadlineBadge: { label: string; className: string } | null = null;
@@ -108,125 +122,125 @@ function TicketCard({
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, ticket.id)}
-      onClick={onClick}
-      className={`group bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing active:scale-[0.98] p-3 space-y-2 ${isDuplicate ? "border-muted-foreground/30 opacity-75" : "border-border"}`}
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group relative rounded-md bg-card border border-border/60 px-2.5 py-2 text-sm shadow-sm hover:shadow-md hover:border-border cursor-grab active:cursor-grabbing select-none transition-shadow",
+        isDragging && "opacity-40",
+        isDuplicate && "border-muted-foreground/30 opacity-75"
+      )}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      {...listeners}
+      {...attributes}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <span className="text-xs font-mono text-muted-foreground shrink-0">#{(ticket as any).ticket_number ?? "?"}</span>
-          <h4 className="text-sm font-semibold leading-tight line-clamp-2 flex-1">{ticket.titulo}</h4>
+          <h4 className="text-[13px] font-medium leading-snug line-clamp-2 flex-1">{ticket.titulo}</h4>
         </div>
-        <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mt-1.5">
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${prio.className}`}>{prio.label}</Badge>
         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${tipo.className}`}>{tipo.label}</Badge>
       </div>
 
       {deadlineBadge && (
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 w-full justify-center ${deadlineBadge.className}`}>
+        <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 w-full justify-center mt-1.5 ${deadlineBadge.className}`}>
           {deadlineBadge.label}
         </Badge>
       )}
 
-      {ticket.vehicles && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Car className="w-3 h-3" />
-          <span>{ticket.vehicles.placa} — {ticket.vehicles.modelo}</span>
-        </div>
-      )}
+      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5 text-[10px] text-muted-foreground">
+        {ticket.vehicles && (
+          <span className="inline-flex items-center gap-1">
+            <Car className="w-3 h-3" />
+            {ticket.vehicles.placa} — {ticket.vehicles.modelo}
+          </span>
+        )}
+        {ticket.drivers && (
+          <span className="inline-flex items-center gap-1">
+            <User className="w-3 h-3" />
+            {ticket.drivers.full_name}
+          </span>
+        )}
+      </div>
 
-      {ticket.drivers && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <User className="w-3 h-3" />
-          <span>{ticket.drivers.full_name}</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1 border-t border-border/50">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground pt-1.5 mt-1.5 border-t border-border/50">
         <CalendarDays className="w-3 h-3" />
         <span>{format(new Date(ticket.created_at), "dd/MM/yy HH:mm")}</span>
       </div>
     </div>
   );
 }
-
 // ═══════════════════════════════════════════
-// KANBAN COLUMN
+// KANBAN COLUMN (dnd-kit droppable)
 // ═══════════════════════════════════════════
 
 function KanbanColumn({
   column,
   tickets,
-  onDrop,
-  onDragStart,
-  onDragOver,
   onTicketClick,
   deadlinesByTicket,
   onEdit,
 }: {
   column: (typeof COLUMNS)[number];
   tickets: Ticket[];
-  onDrop: (e: React.DragEvent, status: TicketStatus) => void;
-  onDragStart: (e: React.DragEvent, id: string) => void;
-  onDragOver: (e: React.DragEvent) => void;
   onTicketClick: (t: Ticket) => void;
   deadlinesByTicket: Record<string, string>;
   onEdit?: () => void;
 }) {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const { isOver, setNodeRef } = useDroppable({ id: column.id });
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] max-w-[320px] flex-1 rounded-xl border ${column.bgClass} transition-all ${isDragOver ? "ring-2 ring-primary/40 scale-[1.01]" : ""}`}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); onDragOver(e); }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={(e) => { setIsDragOver(false); onDrop(e, column.id); }}
+      className={cn(
+        "w-[280px] flex-shrink-0 flex flex-col rounded-lg border border-border/50 bg-muted/30 max-h-full transition-all",
+        isOver && "bg-primary/5 ring-2 ring-primary/30 scale-[1.01]"
+      )}
     >
-      <div className="flex items-center gap-2 p-3 pb-2">
-        <span className={column.color}>{column.icon}</span>
-        <h3 className={`text-sm font-semibold ${column.color}`}>{column.label}</h3>
-        <Badge variant="secondary" className="ml-auto text-xs h-5 min-w-[24px] justify-center">
-          {tickets.length}
-        </Badge>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className={column.color}>{column.icon}</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider truncate">
+            {column.label}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">{tickets.length}</span>
+        </div>
         {onEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 opacity-60 hover:opacity-100"
+          <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Editar colunas do Kanban"
             aria-label="Editar coluna"
           >
-            <Pencil className="w-3.5 h-3.5" />
-          </Button>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
-      <ScrollArea className="flex-1 px-2 pb-2" style={{ maxHeight: "calc(100vh - 260px)" }}>
-        <div className="space-y-2 p-1">
-          {tickets.length === 0 && (
-            <div className="text-center text-xs text-muted-foreground py-8 opacity-60">
-              Nenhum chamado
-            </div>
-          )}
-          {tickets.map((t) => (
-            <TicketCard
-              key={t.id}
-              ticket={t}
-              onDragStart={onDragStart}
-              onClick={() => onTicketClick(t)}
-              earliestDeadline={deadlinesByTicket[t.id] ?? null}
-            />
-          ))}
-        </div>
-      </ScrollArea>
+      <div
+        ref={setNodeRef}
+        className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1.5 min-h-[120px]"
+        style={{ maxHeight: "calc(100vh - 260px)" }}
+      >
+        {tickets.map((t) => (
+          <TicketCard
+            key={t.id}
+            ticket={t}
+            onClick={() => onTicketClick(t)}
+            earliestDeadline={deadlinesByTicket[t.id] ?? null}
+          />
+        ))}
+        {tickets.length === 0 && (
+          <div className="text-[11px] text-muted-foreground/60 text-center py-4">
+            Nenhum chamado
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
 // ═══════════════════════════════════════════
 // TICKET DETAIL DIALOG
 // ═══════════════════════════════════════════
@@ -669,7 +683,7 @@ export default function Chamados() {
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
-  const dragIdRef = useRef<string | null>(null);
+  
 
   // Fetch tickets
   const { data: tickets = [], isLoading } = useQuery({
@@ -876,29 +890,23 @@ export default function Chamados() {
     return map;
   }, [nonDuplicates]);
 
-  // Drag & drop
-  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
-    dragIdRef.current = id;
-    e.dataTransfer.effectAllowed = "move";
-  }, []);
+  // Drag & drop (dnd-kit)
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const activeTicket = activeId ? tickets.find((t) => t.id === activeId) : null;
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, status: TicketStatus) => {
-    e.preventDefault();
-    const id = dragIdRef.current;
-    if (!id) return;
-    dragIdRef.current = null;
-    const ticket = tickets.find((t) => t.id === id);
-    if (ticket && ticket.status !== status) {
-      if (status === "concluido" && ticket.tipo === "preventiva") {
-        setConcluirTicket(ticket);
-      } else {
-        updateStatus.mutate({ id, status });
-      }
+  const handleDndDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const ticketId = String(active.id);
+    const newStatus = String(over.id) as TicketStatus;
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket || ticket.status === newStatus) return;
+    if (newStatus === "concluido" && ticket.tipo === "preventiva") {
+      setConcluirTicket(ticket);
+    } else {
+      updateStatus.mutate({ id: ticketId, status: newStatus });
     }
   }, [tickets, updateStatus]);
 
@@ -1010,21 +1018,35 @@ export default function Chamados() {
           Carregando chamados...
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              column={col}
-              tickets={grouped[col.id]}
-              onDrop={handleDrop}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
-              deadlinesByTicket={deadlinesByTicket}
-              onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+          onDragCancel={() => setActiveId(null)}
+          onDragEnd={handleDndDragEnd}
+        >
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {COLUMNS.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                tickets={grouped[col.id]}
+                onTicketClick={(t) => { setSelectedTicket(t); setDetailOpen(true); }}
+                deadlinesByTicket={deadlinesByTicket}
+                onEdit={isAdmin ? () => setConfigOpen(true) : undefined}
+              />
+            ))}
+          </div>
+
+          <DragOverlay>
+            {activeTicket && (
+              <div className="rounded-md border border-border bg-card shadow-lg px-3 py-2 text-sm w-[260px]">
+                <span className="text-xs font-mono text-muted-foreground mr-1.5">#{(activeTicket as any).ticket_number ?? "?"}</span>
+                {activeTicket.titulo}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Duplicados */}
@@ -1046,7 +1068,6 @@ export default function Chamados() {
                   <div key={t.id} className="relative">
                     <TicketCard
                       ticket={t}
-                      onDragStart={handleDragStart}
                       onClick={() => { setSelectedTicket(t); setDetailOpen(true); }}
                       isDuplicate
                     />
