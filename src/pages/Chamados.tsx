@@ -767,6 +767,23 @@ export default function Chamados() {
       } catch (emailErr) {
         console.error("Erro ao enviar notificação:", emailErr);
       }
+
+      // Forward to external task manager (Todoist)
+      try {
+        const vehicle = inserted.vehicles as any;
+        await supabase.functions.invoke("forward-ticket-todoist", {
+          body: {
+            titulo: data.titulo ?? inserted.titulo,
+            descricao: data.descricao ?? inserted.descricao,
+            prioridade: data.prioridade ?? inserted.prioridade,
+            placa: vehicle?.placa,
+            modelo: vehicle?.modelo,
+            tipo: data.tipo ?? inserted.tipo,
+          },
+        });
+      } catch (fwdErr) {
+        console.error("Erro ao encaminhar para Todoist:", fwdErr);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
