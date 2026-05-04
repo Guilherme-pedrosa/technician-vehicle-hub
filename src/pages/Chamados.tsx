@@ -981,6 +981,40 @@ export default function Chamados() {
         </div>
       </div>
 
+      {/* Board Tabs */}
+      <div className="flex gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        <button
+          onClick={() => { setActiveBoard("chamados"); setFilterType("all"); }}
+          className={cn(
+            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+            activeBoard === "chamados"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Wrench className="w-4 h-4" />
+          Chamados
+          {chamadosCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-[20px] text-[10px] px-1.5">{chamadosCount}</Badge>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveBoard("ocorrencias"); setFilterType("all"); }}
+          className={cn(
+            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+            activeBoard === "ocorrencias"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Eye className="w-4 h-4" />
+          Ocorrências
+          {ocorrenciasCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-[20px] text-[10px] px-1.5">{ocorrenciasCount}</Badge>
+          )}
+        </button>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-l-4 border-l-slate-400">
@@ -991,7 +1025,7 @@ export default function Chamados() {
         </Card>
         <Card className="border-l-4 border-l-red-400">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Abertos</p>
+            <p className="text-xs text-muted-foreground">{activeBoard === "chamados" ? "Abertos" : "Novos"}</p>
             <p className="text-2xl font-bold text-red-600">{stats.abertos}</p>
           </CardContent>
         </Card>
@@ -1003,7 +1037,7 @@ export default function Chamados() {
         </Card>
         <Card className="border-l-4 border-l-emerald-400">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Concluídos</p>
+            <p className="text-xs text-muted-foreground">{activeBoard === "chamados" ? "Concluídos" : "Resolvidos"}</p>
             <p className="text-2xl font-bold text-emerald-600">{stats.concluidos}</p>
           </CardContent>
         </Card>
@@ -1013,7 +1047,7 @@ export default function Chamados() {
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar chamado..."
+          placeholder="Buscar..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-[200px] h-8 text-sm"
@@ -1032,9 +1066,9 @@ export default function Chamados() {
           <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="corretiva">Corretiva</SelectItem>
-            <SelectItem value="preventiva">Preventiva</SelectItem>
-            <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+            {boardTypes.map((t) => (
+              <SelectItem key={t} value={t}>{TYPE_LABEL[t]?.label ?? t}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
