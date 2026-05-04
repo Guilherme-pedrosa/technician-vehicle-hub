@@ -31,6 +31,19 @@ import { TicketActions } from "@/components/chamados/TicketActions";
 import { ConcluirPreventivaDialog } from "@/components/chamados/ConcluirPreventivaDialog";
 import { KanbanConfigDialog } from "@/components/chamados/KanbanConfigDialog";
 import { Settings } from "lucide-react";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  closestCorners,
+} from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════
 // TYPES & CONSTANTS
