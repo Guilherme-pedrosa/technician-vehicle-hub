@@ -387,12 +387,12 @@ Critério esperado: ${finalCriterio}`;
             ? result.detected_elements.filter((element: unknown) => typeof element === "string" && allowedElements.has(element))
             : [];
           const visible = result.detected_elements.length;
-          const uselessCloseUp = /alto-?falante|maçaneta|puxador|soleira|pedal/i.test(result.reason || "") && visible === 0;
+          const uselessCloseUp = /alto-?falante|maçaneta|puxador|soleira|pedal|c[aâ]mbio|alavanca|marcha|console\s*central|r[aá]dio|multim[ií]dia|volante/i.test(result.reason || "") && visible <= 1;
           if (visible < 1 || uselessCloseUp) {
-            console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, reason="${result.reason}"`);
+            console.log(`[interior] Rejeitado por não contribuir para a cobertura do interior. detected=${visible}, uselessCloseUp=${uselessCloseUp}, reason="${result.reason}"`);
             result.valid = false;
             result.target_match = false;
-            result.reason = "Foto do interior não contribui para a inspeção: mostre bancos, painel/console, portas, assoalho/tapetes, quebra-sol ou teto.";
+            result.reason = "Foto do interior não contribui para a inspeção: close-ups do câmbio, console ou volante não são válidos. Tire uma foto ampla mostrando bancos, quebra-sol/teto, portas ou assoalho.";
           }
 
           // Server-side blur rejection for interior
