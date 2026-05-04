@@ -175,78 +175,72 @@ function TicketCard({
   );
 }
 // ═══════════════════════════════════════════
-// KANBAN COLUMN
+// KANBAN COLUMN (dnd-kit droppable)
 // ═══════════════════════════════════════════
 
 function KanbanColumn({
   column,
   tickets,
-  onDrop,
-  onDragStart,
-  onDragOver,
   onTicketClick,
   deadlinesByTicket,
   onEdit,
 }: {
   column: (typeof COLUMNS)[number];
   tickets: Ticket[];
-  onDrop: (e: React.DragEvent, status: TicketStatus) => void;
-  onDragStart: (e: React.DragEvent, id: string) => void;
-  onDragOver: (e: React.DragEvent) => void;
   onTicketClick: (t: Ticket) => void;
   deadlinesByTicket: Record<string, string>;
   onEdit?: () => void;
 }) {
-  const [isDragOver, setIsDragOver] = useState(false);
+  const { isOver, setNodeRef } = useDroppable({ id: column.id });
 
   return (
     <div
-      className={`flex flex-col min-w-[280px] max-w-[320px] flex-1 rounded-xl border ${column.bgClass} transition-all ${isDragOver ? "ring-2 ring-primary/40 scale-[1.01]" : ""}`}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); onDragOver(e); }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={(e) => { setIsDragOver(false); onDrop(e, column.id); }}
+      className={cn(
+        "w-[280px] flex-shrink-0 flex flex-col rounded-lg border border-border/50 bg-muted/30 max-h-full transition-all",
+        isOver && "bg-primary/5 ring-2 ring-primary/30 scale-[1.01]"
+      )}
     >
-      <div className="flex items-center gap-2 p-3 pb-2">
-        <span className={column.color}>{column.icon}</span>
-        <h3 className={`text-sm font-semibold ${column.color}`}>{column.label}</h3>
-        <Badge variant="secondary" className="ml-auto text-xs h-5 min-w-[24px] justify-center">
-          {tickets.length}
-        </Badge>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className={column.color}>{column.icon}</span>
+          <h3 className="text-xs font-semibold uppercase tracking-wider truncate">
+            {column.label}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">{tickets.length}</span>
+        </div>
         {onEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 opacity-60 hover:opacity-100"
+          <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Editar colunas do Kanban"
             aria-label="Editar coluna"
           >
-            <Pencil className="w-3.5 h-3.5" />
-          </Button>
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
-      <ScrollArea className="flex-1 px-2 pb-2" style={{ maxHeight: "calc(100vh - 260px)" }}>
-        <div className="space-y-2 p-1">
-          {tickets.length === 0 && (
-            <div className="text-center text-xs text-muted-foreground py-8 opacity-60">
-              Nenhum chamado
-            </div>
-          )}
-          {tickets.map((t) => (
-            <TicketCard
-              key={t.id}
-              ticket={t}
-              onDragStart={onDragStart}
-              onClick={() => onTicketClick(t)}
-              earliestDeadline={deadlinesByTicket[t.id] ?? null}
-            />
-          ))}
-        </div>
-      </ScrollArea>
+      <div
+        ref={setNodeRef}
+        className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1.5 min-h-[120px]"
+        style={{ maxHeight: "calc(100vh - 260px)" }}
+      >
+        {tickets.map((t) => (
+          <TicketCard
+            key={t.id}
+            ticket={t}
+            onClick={() => onTicketClick(t)}
+            earliestDeadline={deadlinesByTicket[t.id] ?? null}
+          />
+        ))}
+        {tickets.length === 0 && (
+          <div className="text-[11px] text-muted-foreground/60 text-center py-4">
+            Nenhum chamado
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
 // ═══════════════════════════════════════════
 // TICKET DETAIL DIALOG
 // ═══════════════════════════════════════════
