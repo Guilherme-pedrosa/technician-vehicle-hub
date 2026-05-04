@@ -274,6 +274,7 @@ function TicketDetailDialog({
   vehicles,
   drivers,
   allTickets,
+  statusColumns,
 }: {
   ticket: Ticket | null;
   open: boolean;
@@ -287,6 +288,7 @@ function TicketDetailDialog({
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
   allTickets: Ticket[];
+  statusColumns: typeof CHAMADOS_COLUMNS;
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
