@@ -17,29 +17,37 @@ const PRIORITY_MAP: Record<string, string> = {
   baixa: "p4",
 };
 
+const STATUS_MAP: Record<string, string> = {
+  aberto: "todo",
+  em_andamento: "in_progress",
+  aguardando_peca: "in_progress",
+  concluido: "done",
+  cancelado: "cancelled",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const apiKey = Deno.env.get("FROTA") || Deno.env.get("FROTA_EXTERNAL_API_KEY");
     if (!apiKey) {
       console.error("[forward-ticket] FROTA secret not configured");
-      return new Response(
-        JSON.stringify({ error: "External API key not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return json({ error: "External API key not configured" }, 500);
     }
 
     const body = await req.json();
-    const { titulo, descricao, prioridade, placa, modelo, tipo, ticket_id } = body;
+    const { titulo, descricao, prioridade, placa, modelo, tipo, ticket_id, status: ticketStatus } = body;
 
     if (!titulo) {
-      return new Response(
-        JSON.stringify({ error: "titulo is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return json({ error: "titulo is required" }, 400);
     }
 
     // Build description with vehicle info
@@ -50,11 +58,25 @@ Deno.serve(async (req) => {
     const fullDescription = parts.join("\n") || undefined;
 
     const priority = PRIORITY_MAP[prioridade?.toLowerCase()] ?? "p3";
-
-    // Build external_ref from ticket_id for upsert/traceability
     const externalRef = ticket_id ? `fleetdesk-${ticket_id}` : null;
+    const mappedStatus = ticketStatus ? (STATUS_MAP[ticketStatus.toLowerCase()] || "todo") : undefined;
 
-    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority} ref=${externalRef}`);
+    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority} ref=${externalRef} status=${mappedStatus}`);
+
+    const taskPayload: Record<string, unknown> = {
+      title: `[Frota] ${titulo}`,
+      description: fullDescription,
+      priority,
+      due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      external_ref: externalRef,
+      external_source: "fleetdesk",
+    };
+    if (mappedStatus) {
+      taskPayload.status = mappedStatus;
+      if (mappedStatus === "done") {
+        taskPayload.completed_at = new Date().toISOString();
+      }
+    }
 
     const res = await fetch(EXTERNAL_ENDPOINT, {
       method: "POST",
@@ -63,63 +85,103 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "x-sync-source": "fleetdesk",
       },
-      body: JSON.stringify({
-        title: `[Frota] ${titulo}`,
-        description: fullDescription,
-        priority,
-        due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        external_ref: externalRef,
-        external_source: "fleetdesk",
-      }),
+      body: JSON.stringify(taskPayload),
     });
 
     const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       console.error("[forward-ticket] External API error:", res.status, result);
-      return new Response(
-        JSON.stringify({ error: "External API error", detail: result }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return json({ error: "External API error", detail: result }, 502);
     }
 
     console.log("[forward-ticket] Success:", result);
+    const parentTaskId = result.id;
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
     // Save external refs back to maintenance_tickets
-    if (ticket_id && (result.id || result.external_ref)) {
-      try {
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-        );
-        const { error: updateErr } = await supabase
-          .from("maintenance_tickets")
-          .update({
-            external_ref: externalRef,
-            external_task_id: result.id || null,
-            external_synced_at: new Date().toISOString(),
-            last_sync_source: "forward-ticket",
-          })
-          .eq("id", ticket_id);
-        if (updateErr) {
-          console.warn("[forward-ticket] Failed to save external refs:", updateErr);
-        } else {
-          console.log(`[forward-ticket] Saved refs to ticket ${ticket_id}`);
-        }
-      } catch (e) {
-        console.warn("[forward-ticket] Error saving refs:", e);
+    if (ticket_id && parentTaskId) {
+      const { error: updateErr } = await supabase
+        .from("maintenance_tickets")
+        .update({
+          external_ref: externalRef,
+          external_task_id: parentTaskId,
+          external_synced_at: new Date().toISOString(),
+          last_sync_source: "forward-ticket",
+        })
+        .eq("id", ticket_id);
+      if (updateErr) {
+        console.warn("[forward-ticket] Failed to save external refs:", updateErr);
       }
     }
 
-    return new Response(
-      JSON.stringify({ ok: true, external_task: result }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    // Now sync ticket_actions as subtasks
+    if (ticket_id && parentTaskId) {
+      const { data: actions } = await supabase
+        .from("ticket_actions")
+        .select("id, descricao, concluida, prazo, sort_order")
+        .eq("ticket_id", ticket_id)
+        .order("sort_order", { ascending: true });
+
+      if (actions && actions.length > 0) {
+        console.log(`[forward-ticket] Syncing ${actions.length} subtasks for ticket ${ticket_id}`);
+        let synced = 0;
+
+        for (const action of actions) {
+          const subRef = `fleetdesk-action-${action.id}`;
+          const subPayload: Record<string, unknown> = {
+            title: action.descricao,
+            parent_id: parentTaskId,
+            external_ref: subRef,
+            external_source: "fleetdesk",
+            priority: "p4",
+          };
+
+          if (action.prazo) {
+            subPayload.due_at = new Date(action.prazo + "T12:00:00Z").toISOString();
+          }
+
+          if (action.concluida) {
+            subPayload.status = "done";
+            subPayload.completed_at = new Date().toISOString();
+          }
+
+          try {
+            const subRes = await fetch(EXTERNAL_ENDPOINT, {
+              method: "POST",
+              headers: {
+                "x-api-key": apiKey,
+                "Content-Type": "application/json",
+                "x-sync-source": "fleetdesk",
+              },
+              body: JSON.stringify(subPayload),
+            });
+
+            if (subRes.ok) {
+              synced++;
+            } else {
+              const err = await subRes.json().catch(() => ({}));
+              console.warn(`[forward-ticket] Subtask ${action.id} failed:`, err);
+            }
+          } catch (e) {
+            console.warn(`[forward-ticket] Subtask ${action.id} error:`, e);
+          }
+
+          // Small delay between subtasks
+          await new Promise(r => setTimeout(r, 200));
+        }
+
+        console.log(`[forward-ticket] Synced ${synced}/${actions.length} subtasks`);
+      }
+    }
+
+    return json({ ok: true, external_task: result });
   } catch (err) {
     console.error("[forward-ticket] Error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ error: err.message }, 500);
   }
 });
