@@ -983,7 +983,7 @@ export default function Chamados() {
             </Button>
           )}
           <Button onClick={() => setNewOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Chamado
+            <Plus className="w-4 h-4 mr-2" /> {activeBoard === "chamados" ? "Novo Chamado" : "Nova Ocorrência"}
           </Button>
         </div>
       </div>
