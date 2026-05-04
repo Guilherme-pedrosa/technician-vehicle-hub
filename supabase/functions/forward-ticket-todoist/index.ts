@@ -61,7 +61,44 @@ Deno.serve(async (req) => {
     const externalRef = ticket_id ? `fleetdesk-${ticket_id}` : null;
     const mappedStatus = ticketStatus ? (STATUS_MAP[ticketStatus.toLowerCase()] || "todo") : undefined;
 
-    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority} ref=${externalRef} status=${mappedStatus}`);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const subtasks: Record<string, unknown>[] = [];
+    if (ticket_id) {
+      const { data: actions, error: actionsErr } = await supabase
+        .from("ticket_actions")
+        .select("id, descricao, concluida, prazo, sort_order")
+        .eq("ticket_id", ticket_id)
+        .order("sort_order", { ascending: true });
+
+      if (actionsErr) {
+        console.warn("[forward-ticket] Failed to fetch ticket actions:", actionsErr);
+      }
+
+      for (const action of actions ?? []) {
+        const subtask: Record<string, unknown> = {
+          title: action.descricao,
+          external_ref: `fleetdesk-action-${action.id}`,
+          priority: "p4",
+        };
+
+        if (action.prazo) {
+          subtask.due_at = new Date(action.prazo + "T12:00:00Z").toISOString();
+        }
+
+        if (action.concluida) {
+          subtask.status = "done";
+          subtask.completed_at = new Date().toISOString();
+        }
+
+        subtasks.push(subtask);
+      }
+    }
+
+    console.log(`[forward-ticket] Forwarding: "${titulo}" priority=${priority} ref=${externalRef} status=${mappedStatus} subtasks=${subtasks.length}`);
 
     const taskPayload: Record<string, unknown> = {
       title: `[Frota] ${titulo}`,
@@ -70,6 +107,7 @@ Deno.serve(async (req) => {
       due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       external_ref: externalRef,
       external_source: "fleetdesk",
+      subtasks,
     };
     if (mappedStatus) {
       taskPayload.status = mappedStatus;
@@ -98,11 +136,6 @@ Deno.serve(async (req) => {
     console.log("[forward-ticket] Success:", result);
     const parentTaskId = result.id;
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
     // Save external refs back to maintenance_tickets
     if (ticket_id && parentTaskId) {
       const { error: updateErr } = await supabase
@@ -116,66 +149,6 @@ Deno.serve(async (req) => {
         .eq("id", ticket_id);
       if (updateErr) {
         console.warn("[forward-ticket] Failed to save external refs:", updateErr);
-      }
-    }
-
-    // Now sync ticket_actions as subtasks
-    if (ticket_id && parentTaskId) {
-      const { data: actions } = await supabase
-        .from("ticket_actions")
-        .select("id, descricao, concluida, prazo, sort_order")
-        .eq("ticket_id", ticket_id)
-        .order("sort_order", { ascending: true });
-
-      if (actions && actions.length > 0) {
-        console.log(`[forward-ticket] Syncing ${actions.length} subtasks for ticket ${ticket_id}`);
-        let synced = 0;
-
-        for (const action of actions) {
-          const subRef = `fleetdesk-action-${action.id}`;
-          const subPayload: Record<string, unknown> = {
-            title: action.descricao,
-            parent_id: parentTaskId,
-            external_ref: subRef,
-            external_source: "fleetdesk",
-            priority: "p4",
-          };
-
-          if (action.prazo) {
-            subPayload.due_at = new Date(action.prazo + "T12:00:00Z").toISOString();
-          }
-
-          if (action.concluida) {
-            subPayload.status = "done";
-            subPayload.completed_at = new Date().toISOString();
-          }
-
-          try {
-            const subRes = await fetch(EXTERNAL_ENDPOINT, {
-              method: "POST",
-              headers: {
-                "x-api-key": apiKey,
-                "Content-Type": "application/json",
-                "x-sync-source": "fleetdesk",
-              },
-              body: JSON.stringify(subPayload),
-            });
-
-            if (subRes.ok) {
-              synced++;
-            } else {
-              const err = await subRes.json().catch(() => ({}));
-              console.warn(`[forward-ticket] Subtask ${action.id} failed:`, err);
-            }
-          } catch (e) {
-            console.warn(`[forward-ticket] Subtask ${action.id} error:`, e);
-          }
-
-          // Small delay between subtasks
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        console.log(`[forward-ticket] Synced ${synced}/${actions.length} subtasks`);
       }
     }
 
