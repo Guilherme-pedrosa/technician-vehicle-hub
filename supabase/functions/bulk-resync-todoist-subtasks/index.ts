@@ -19,11 +19,24 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: tickets, error } = await admin
+    const url = new URL(req.url);
+    const ticketId = url.searchParams.get("ticket_id");
+    const limit = Number(url.searchParams.get("limit") ?? "10");
+    const offset = Number(url.searchParams.get("offset") ?? "0");
+
+    let query = admin
       .from("maintenance_tickets")
       .select("id, titulo, descricao, prioridade, tipo, status, vehicles(placa, modelo)")
       .not("external_ref", "is", null)
       .order("created_at", { ascending: true });
+
+    if (ticketId) {
+      query = query.eq("id", ticketId);
+    } else {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: tickets, error } = await query;
 
     if (error) return json({ error: error.message }, 500);
 
@@ -67,10 +80,10 @@ Deno.serve(async (req) => {
         failures.push({ ticket_id: ticket.id, error: await res.json().catch(() => res.statusText) });
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
 
-    return json({ ok: true, processed, skipped, failures });
+    return json({ ok: true, processed, skipped, failures, limit, offset, ticket_id: ticketId });
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
