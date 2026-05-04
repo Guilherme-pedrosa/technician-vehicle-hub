@@ -657,10 +657,14 @@ export type Database = {
           descricao: string | null
           driver_id: string | null
           duplicate_of: string | null
+          external_ref: string | null
+          external_synced_at: string | null
+          external_task_id: string | null
           fotos: string[] | null
           id: string
           kanban_board_id: string | null
           kanban_column_id: string | null
+          last_sync_source: string | null
           maintenance_plan_id: string | null
           prioridade: Database["public"]["Enums"]["ticket_priority"]
           status: Database["public"]["Enums"]["ticket_status"]
@@ -677,10 +681,14 @@ export type Database = {
           descricao?: string | null
           driver_id?: string | null
           duplicate_of?: string | null
+          external_ref?: string | null
+          external_synced_at?: string | null
+          external_task_id?: string | null
           fotos?: string[] | null
           id?: string
           kanban_board_id?: string | null
           kanban_column_id?: string | null
+          last_sync_source?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
@@ -697,10 +705,14 @@ export type Database = {
           descricao?: string | null
           driver_id?: string | null
           duplicate_of?: string | null
+          external_ref?: string | null
+          external_synced_at?: string | null
+          external_task_id?: string | null
           fotos?: string[] | null
           id?: string
           kanban_board_id?: string | null
           kanban_column_id?: string | null
+          last_sync_source?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
           status?: Database["public"]["Enums"]["ticket_status"]
