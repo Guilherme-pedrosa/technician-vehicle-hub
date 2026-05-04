@@ -1203,7 +1203,12 @@ export type Database = {
       driver_status: "ativo" | "inativo"
       ticket_priority: "baixa" | "media" | "alta" | "critica"
       ticket_status: "aberto" | "em_andamento" | "aguardando_peca" | "concluido"
-      ticket_type: "preventiva" | "corretiva" | "nao_conformidade"
+      ticket_type:
+        | "preventiva"
+        | "corretiva"
+        | "nao_conformidade"
+        | "preenchimento_incorreto"
+        | "alerta_telemetria"
       vehicle_status: "disponivel" | "em_uso" | "manutencao"
     }
     CompositeTypes: {
@@ -1336,7 +1341,13 @@ export const Constants = {
       driver_status: ["ativo", "inativo"],
       ticket_priority: ["baixa", "media", "alta", "critica"],
       ticket_status: ["aberto", "em_andamento", "aguardando_peca", "concluido"],
-      ticket_type: ["preventiva", "corretiva", "nao_conformidade"],
+      ticket_type: [
+        "preventiva",
+        "corretiva",
+        "nao_conformidade",
+        "preenchimento_incorreto",
+        "alerta_telemetria",
+      ],
       vehicle_status: ["disponivel", "em_uso", "manutencao"],
     },
   },

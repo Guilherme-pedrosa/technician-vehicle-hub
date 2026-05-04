@@ -51,7 +51,9 @@ import { cn } from "@/lib/utils";
 
 type TicketStatus = "aberto" | "em_andamento" | "aguardando_peca" | "concluido";
 type TicketPriority = "baixa" | "media" | "alta" | "critica";
-type TicketType = "preventiva" | "corretiva" | "nao_conformidade";
+type TicketType = "preventiva" | "corretiva" | "nao_conformidade" | "preenchimento_incorreto" | "alerta_telemetria";
+
+type BoardTab = "chamados" | "ocorrencias";
 
 type Ticket = Tables<"maintenance_tickets"> & {
   vehicles?: { placa: string; modelo: string } | null;
@@ -60,12 +62,24 @@ type Ticket = Tables<"maintenance_tickets"> & {
   duplicate_of?: string | null;
 };
 
-const COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
+const CHAMADOS_TYPES: TicketType[] = ["preventiva", "corretiva", "nao_conformidade"];
+const OCORRENCIAS_TYPES: TicketType[] = ["preenchimento_incorreto", "alerta_telemetria"];
+
+const CHAMADOS_COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
   { id: "aberto", label: "Aberto", icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-600", bgClass: "bg-red-50 border-red-200" },
   { id: "em_andamento", label: "Em Andamento", icon: <Clock className="w-4 h-4" />, color: "text-amber-600", bgClass: "bg-amber-50 border-amber-200" },
   { id: "aguardando_peca", label: "Aguardando Peça", icon: <Package className="w-4 h-4" />, color: "text-blue-600", bgClass: "bg-blue-50 border-blue-200" },
   { id: "concluido", label: "Concluído", icon: <CheckCircle className="w-4 h-4" />, color: "text-emerald-600", bgClass: "bg-emerald-50 border-emerald-200" },
 ];
+
+const OCORRENCIAS_COLUMNS: { id: TicketStatus; label: string; icon: React.ReactNode; color: string; bgClass: string }[] = [
+  { id: "aberto", label: "Novo", icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-600", bgClass: "bg-red-50 border-red-200" },
+  { id: "em_andamento", label: "Em Análise", icon: <Clock className="w-4 h-4" />, color: "text-amber-600", bgClass: "bg-amber-50 border-amber-200" },
+  { id: "concluido", label: "Resolvido", icon: <CheckCircle className="w-4 h-4" />, color: "text-emerald-600", bgClass: "bg-emerald-50 border-emerald-200" },
+  { id: "aguardando_peca", label: "Descartado", icon: <X className="w-4 h-4" />, color: "text-slate-500", bgClass: "bg-slate-50 border-slate-200" },
+];
+
+const COLUMNS = CHAMADOS_COLUMNS;
 
 const PRIORITY_BADGE: Record<TicketPriority, { label: string; className: string }> = {
   baixa: { label: "Baixa", className: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -74,10 +88,12 @@ const PRIORITY_BADGE: Record<TicketPriority, { label: string; className: string 
   critica: { label: "Crítica", className: "bg-red-100 text-red-800 border-red-300 animate-pulse" },
 };
 
-const TYPE_LABEL: Record<TicketType, { label: string; className: string }> = {
+const TYPE_LABEL: Record<string, { label: string; className: string }> = {
   preventiva: { label: "Preventiva", className: "bg-emerald-100 text-emerald-800" },
   corretiva: { label: "Corretiva", className: "bg-amber-100 text-amber-800" },
   nao_conformidade: { label: "Não Conformidade", className: "bg-red-100 text-red-800" },
+  preenchimento_incorreto: { label: "Preench. Incorreto", className: "bg-violet-100 text-violet-800" },
+  alerta_telemetria: { label: "Alerta Telemetria", className: "bg-sky-100 text-sky-800" },
 };
 
 // ═══════════════════════════════════════════
@@ -258,6 +274,7 @@ function TicketDetailDialog({
   vehicles,
   drivers,
   allTickets,
+  statusColumns,
 }: {
   ticket: Ticket | null;
   open: boolean;
@@ -271,6 +288,7 @@ function TicketDetailDialog({
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
   allTickets: Ticket[];
+  statusColumns: typeof CHAMADOS_COLUMNS;
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitulo, setEditTitulo] = useState("");
@@ -355,7 +373,7 @@ function TicketDetailDialog({
               <div className="bg-muted/40 rounded-lg p-3 space-y-2">
                 <Label className="text-sm font-semibold">Ações</Label>
                 <div className="flex flex-wrap gap-2">
-                  {COLUMNS.map((col) => (
+                  {statusColumns.map((col) => (
                     <Button
                       key={col.id}
                       size="sm"
@@ -574,27 +592,32 @@ function NewTicketDialog({
   vehicles,
   drivers,
   onSave,
+  availableTypes,
+  boardLabel,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   vehicles: Tables<"vehicles">[];
   drivers: Tables<"drivers">[];
   onSave: (data: any) => void;
+  availableTypes: TicketType[];
+  boardLabel: string;
 }) {
+  const defaultTipo = availableTypes[0] || "corretiva";
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [driverId, setDriverId] = useState("");
-  const [tipo, setTipo] = useState<string>("corretiva");
+  const [tipo, setTipo] = useState<string>(defaultTipo);
   const [prioridade, setPrioridade] = useState<string>("media");
 
-  const reset = () => { setTitulo(""); setDescricao(""); setVehicleId(""); setDriverId(""); setTipo("corretiva"); setPrioridade("media"); };
+  const reset = () => { setTitulo(""); setDescricao(""); setVehicleId(""); setDriverId(""); setTipo(defaultTipo); setPrioridade("media"); };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo Chamado</DialogTitle>
+          <DialogTitle>{boardLabel === "chamados" ? "Novo Chamado" : "Nova Ocorrência"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -626,9 +649,9 @@ function NewTicketDialog({
               <Select value={tipo} onValueChange={setTipo}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="corretiva">Corretiva</SelectItem>
-                  <SelectItem value="preventiva">Preventiva</SelectItem>
-                  <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+                  {availableTypes.map((t) => (
+                    <SelectItem key={t} value={t}>{TYPE_LABEL[t]?.label ?? t}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -660,7 +683,7 @@ function NewTicketDialog({
               onOpenChange(false);
             }}
           >
-            <Plus className="w-4 h-4 mr-2" /> Criar Chamado
+            <Plus className="w-4 h-4 mr-2" /> {boardLabel === "chamados" ? "Criar Chamado" : "Criar Ocorrência"}
           </Button>
         </div>
       </DialogContent>
@@ -683,7 +706,10 @@ export default function Chamados() {
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [concluirTicket, setConcluirTicket] = useState<Ticket | null>(null);
+  const [activeBoard, setActiveBoard] = useState<BoardTab>("chamados");
   
+  const currentColumns = activeBoard === "chamados" ? CHAMADOS_COLUMNS : OCORRENCIAS_COLUMNS;
+  const boardTypes = activeBoard === "chamados" ? CHAMADOS_TYPES : OCORRENCIAS_TYPES;
 
   // Fetch tickets
   const { data: tickets = [], isLoading } = useQuery({
@@ -860,9 +886,11 @@ export default function Chamados() {
     onError: (err: any) => toast.error("Erro: " + err.message),
   });
 
-  // Filter tickets
+  // Filter tickets by board + filters
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
+      // Board filter: only show types belonging to the active board
+      if (!boardTypes.includes(t.tipo as TicketType)) return false;
       if (filterPriority !== "all" && t.prioridade !== filterPriority) return false;
       if (filterType !== "all" && t.tipo !== filterType) return false;
       if (search) {
@@ -875,7 +903,7 @@ export default function Chamados() {
       }
       return true;
     });
-  }, [tickets, filterPriority, filterType, search]);
+  }, [tickets, filterPriority, filterType, search, boardTypes]);
 
   // Split duplicates from main tickets
   const duplicates = useMemo(() => filtered.filter(t => (t as any).duplicate_of), [filtered]);
@@ -919,20 +947,27 @@ export default function Chamados() {
     }
   }, [tickets, updateStatus]);
 
-  // Stats
+  // Stats (board-scoped)
+  const boardTickets = useMemo(() => tickets.filter(t => boardTypes.includes(t.tipo as TicketType)), [tickets, boardTypes]);
   const stats = useMemo(() => ({
-    total: tickets.length,
-    abertos: tickets.filter((t) => t.status === "aberto").length,
-    criticos: tickets.filter((t) => t.prioridade === "critica" && t.status !== "concluido").length,
-    concluidos: tickets.filter((t) => t.status === "concluido").length,
-  }), [tickets]);
+    total: boardTickets.length,
+    abertos: boardTickets.filter((t) => t.status === "aberto").length,
+    criticos: boardTickets.filter((t) => t.prioridade === "critica" && t.status !== "concluido").length,
+    concluidos: boardTickets.filter((t) => t.status === "concluido").length,
+  }), [boardTickets]);
+
+  // Count for board tabs
+  const chamadosCount = useMemo(() => tickets.filter(t => CHAMADOS_TYPES.includes(t.tipo as TicketType) && t.status !== "concluido").length, [tickets]);
+  const ocorrenciasCount = useMemo(() => tickets.filter(t => OCORRENCIAS_TYPES.includes(t.tipo as TicketType) && t.status !== "concluido").length, [tickets]);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Chamados de Manutenção</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {activeBoard === "chamados" ? "Chamados de Manutenção" : "Ocorrências"}
+          </h1>
           <p className="text-muted-foreground text-sm">Arraste os cards para alterar o status</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -948,9 +983,43 @@ export default function Chamados() {
             </Button>
           )}
           <Button onClick={() => setNewOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Chamado
+            <Plus className="w-4 h-4 mr-2" /> {activeBoard === "chamados" ? "Novo Chamado" : "Nova Ocorrência"}
           </Button>
         </div>
+      </div>
+
+      {/* Board Tabs */}
+      <div className="flex gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        <button
+          onClick={() => { setActiveBoard("chamados"); setFilterType("all"); }}
+          className={cn(
+            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+            activeBoard === "chamados"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Wrench className="w-4 h-4" />
+          Chamados
+          {chamadosCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-[20px] text-[10px] px-1.5">{chamadosCount}</Badge>
+          )}
+        </button>
+        <button
+          onClick={() => { setActiveBoard("ocorrencias"); setFilterType("all"); }}
+          className={cn(
+            "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+            activeBoard === "ocorrencias"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Eye className="w-4 h-4" />
+          Ocorrências
+          {ocorrenciasCount > 0 && (
+            <Badge variant="secondary" className="h-5 min-w-[20px] text-[10px] px-1.5">{ocorrenciasCount}</Badge>
+          )}
+        </button>
       </div>
 
       {/* Stats */}
@@ -963,7 +1032,7 @@ export default function Chamados() {
         </Card>
         <Card className="border-l-4 border-l-red-400">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Abertos</p>
+            <p className="text-xs text-muted-foreground">{activeBoard === "chamados" ? "Abertos" : "Novos"}</p>
             <p className="text-2xl font-bold text-red-600">{stats.abertos}</p>
           </CardContent>
         </Card>
@@ -975,7 +1044,7 @@ export default function Chamados() {
         </Card>
         <Card className="border-l-4 border-l-emerald-400">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Concluídos</p>
+            <p className="text-xs text-muted-foreground">{activeBoard === "chamados" ? "Concluídos" : "Resolvidos"}</p>
             <p className="text-2xl font-bold text-emerald-600">{stats.concluidos}</p>
           </CardContent>
         </Card>
@@ -985,7 +1054,7 @@ export default function Chamados() {
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar chamado..."
+          placeholder="Buscar..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-[200px] h-8 text-sm"
@@ -1004,9 +1073,9 @@ export default function Chamados() {
           <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="corretiva">Corretiva</SelectItem>
-            <SelectItem value="preventiva">Preventiva</SelectItem>
-            <SelectItem value="nao_conformidade">Não Conformidade</SelectItem>
+            {boardTypes.map((t) => (
+              <SelectItem key={t} value={t}>{TYPE_LABEL[t]?.label ?? t}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -1026,7 +1095,7 @@ export default function Chamados() {
           onDragEnd={handleDndDragEnd}
         >
           <div className="flex gap-3 overflow-x-auto pb-4">
-            {COLUMNS.map((col) => (
+            {currentColumns.map((col) => (
               <KanbanColumn
                 key={col.id}
                 column={col}
@@ -1091,6 +1160,8 @@ export default function Chamados() {
         vehicles={vehicles}
         drivers={drivers}
         onSave={(data) => createTicket.mutate(data)}
+        availableTypes={boardTypes}
+        boardLabel={activeBoard}
       />
       <TicketDetailDialog
         ticket={selectedTicket}
@@ -1105,6 +1176,7 @@ export default function Chamados() {
         vehicles={vehicles}
         drivers={drivers}
         allTickets={tickets}
+        statusColumns={currentColumns}
       />
       {concluirTicket && (
         <ConcluirPreventivaDialog
