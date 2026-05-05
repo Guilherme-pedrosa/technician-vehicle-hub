@@ -1197,10 +1197,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (selectedVehicle && kmTrocaParsed - selectedVehicle.km_atual > KM_OLEO_MAX_INTERVALO_FUTURO) return false;
     }
     if (currentStep.id === "interior") {
-      const interiorVals = photoValidations.interior ?? [];
-      const hasPendingInterior = interiorVals.some((v) => v?.status === "validating");
-      if (hasPendingInterior) return false;
-      if (!getInteriorCoverage(interiorVals).ok) return false;
+      // Interior coverage is advisory only — never block the technician
+      return true;
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
