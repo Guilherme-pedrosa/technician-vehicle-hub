@@ -1373,6 +1373,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       );
                     })}
                   </div>
+                  {!answers[field.key] && (
+                    <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                  )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
                       <Textarea placeholder={`Descreva o problema...`}
@@ -1492,6 +1495,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       );
                     })}
                   </div>
+                  {!answers[field.key] && (
+                    <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                  )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
                       <Textarea placeholder={`Descreva o problema...`}
@@ -1736,6 +1742,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     );
                   })}
                 </div>
+
+                {!answers[field.key] && (
+                  <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                )}
 
                 {/* Conditional: photo of problem when non-conforme */}
                 {isNonConforme(field.key, answers[field.key]) && (
