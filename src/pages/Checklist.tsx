@@ -1168,18 +1168,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       }
       if (missing.length > 0) return false;
     }
-    // PAINEL: foto válida + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
+    // PAINEL: foto aprovada (verde) + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
     if (currentStep.id === "painel") {
       const painelVals = photoValidations.painel ?? [];
-      // Precisa ter PELO MENOS UMA foto aprovada com hodômetro legível.
+      // Precisa ter PELO MENOS UMA foto aprovada (verde). O KM pode ser digitado manualmente.
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const temFotoValida = painelVals.some(
-        (v) => v?.status === "valid" && v?.result?.km_legivel === true
+        (v) => v?.status === "valid"
       );
       if (!temFotoValida) return false;
-      // Se ainda há validação em andamento, espera (não trava se houver outra válida)
-      const temPendente = painelVals.some((v) => v?.status === "validating");
-      if (temPendente && !temFotoValida) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
@@ -1258,7 +1255,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid" && v?.result?.km_legivel === true);
+      const temFotoValida = painelVals.some((v) => v?.status === "valid");
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
@@ -1299,7 +1296,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             />
             {!temFotoValida && !validandoAgora && (
               <p className="text-[11px] text-muted-foreground font-medium">
-                Bloqueado até a IA confirmar que o hodômetro está legível.
+                Bloqueado até a foto do painel ficar aprovada.
               </p>
             )}
             {validandoAgora && (
