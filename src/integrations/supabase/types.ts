@@ -933,6 +933,7 @@ export type Database = {
           resultado_motivo: string | null
           ruido_anormal: string
           som: string
+          status: string
           termo_aceito: boolean
           tripulacao: string | null
           troca_oleo: string
@@ -972,6 +973,7 @@ export type Database = {
           resultado_motivo?: string | null
           ruido_anormal?: string
           som?: string
+          status?: string
           termo_aceito?: boolean
           tripulacao?: string | null
           troca_oleo?: string
@@ -1011,6 +1013,7 @@ export type Database = {
           resultado_motivo?: string | null
           ruido_anormal?: string
           som?: string
+          status?: string
           termo_aceito?: boolean
           tripulacao?: string | null
           troca_oleo?: string

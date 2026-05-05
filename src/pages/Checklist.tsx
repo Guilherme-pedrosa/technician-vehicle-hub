@@ -712,6 +712,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-detect driver from logged user
   const autoDriverId = useMemo(() => {
@@ -744,50 +746,112 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
 
   // ═══════════════════════════════════════════
-  // AUTO-SAVE DRAFT — salva preenchimento no localStorage a cada mudança
+  // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
   // ═══════════════════════════════════════════
-  const DRAFT_KEY = "checklist-draft-v1";
 
-  // Restore draft on mount
+  // Load existing draft when dialog opens
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft.vehicleId) setVehicleId(draft.vehicleId);
-      if (draft.selectedDriverId) setSelectedDriverId(draft.selectedDriverId);
-      if (draft.tripulacao) setTripulacao(draft.tripulacao);
-      if (draft.destino) setDestino(draft.destino);
-      if (draft.observacoes) setObservacoes(draft.observacoes);
-      if (draft.answers) setAnswers(draft.answers);
-      if (draft.resultado) setResultado(draft.resultado);
-      if (draft.resultadoMotivo) setResultadoMotivo(draft.resultadoMotivo);
-      if (draft.kmProximaTroca) setKmProximaTroca(draft.kmProximaTroca);
-      if (draft.kmPainelManual) setKmPainelManual(draft.kmPainelManual);
-      if (draft.kmPainelEditadoManualmente) setKmPainelEditadoManualmente(true);
-      if (typeof draft.step === "number" && draft.step > 0) setStep(draft.step);
-      if (draft.termoAceito) setTermoAceito(draft.termoAceito);
-      toast.info("Rascunho anterior restaurado. Fotos precisam ser reenviadas.", { duration: 5000 });
-    } catch { /* ignore corrupt data */ }
+    if (!open) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("vehicle_checklists")
+          .select("*")
+          .eq("created_by", userId)
+          .eq("status", "rascunho" as any)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!data) return;
+        setDraftId(data.id);
+        if (data.vehicle_id) setVehicleId(data.vehicle_id);
+        if (data.driver_id) setSelectedDriverId(data.driver_id);
+        if (data.tripulacao) setTripulacao(data.tripulacao);
+        if (data.destino) setDestino(data.destino);
+        if (data.observacoes) setObservacoes(data.observacoes);
+        const det = (data.detalhes ?? {}) as any;
+        if (det.draft_answers) setAnswers(det.draft_answers);
+        if (data.resultado && data.resultado !== "liberado") setResultado(data.resultado);
+        if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
+        if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
+        if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
+        if (typeof det.draft_step === "number" && det.draft_step > 0) setStep(det.draft_step);
+        if (data.termo_aceito) setTermoAceito(data.termo_aceito);
+        // Fotos já salvas no draft — restaurar URLs
+        const fotos = (data.fotos ?? {}) as Record<string, string[]>;
+        if (Object.keys(fotos).length > 0) {
+          const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
+          for (const [cat, urls] of Object.entries(fotos)) {
+            restoredUploads[cat] = urls.map((url) => ({ status: "done", uploadedUrl: url }));
+          }
+          setPhotoUploads(restoredUploads as any);
+        }
+        toast.info("Rascunho anterior restaurado. Fotos já salvas foram mantidas.", { duration: 5000 });
+      } catch (err) {
+        console.error("Erro ao carregar rascunho:", err);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [open]);
 
-  // Save draft on every relevant state change
-  useEffect(() => {
-    const hasAnyData = vehicleId || selectedDriverId !== autoDriverId || Object.values(answers).some(v => v !== "");
-    if (!hasAnyData) return;
+  // Save draft to DB (debounced)
+  const saveDraftToDb = useCallback(async () => {
+    if (!vehicleId || !open) return;
     try {
-      const draft = {
-        vehicleId, selectedDriverId, tripulacao, destino, observacoes,
-        answers, resultado, resultadoMotivo, kmProximaTroca,
-        kmPainelManual, kmPainelEditadoManualmente, step, termoAceito,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch { /* quota exceeded — ignore */ }
+      const date = format(now, "yyyy-MM-dd");
+      const draftPersistedAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
+      );
+      const draftFotosUrls: Record<string, string[]> = {};
+      for (const [cat, uploads] of Object.entries(photoUploads)) {
+        const urls = (uploads as any[]).map((u: any) => u?.uploadedUrl).filter(Boolean);
+        if (urls.length > 0) draftFotosUrls[cat] = urls;
+      }
+
+      const draftData = {
+        vehicle_id: vehicleId,
+        driver_id: selectedDriverId || null,
+        created_by: userId,
+        checklist_date: date,
+        tripulacao: tripulacao || null,
+        destino: destino || null,
+        observacoes: observacoes || null,
+        avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
+        fotos: draftFotosUrls,
+        resultado: resultado || "liberado",
+        resultado_motivo: resultadoMotivo || null,
+        termo_aceito: termoAceito,
+        status: "rascunho",
+        detalhes: {
+          km_proxima_troca: kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) || null : null,
+          km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
+          draft_step: step,
+          draft_answers: answers,
+        },
+        ...draftPersistedAnswers,
+      } as any;
+
+      if (draftId) {
+        await supabase.from("vehicle_checklists").update(draftData).eq("id", draftId);
+      } else {
+        const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
+        if (data?.id) setDraftId(data.id);
+      }
+    } catch (err) {
+      console.error("Erro ao salvar rascunho:", err);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId, selectedDriverId, tripulacao, destino, observacoes, answers,
-      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual,
-      kmPainelEditadoManualmente, step, termoAceito, autoDriverId]);
+      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual, step, termoAceito,
+      draftId, open, photoUploads, userId]);
+
+  // Debounced auto-save: 3 seconds after last change
+  useEffect(() => {
+    if (!open || !vehicleId) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => { saveDraftToDb(); }, 3000);
+    return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
+  }, [saveDraftToDb, open, vehicleId]);
 
   // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
   useEffect(() => {
@@ -932,7 +996,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setKmProximaTroca("");
     setKmPainelManual("");
     setKmPainelEditadoManualmente(false);
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    setDraftId(null);
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
   };
 
   // Troca de óleo:
@@ -1011,7 +1076,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           .map(([key, value]) => [key.replace(/^obs_/, ""), value.trim()])
       );
 
-      const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
+      const checklistPayload = {
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
         created_by: userId,
@@ -1025,21 +1090,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
         troca_oleo: trocaOleoStatus,
+        status: "finalizado",
         detalhes: {
           km_proxima_troca: kmTrocaNum,
           observacoes_itens: answerObservations,
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
-          // Salvamos APENAS o número lido pela IA (extração já feita durante
-          // a validação da foto, sem custo extra). A comparação com o
-          // `km_atual` do veículo é feita SOB DEMANDA na exibição — assim
-          // não atrasa o submit e sempre reflete o cadastro mais recente.
           km_lido_painel: (() => {
-            // 1) Prioriza o KM informado/confirmado pelo técnico (campo obrigatório)
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
             if (!isNaN(manualNum) && manualNum >= 100) return manualNum;
-            // 2) Fallback: maior valor lido pela IA com km_legivel=true
             const painelValidations = photoValidations.painel ?? [];
             let lidoNum: number | null = null;
             for (const v of painelValidations) {
@@ -1053,8 +1113,22 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           })(),
         },
         ...persistedAnswers,
-      } as any).select("id").single();
-      if (error) throw error;
+      } as any;
+
+      let savedChecklist: { id: string } | null = null;
+      if (draftId) {
+        // Finalize existing draft
+        const { data, error } = await supabase.from("vehicle_checklists")
+          .update(checklistPayload).eq("id", draftId).select("id").single();
+        if (error) throw error;
+        savedChecklist = data;
+      } else {
+        const { data, error } = await supabase.from("vehicle_checklists")
+          .insert(checklistPayload).select("id").single();
+        if (error) throw error;
+        savedChecklist = data;
+      }
+      if (!savedChecklist) throw new Error("Falha ao salvar checklist");
 
       // AUTO-TICKET: criar chamado de não conformidade se houver problemas
       const hasPhotoIssues = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
@@ -2416,15 +2490,17 @@ export default function Checklist() {
     return result;
   }, [checklists, filterVehicleId, filterResultado]);
 
+  const finalizedChecklists = useMemo(() =>
+    filteredChecklists.filter((cl: any) => cl.status !== "rascunho"), [filteredChecklists]);
   const totalVehicles = vehicles.length;
-  const filledCount = filteredChecklists.length;
+  const filledCount = finalizedChecklists.length;
 
   const blockedCount = useMemo(() =>
-    filteredChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [filteredChecklists]);
+    finalizedChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [finalizedChecklists]);
   const nonConformeCount = useMemo(() =>
-    filteredChecklists.filter((cl: any) =>
+    finalizedChecklists.filter((cl: any) =>
       CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
-    ).length, [filteredChecklists]);
+    ).length, [finalizedChecklists]);
 
   useEffect(() => {
     const legacyChecklists = checklists.filter((cl: any) => {
@@ -2597,15 +2673,16 @@ export default function Checklist() {
                   // Comparação sob demanda usando km_atual mais recente do veículo
                   const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                   const kmDivergente = !!kmPainel?.divergente;
+                  const isDraft = cl.status === "rascunho";
                   return (
                     <div
                       key={cl.id}
-                      className={`px-4 py-3 flex flex-col gap-2 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
+                      className={`px-4 py-3 flex flex-col gap-2 ${isDraft ? "bg-warning/5 border-l-4 border-l-warning" : hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
                     >
                       <button
                         type="button"
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
-                        onClick={() => navigate(`/checklist/${cl.id}`)}
+                        onClick={() => isDraft ? undefined : navigate(`/checklist/${cl.id}`)}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -2613,17 +2690,23 @@ export default function Checklist() {
                             <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {fotoCount > 0 && (
+                            {isDraft && (
+                              <Badge variant="outline" className="text-[10px] border-warning text-warning bg-warning/10 px-1.5 py-0">
+                                ✏️ Rascunho
+                              </Badge>
+                            )}
+                            {!isDraft && fotoCount > 0 && (
                               <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
                               </span>
                             )}
-                            {hasBadPhotos && (
+                            {!isDraft && hasBadPhotos && (
                               <span className="text-xs flex items-center gap-0.5 text-destructive font-bold">
                                 <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length}
                               </span>
                             )}
-                            {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
+                            {isDraft ? <Loader2 className="w-4 h-4 text-warning" /> :
+                             res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
                              res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
                              <ShieldAlert className="w-4 h-4 text-destructive" />}
                             <span className="text-xs text-muted-foreground tabular-nums flex flex-col items-end leading-tight">
@@ -2710,8 +2793,9 @@ export default function Checklist() {
                       const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                       const kmDivergente = !!kmPainel?.divergente;
                       const rowFlagged = hasBadPhotos || kmDivergente;
+                      const isDraft = cl.status === "rascunho";
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${isDraft ? "bg-warning/5" : rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"} <span className="text-muted-foreground font-normal">— {vehicle?.marca} {vehicle?.modelo}</span></p>
@@ -2746,16 +2830,22 @@ export default function Checklist() {
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            <Badge className={`gap-1 text-xs ${
-                              res.color === "success" ? "bg-success/10 text-success border-success/30" :
-                              res.color === "warning" ? "bg-warning/10 text-warning border-warning/30" :
-                              "bg-destructive/10 text-destructive border-destructive/30"
-                            }`}>
-                              {res.color === "success" ? <ShieldCheck className="w-3 h-3" /> :
-                               res.color === "warning" ? <AlertCircle className="w-3 h-3" /> :
-                               <ShieldAlert className="w-3 h-3" />}
-                              {res.label}
-                            </Badge>
+                            {isDraft ? (
+                              <Badge variant="outline" className="gap-1 text-xs border-warning text-warning bg-warning/10">
+                                <Loader2 className="w-3 h-3" /> Rascunho
+                              </Badge>
+                            ) : (
+                              <Badge className={`gap-1 text-xs ${
+                                res.color === "success" ? "bg-success/10 text-success border-success/30" :
+                                res.color === "warning" ? "bg-warning/10 text-warning border-warning/30" :
+                                "bg-destructive/10 text-destructive border-destructive/30"
+                              }`}>
+                                {res.color === "success" ? <ShieldCheck className="w-3 h-3" /> :
+                                 res.color === "warning" ? <AlertCircle className="w-3 h-3" /> :
+                                 <ShieldAlert className="w-3 h-3" />}
+                                {res.label}
+                              </Badge>
+                            )}
                           </td>
                           <td className="p-3 text-center text-xs text-muted-foreground tabular-nums">
                             <div className="flex flex-col leading-tight">
