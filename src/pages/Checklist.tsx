@@ -152,6 +152,14 @@ type UploadSummaryItem = {
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
 
+function getBlankChecklistAnswers(): FormData {
+  return Object.fromEntries(CHECKLIST_FIELDS.map((field) => [field.key, ""]));
+}
+
+function getMissingChecklistAnswers(answers: FormData) {
+  return CHECKLIST_FIELDS.filter((field) => !answers[field.key]);
+}
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
