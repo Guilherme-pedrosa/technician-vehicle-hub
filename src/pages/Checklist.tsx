@@ -915,9 +915,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     mutationFn: async () => {
       setUploading(true);
 
-      if (photoValidationSummary.hasPending) {
-        throw new Error("Aguarde a validação das fotos terminar antes de salvar.");
-      }
+      // Photo validation is advisory — never block saving
 
       if (photoUploadSummary.hasPending) {
         throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
@@ -1197,10 +1195,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       if (selectedVehicle && kmTrocaParsed - selectedVehicle.km_atual > KM_OLEO_MAX_INTERVALO_FUTURO) return false;
     }
     if (currentStep.id === "interior") {
-      const interiorVals = photoValidations.interior ?? [];
-      const hasPendingInterior = interiorVals.some((v) => v?.status === "validating");
-      if (hasPendingInterior) return false;
-      if (!getInteriorCoverage(interiorVals).ok) return false;
+      // Interior coverage is advisory only — never block the technician
+      return true;
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
@@ -1830,10 +1826,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </Button>
           ) : (
             <Button onClick={() => mutation.mutate()}
-              disabled={!canAdvance() || mutation.isPending || uploading || photoValidationSummary.hasPending}
+              disabled={!canAdvance() || mutation.isPending || uploading}
               className="gap-2 h-12 text-base" size="lg">
-              {(mutation.isPending || uploading || photoValidationSummary.hasPending) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
-              {photoValidationSummary.hasPending ? "Validando fotos..." : "Salvar"}
+              {(mutation.isPending || uploading) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
+              {photoValidationSummary.hasPending ? "Salvar (validando...)" : "Salvar"}
             </Button>
           )}
         </div>
