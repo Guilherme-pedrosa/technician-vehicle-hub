@@ -712,6 +712,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-detect driver from logged user
   const autoDriverId = useMemo(() => {
