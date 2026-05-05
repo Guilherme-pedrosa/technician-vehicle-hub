@@ -2490,8 +2490,10 @@ export default function Checklist() {
     return result;
   }, [checklists, filterVehicleId, filterResultado]);
 
+  const finalizedChecklists = useMemo(() =>
+    filteredChecklists.filter((cl: any) => cl.status !== "rascunho"), [filteredChecklists]);
   const totalVehicles = vehicles.length;
-  const filledCount = filteredChecklists.length;
+  const filledCount = finalizedChecklists.length;
 
   const blockedCount = useMemo(() =>
     filteredChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [filteredChecklists]);
