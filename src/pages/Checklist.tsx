@@ -2673,15 +2673,16 @@ export default function Checklist() {
                   // Comparação sob demanda usando km_atual mais recente do veículo
                   const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                   const kmDivergente = !!kmPainel?.divergente;
+                  const isDraft = cl.status === "rascunho";
                   return (
                     <div
                       key={cl.id}
-                      className={`px-4 py-3 flex flex-col gap-2 ${hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
+                      className={`px-4 py-3 flex flex-col gap-2 ${isDraft ? "bg-warning/5 border-l-4 border-l-warning" : hasBadPhotos || kmDivergente ? "bg-destructive/5" : ""}`}
                     >
                       <button
                         type="button"
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
-                        onClick={() => navigate(`/checklist/${cl.id}`)}
+                        onClick={() => isDraft ? undefined : navigate(`/checklist/${cl.id}`)}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -2689,17 +2690,23 @@ export default function Checklist() {
                             <p className="text-xs text-muted-foreground truncate">{driver?.full_name ?? cl.tripulacao ?? "—"}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {fotoCount > 0 && (
+                            {isDraft && (
+                              <Badge variant="outline" className="text-[10px] border-warning text-warning bg-warning/10 px-1.5 py-0">
+                                ✏️ Rascunho
+                              </Badge>
+                            )}
+                            {!isDraft && fotoCount > 0 && (
                               <span className="text-xs flex items-center gap-0.5 text-muted-foreground">
                                 <ImageIcon className="w-3 h-3" /> {fotoCount}
                               </span>
                             )}
-                            {hasBadPhotos && (
+                            {!isDraft && hasBadPhotos && (
                               <span className="text-xs flex items-center gap-0.5 text-destructive font-bold">
                                 <AlertTriangle className="w-3.5 h-3.5" /> {allBadPhotos.length}
                               </span>
                             )}
-                            {res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
+                            {isDraft ? <Loader2 className="w-4 h-4 text-warning" /> :
+                             res.color === "success" ? <ShieldCheck className="w-4 h-4 text-success" /> :
                              res.color === "warning" ? <AlertCircle className="w-4 h-4 text-warning" /> :
                              <ShieldAlert className="w-4 h-4 text-destructive" />}
                             <span className="text-xs text-muted-foreground tabular-nums flex flex-col items-end leading-tight">
