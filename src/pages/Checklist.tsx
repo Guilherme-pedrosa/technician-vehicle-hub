@@ -1199,7 +1199,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
-      return termoAceito;
+      return true;
     }
     return true;
   };
