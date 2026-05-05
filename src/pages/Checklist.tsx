@@ -1076,7 +1076,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           .map(([key, value]) => [key.replace(/^obs_/, ""), value.trim()])
       );
 
-      const { data: savedChecklist, error } = await supabase.from("vehicle_checklists").insert({
+      const checklistPayload = {
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
         created_by: userId,
@@ -1090,21 +1090,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         resultado_motivo: finalResultado !== "liberado" ? (resultadoMotivo || null) : null,
         termo_aceito: termoAceito,
         troca_oleo: trocaOleoStatus,
+        status: "finalizado",
         detalhes: {
           km_proxima_troca: kmTrocaNum,
           observacoes_itens: answerObservations,
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
-          // Salvamos APENAS o número lido pela IA (extração já feita durante
-          // a validação da foto, sem custo extra). A comparação com o
-          // `km_atual` do veículo é feita SOB DEMANDA na exibição — assim
-          // não atrasa o submit e sempre reflete o cadastro mais recente.
           km_lido_painel: (() => {
-            // 1) Prioriza o KM informado/confirmado pelo técnico (campo obrigatório)
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
             if (!isNaN(manualNum) && manualNum >= 100) return manualNum;
-            // 2) Fallback: maior valor lido pela IA com km_legivel=true
             const painelValidations = photoValidations.painel ?? [];
             let lidoNum: number | null = null;
             for (const v of painelValidations) {
@@ -1118,8 +1113,22 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           })(),
         },
         ...persistedAnswers,
-      } as any).select("id").single();
-      if (error) throw error;
+      } as any;
+
+      let savedChecklist: { id: string } | null = null;
+      if (draftId) {
+        // Finalize existing draft
+        const { data, error } = await supabase.from("vehicle_checklists")
+          .update(checklistPayload).eq("id", draftId).select("id").single();
+        if (error) throw error;
+        savedChecklist = data;
+      } else {
+        const { data, error } = await supabase.from("vehicle_checklists")
+          .insert(checklistPayload).select("id").single();
+        if (error) throw error;
+        savedChecklist = data;
+      }
+      if (!savedChecklist) throw new Error("Falha ao salvar checklist");
 
       // AUTO-TICKET: criar chamado de não conformidade se houver problemas
       const hasPhotoIssues = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
