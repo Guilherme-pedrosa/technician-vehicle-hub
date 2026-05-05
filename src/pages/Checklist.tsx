@@ -729,11 +729,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [answers, setAnswers] = useState<FormData>(() => {
-    const d: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
-    return d;
-  });
+  const [answers, setAnswers] = useState<FormData>(() => getBlankChecklistAnswers());
   const [photos, setPhotos] = useState<PhotosMap>({});
   const [photoUploads, setPhotoUploads] = useState<PhotoUploadsMap>({});
   const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
@@ -886,9 +882,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
     setPhotos({}); setPhotoUploads({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
-    const d: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
-    setAnswers(d);
+    setAnswers(getBlankChecklistAnswers());
     setKmProximaTroca("");
     setKmPainelManual("");
     setKmPainelEditadoManualmente(false);
