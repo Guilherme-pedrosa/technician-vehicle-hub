@@ -1167,15 +1167,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
     const currentFields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[currentStep.id] ?? []).includes(field.category));
     if (currentFields.some((field) => !answers[field.key])) return false;
+    if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
+      return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
+    }
     // Check mandatory photos for photo steps
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
       const missing = requiredPhotos.filter((cat) => !(photos[cat]?.length > 0));
       if (currentStep.id === "danos") {
         // danos photos only required if danos_veiculo === "sim"
-        if (answers.danos_veiculo === "sim") {
-          return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
-        }
         return true;
       }
       if (missing.length > 0) return false;
