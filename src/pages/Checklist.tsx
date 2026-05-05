@@ -743,6 +743,52 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [kmPainelManual, setKmPainelManual] = useState("");
   const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
 
+  // ═══════════════════════════════════════════
+  // AUTO-SAVE DRAFT — salva preenchimento no localStorage a cada mudança
+  // ═══════════════════════════════════════════
+  const DRAFT_KEY = "checklist-draft-v1";
+
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.vehicleId) setVehicleId(draft.vehicleId);
+      if (draft.selectedDriverId) setSelectedDriverId(draft.selectedDriverId);
+      if (draft.tripulacao) setTripulacao(draft.tripulacao);
+      if (draft.destino) setDestino(draft.destino);
+      if (draft.observacoes) setObservacoes(draft.observacoes);
+      if (draft.answers) setAnswers(draft.answers);
+      if (draft.resultado) setResultado(draft.resultado);
+      if (draft.resultadoMotivo) setResultadoMotivo(draft.resultadoMotivo);
+      if (draft.kmProximaTroca) setKmProximaTroca(draft.kmProximaTroca);
+      if (draft.kmPainelManual) setKmPainelManual(draft.kmPainelManual);
+      if (draft.kmPainelEditadoManualmente) setKmPainelEditadoManualmente(true);
+      if (typeof draft.step === "number" && draft.step > 0) setStep(draft.step);
+      if (draft.termoAceito) setTermoAceito(draft.termoAceito);
+      toast.info("Rascunho anterior restaurado. Fotos precisam ser reenviadas.", { duration: 5000 });
+    } catch { /* ignore corrupt data */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Save draft on every relevant state change
+  useEffect(() => {
+    const hasAnyData = vehicleId || selectedDriverId !== autoDriverId || Object.values(answers).some(v => v !== "");
+    if (!hasAnyData) return;
+    try {
+      const draft = {
+        vehicleId, selectedDriverId, tripulacao, destino, observacoes,
+        answers, resultado, resultadoMotivo, kmProximaTroca,
+        kmPainelManual, kmPainelEditadoManualmente, step, termoAceito,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch { /* quota exceeded — ignore */ }
+  }, [vehicleId, selectedDriverId, tripulacao, destino, observacoes, answers,
+      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual,
+      kmPainelEditadoManualmente, step, termoAceito, autoDriverId]);
+
   // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
   useEffect(() => {
     if (kmPainelEditadoManualmente) return;
@@ -886,6 +932,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setKmProximaTroca("");
     setKmPainelManual("");
     setKmPainelEditadoManualmente(false);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
   };
 
   // Troca de óleo:
