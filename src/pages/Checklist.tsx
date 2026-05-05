@@ -940,7 +940,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   // - "próximo da troca" (observação) quando faltam ≤ 1000 km, mas ainda não venceu
   const KM_OLEO_ALERTA_MARGEM = 1000;
   const KM_OLEO_MAX_INTERVALO_FUTURO = 10_000;
-  const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca, 10) : null;
+  const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) : null;
   const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
   const trocaOleoIntervaloInvalido = kmRestanteOleo !== null ? kmRestanteOleo > KM_OLEO_MAX_INTERVALO_FUTURO : false;
   const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= 0 : false;
