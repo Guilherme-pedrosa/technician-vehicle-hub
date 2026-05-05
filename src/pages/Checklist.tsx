@@ -915,9 +915,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     mutationFn: async () => {
       setUploading(true);
 
-      if (photoValidationSummary.hasPending) {
-        throw new Error("Aguarde a validação das fotos terminar antes de salvar.");
-      }
+      // Photo validation is advisory — never block saving
 
       if (photoUploadSummary.hasPending) {
         throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
