@@ -2830,16 +2830,22 @@ export default function Checklist() {
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            <Badge className={`gap-1 text-xs ${
-                              res.color === "success" ? "bg-success/10 text-success border-success/30" :
-                              res.color === "warning" ? "bg-warning/10 text-warning border-warning/30" :
-                              "bg-destructive/10 text-destructive border-destructive/30"
-                            }`}>
-                              {res.color === "success" ? <ShieldCheck className="w-3 h-3" /> :
-                               res.color === "warning" ? <AlertCircle className="w-3 h-3" /> :
-                               <ShieldAlert className="w-3 h-3" />}
-                              {res.label}
-                            </Badge>
+                            {isDraft ? (
+                              <Badge variant="outline" className="gap-1 text-xs border-warning text-warning bg-warning/10">
+                                <Loader2 className="w-3 h-3" /> Rascunho
+                              </Badge>
+                            ) : (
+                              <Badge className={`gap-1 text-xs ${
+                                res.color === "success" ? "bg-success/10 text-success border-success/30" :
+                                res.color === "warning" ? "bg-warning/10 text-warning border-warning/30" :
+                                "bg-destructive/10 text-destructive border-destructive/30"
+                              }`}>
+                                {res.color === "success" ? <ShieldCheck className="w-3 h-3" /> :
+                                 res.color === "warning" ? <AlertCircle className="w-3 h-3" /> :
+                                 <ShieldAlert className="w-3 h-3" />}
+                                {res.label}
+                              </Badge>
+                            )}
                           </td>
                           <td className="p-3 text-center text-xs text-muted-foreground tabular-nums">
                             <div className="flex flex-col leading-tight">
