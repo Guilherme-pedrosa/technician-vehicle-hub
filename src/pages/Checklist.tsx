@@ -1795,7 +1795,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <Plus className="w-5 h-5" /> Novo Checklist
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 flex flex-col"
+      <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 flex flex-col !top-0 !left-0 !translate-x-0 !translate-y-0 sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] overflow-hidden"
         onPointerDownOutside={(e) => { if (hasProgress) e.preventDefault(); }}
         onEscapeKeyDown={(e) => { if (hasProgress) { e.preventDefault(); setShowExitConfirm(true); } }}>
         <DialogHeader className="p-4 pb-2">
