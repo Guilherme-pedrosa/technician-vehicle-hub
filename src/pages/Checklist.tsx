@@ -152,6 +152,14 @@ type UploadSummaryItem = {
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
 
+function getBlankChecklistAnswers(): FormData {
+  return Object.fromEntries(CHECKLIST_FIELDS.map((field) => [field.key, ""]));
+}
+
+function getMissingChecklistAnswers(answers: FormData) {
+  return CHECKLIST_FIELDS.filter((field) => !answers[field.key]);
+}
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
@@ -721,11 +729,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [tripulacao, setTripulacao] = useState("");
   const [destino, setDestino] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [answers, setAnswers] = useState<FormData>(() => {
-    const d: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
-    return d;
-  });
+  const [answers, setAnswers] = useState<FormData>(() => getBlankChecklistAnswers());
   const [photos, setPhotos] = useState<PhotosMap>({});
   const [photoUploads, setPhotoUploads] = useState<PhotoUploadsMap>({});
   const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
@@ -878,9 +882,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
     setPhotos({}); setPhotoUploads({}); setPhotoValidations({}); setResultado(""); setResultadoMotivo(""); setTermoAceito(false);
-    const d: FormData = {};
-    CHECKLIST_FIELDS.forEach((f) => { d[f.key] = f.options[0]?.value ?? ""; });
-    setAnswers(d);
+    setAnswers(getBlankChecklistAnswers());
     setKmProximaTroca("");
     setKmPainelManual("");
     setKmPainelEditadoManualmente(false);
@@ -923,6 +925,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       if (photoUploadSummary.hasErrors) {
         throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
+      }
+
+      const missingAnswers = getMissingChecklistAnswers(answers);
+      if (missingAnswers.length > 0) {
+        throw new Error(`Checklist incompleto: preencha ${missingAnswers.map((field) => field.label).join(", ")}.`);
       }
 
       if (trocaOleoIntervaloInvalido) {
@@ -1158,6 +1165,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const canAdvance = () => {
     const currentStep = STEPS[step];
     if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
+    const currentFields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[currentStep.id] ?? []).includes(field.category));
+    if (currentFields.some((field) => !answers[field.key])) return false;
+    if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
+      return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
+    }
     // Check mandatory photos for photo steps
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
@@ -1199,6 +1211,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
+      if (getMissingChecklistAnswers(answers).length > 0) return false;
       return true;
     }
     return true;
@@ -1363,6 +1376,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       );
                     })}
                   </div>
+                  {!answers[field.key] && (
+                    <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                  )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
                       <Textarea placeholder={`Descreva o problema...`}
@@ -1482,6 +1498,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                       );
                     })}
                   </div>
+                  {!answers[field.key] && (
+                    <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                  )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
                       <Textarea placeholder={`Descreva o problema...`}
@@ -1726,6 +1745,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     );
                   })}
                 </div>
+
+                {!answers[field.key] && (
+                  <p className="text-[11px] font-medium text-destructive">Selecione uma opção para continuar.</p>
+                )}
 
                 {/* Conditional: photo of problem when non-conforme */}
                 {isNonConforme(field.key, answers[field.key]) && (
