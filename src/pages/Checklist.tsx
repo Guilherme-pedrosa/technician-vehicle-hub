@@ -2496,11 +2496,11 @@ export default function Checklist() {
   const filledCount = finalizedChecklists.length;
 
   const blockedCount = useMemo(() =>
-    filteredChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [filteredChecklists]);
+    finalizedChecklists.filter((cl: any) => cl.resultado === "bloqueado").length, [finalizedChecklists]);
   const nonConformeCount = useMemo(() =>
-    filteredChecklists.filter((cl: any) =>
+    finalizedChecklists.filter((cl: any) =>
       CHECKLIST_FIELDS.some((f) => isNonConforme(f.key, cl[f.key]))
-    ).length, [filteredChecklists]);
+    ).length, [finalizedChecklists]);
 
   useEffect(() => {
     const legacyChecklists = checklists.filter((cl: any) => {
