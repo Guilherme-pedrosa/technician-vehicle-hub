@@ -927,6 +927,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
       }
 
+      const missingAnswers = getMissingChecklistAnswers(answers);
+      if (missingAnswers.length > 0) {
+        throw new Error(`Checklist incompleto: preencha ${missingAnswers.map((field) => field.label).join(", ")}.`);
+      }
+
       if (trocaOleoIntervaloInvalido) {
         throw new Error(`KM da próxima troca inválido: a troca não pode estar mais de ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km à frente do KM atual.`);
       }
