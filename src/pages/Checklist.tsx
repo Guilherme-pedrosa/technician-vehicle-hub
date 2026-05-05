@@ -932,6 +932,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     setKmProximaTroca("");
     setKmPainelManual("");
     setKmPainelEditadoManualmente(false);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
   };
 
   // Troca de óleo:
