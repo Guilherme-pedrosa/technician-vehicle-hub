@@ -1165,6 +1165,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const canAdvance = () => {
     const currentStep = STEPS[step];
     if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
+    const currentFields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[currentStep.id] ?? []).includes(field.category));
+    if (currentFields.some((field) => !answers[field.key])) return false;
     // Check mandatory photos for photo steps
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
@@ -1206,6 +1208,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const finalRes = resultado || suggestedResult;
       // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
+      if (getMissingChecklistAnswers(answers).length > 0) return false;
       return true;
     }
     return true;
