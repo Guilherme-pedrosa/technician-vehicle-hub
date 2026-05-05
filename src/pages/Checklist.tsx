@@ -1817,7 +1817,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="pb-28 sm:pb-6 pt-2">{renderStep()}</div>
         </div>
 
-        <div className="border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex gap-2">
+        <div className="border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex gap-2 shrink-0">
           {step > 0 && (
             <Button variant="outline" onClick={() => setStep((s) => s - 1)} className="gap-1 h-12">
               <ChevronLeft className="w-4 h-4" /> Voltar
