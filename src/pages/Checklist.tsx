@@ -1828,10 +1828,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             </Button>
           ) : (
             <Button onClick={() => mutation.mutate()}
-              disabled={!canAdvance() || mutation.isPending || uploading || photoValidationSummary.hasPending}
+              disabled={!canAdvance() || mutation.isPending || uploading}
               className="gap-2 h-12 text-base" size="lg">
-              {(mutation.isPending || uploading || photoValidationSummary.hasPending) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
-              {photoValidationSummary.hasPending ? "Validando fotos..." : "Salvar"}
+              {(mutation.isPending || uploading) ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardCheck className="w-5 h-5" />}
+              {photoValidationSummary.hasPending ? "Salvar (validando...)" : "Salvar"}
             </Button>
           )}
         </div>
