@@ -2793,8 +2793,9 @@ export default function Checklist() {
                       const kmPainel = computeKmPainelDivergence(det, vehicle?.km_atual);
                       const kmDivergente = !!kmPainel?.divergente;
                       const rowFlagged = hasBadPhotos || kmDivergente;
+                      const isDraft = cl.status === "rascunho";
                       return (
-                        <tr key={cl.id} className={`border-b last:border-0 ${rowFlagged ? "bg-destructive/5" : ""}`}>
+                        <tr key={cl.id} className={`border-b last:border-0 ${isDraft ? "bg-warning/5" : rowFlagged ? "bg-destructive/5" : ""}`}>
                           <td className="p-3 font-medium">
                             <div className="space-y-1">
                               <p>{vehicle?.placa ?? "—"} <span className="text-muted-foreground font-normal">— {vehicle?.marca} {vehicle?.modelo}</span></p>
