@@ -746,50 +746,112 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
 
   // ═══════════════════════════════════════════
-  // AUTO-SAVE DRAFT — salva preenchimento no localStorage a cada mudança
+  // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
   // ═══════════════════════════════════════════
-  const DRAFT_KEY = "checklist-draft-v1";
 
-  // Restore draft on mount
+  // Load existing draft when dialog opens
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft.vehicleId) setVehicleId(draft.vehicleId);
-      if (draft.selectedDriverId) setSelectedDriverId(draft.selectedDriverId);
-      if (draft.tripulacao) setTripulacao(draft.tripulacao);
-      if (draft.destino) setDestino(draft.destino);
-      if (draft.observacoes) setObservacoes(draft.observacoes);
-      if (draft.answers) setAnswers(draft.answers);
-      if (draft.resultado) setResultado(draft.resultado);
-      if (draft.resultadoMotivo) setResultadoMotivo(draft.resultadoMotivo);
-      if (draft.kmProximaTroca) setKmProximaTroca(draft.kmProximaTroca);
-      if (draft.kmPainelManual) setKmPainelManual(draft.kmPainelManual);
-      if (draft.kmPainelEditadoManualmente) setKmPainelEditadoManualmente(true);
-      if (typeof draft.step === "number" && draft.step > 0) setStep(draft.step);
-      if (draft.termoAceito) setTermoAceito(draft.termoAceito);
-      toast.info("Rascunho anterior restaurado. Fotos precisam ser reenviadas.", { duration: 5000 });
-    } catch { /* ignore corrupt data */ }
+    if (!open) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("vehicle_checklists")
+          .select("*")
+          .eq("created_by", userId)
+          .eq("status", "rascunho" as any)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!data) return;
+        setDraftId(data.id);
+        if (data.vehicle_id) setVehicleId(data.vehicle_id);
+        if (data.driver_id) setSelectedDriverId(data.driver_id);
+        if (data.tripulacao) setTripulacao(data.tripulacao);
+        if (data.destino) setDestino(data.destino);
+        if (data.observacoes) setObservacoes(data.observacoes);
+        const det = (data.detalhes ?? {}) as any;
+        if (det.draft_answers) setAnswers(det.draft_answers);
+        if (data.resultado && data.resultado !== "liberado") setResultado(data.resultado);
+        if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
+        if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
+        if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
+        if (typeof det.draft_step === "number" && det.draft_step > 0) setStep(det.draft_step);
+        if (data.termo_aceito) setTermoAceito(data.termo_aceito);
+        // Fotos já salvas no draft — restaurar URLs
+        const fotos = (data.fotos ?? {}) as Record<string, string[]>;
+        if (Object.keys(fotos).length > 0) {
+          const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
+          for (const [cat, urls] of Object.entries(fotos)) {
+            restoredUploads[cat] = urls.map((url) => ({ status: "done", uploadedUrl: url }));
+          }
+          setPhotoUploads(restoredUploads as any);
+        }
+        toast.info("Rascunho anterior restaurado. Fotos já salvas foram mantidas.", { duration: 5000 });
+      } catch (err) {
+        console.error("Erro ao carregar rascunho:", err);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [open]);
 
-  // Save draft on every relevant state change
-  useEffect(() => {
-    const hasAnyData = vehicleId || selectedDriverId !== autoDriverId || Object.values(answers).some(v => v !== "");
-    if (!hasAnyData) return;
+  // Save draft to DB (debounced)
+  const saveDraftToDb = useCallback(async () => {
+    if (!vehicleId || !open) return;
     try {
-      const draft = {
-        vehicleId, selectedDriverId, tripulacao, destino, observacoes,
-        answers, resultado, resultadoMotivo, kmProximaTroca,
-        kmPainelManual, kmPainelEditadoManualmente, step, termoAceito,
-        savedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch { /* quota exceeded — ignore */ }
+      const date = format(now, "yyyy-MM-dd");
+      const draftPersistedAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
+      );
+      const draftFotosUrls: Record<string, string[]> = {};
+      for (const [cat, uploads] of Object.entries(photoUploads)) {
+        const urls = (uploads as any[]).map((u: any) => u?.uploadedUrl).filter(Boolean);
+        if (urls.length > 0) draftFotosUrls[cat] = urls;
+      }
+
+      const draftData = {
+        vehicle_id: vehicleId,
+        driver_id: selectedDriverId || null,
+        created_by: userId,
+        checklist_date: date,
+        tripulacao: tripulacao || null,
+        destino: destino || null,
+        observacoes: observacoes || null,
+        avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
+        fotos: draftFotosUrls,
+        resultado: resultado || "liberado",
+        resultado_motivo: resultadoMotivo || null,
+        termo_aceito: termoAceito,
+        status: "rascunho",
+        detalhes: {
+          km_proxima_troca: kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) || null : null,
+          km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
+          draft_step: step,
+          draft_answers: answers,
+        },
+        ...draftPersistedAnswers,
+      } as any;
+
+      if (draftId) {
+        await supabase.from("vehicle_checklists").update(draftData).eq("id", draftId);
+      } else {
+        const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
+        if (data?.id) setDraftId(data.id);
+      }
+    } catch (err) {
+      console.error("Erro ao salvar rascunho:", err);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId, selectedDriverId, tripulacao, destino, observacoes, answers,
-      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual,
-      kmPainelEditadoManualmente, step, termoAceito, autoDriverId]);
+      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual, step, termoAceito,
+      draftId, open, photoUploads, userId]);
+
+  // Debounced auto-save: 3 seconds after last change
+  useEffect(() => {
+    if (!open || !vehicleId) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => { saveDraftToDb(); }, 3000);
+    return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
+  }, [saveDraftToDb, open, vehicleId]);
 
   // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
   useEffect(() => {
