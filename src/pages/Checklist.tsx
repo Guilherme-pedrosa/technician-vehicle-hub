@@ -160,6 +160,14 @@ function getMissingChecklistAnswers(answers: FormData) {
   return CHECKLIST_FIELDS.filter((field) => !answers[field.key]);
 }
 
+const RESULTADO_SEVERITY: Record<string, number> = { liberado: 0, liberado_obs: 1, bloqueado: 2 };
+/** Returns the more restrictive of user choice and system suggestion */
+function effectiveResultado(userChoice: string, suggested: string): string {
+  const uSev = RESULTADO_SEVERITY[userChoice] ?? -1;
+  const sSev = RESULTADO_SEVERITY[suggested] ?? 0;
+  return sSev > uSev ? suggested : userChoice;
+}
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
