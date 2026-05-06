@@ -8,6 +8,7 @@
 - **Data Exclusions**: ALWAYS ignore vehicles DIW9D20, IXO3G66, and OHW9F00 in all metrics and dashboards.
 - **Auth Fallback**: If permissions fail to load, temporarily fallback to 'admin' to prevent lockout.
 - **Telemetrias = sessões reais**: 1 entrada log_motorista = 1 telemetria. NUNCA pro-ratear dados do veículo.
+- **KM Painel é verdade**: Foto do painel com leitura clara prevalece sobre km_atual cadastrado. Nunca bloquear checklist por divergência de KM.
 
 ## Memories
 
@@ -31,6 +32,7 @@
 - [Speed Monitoring](mem://logic/speed-monitoring-rules) — Speed pro-rated from daily summary, default limit 120km/h
 - [Telemetria Attribution Fix](mem://logic/telemetria-attribution-fix) — 1 log_motorista entry = 1 real telemetria, no pro-rating
 - [KM Atual Calculation](mem://logic/km-atual-rota-exata-calc) — KM real = última correção /odometro + delta odometro_rastreador desde a correção
+- [KM Painel Auto-Correction](mem://logic/km-painel-auto-correction) — Foto do painel prevalece; sugerir correção do km_atual mesmo se menor
 - [Data Sync Flow](mem://features/data-synchronization-flow) — General sync must NOT trigger historical KM sync
 - [Data Sync Accessibility](mem://features/data-synchronization-ui-accessibility) — Sync buttons bypass RBAC to avoid race conditions
 
