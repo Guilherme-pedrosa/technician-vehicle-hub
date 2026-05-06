@@ -1022,7 +1022,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
   const hasCritical = criticalCount > 0 || trocaOleoVencida;
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta;
+  const hasAvaria = answers.danos_veiculo === "sim";
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || hasAvaria;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
@@ -1330,8 +1331,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
-      // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
+      // "bloqueado" exige motivo obrigatório
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
+      // "liberado_obs" com avaria exige motivo (descrever qual avaria)
+      if (finalRes === "liberado_obs" && answers.danos_veiculo === "sim" && !resultadoMotivo.trim()) return false;
       if (getMissingChecklistAnswers(answers).length > 0) return false;
       return true;
     }
