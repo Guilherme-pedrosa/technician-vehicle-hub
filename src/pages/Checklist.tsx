@@ -1330,8 +1330,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
     if (currentStep.id === "resultado") {
       const finalRes = resultado || suggestedResult;
-      // Só "bloqueado" exige motivo obrigatório; "liberado_obs" permite salvar sem motivo
+      // "bloqueado" exige motivo obrigatório
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
+      // "liberado_obs" com avaria exige motivo (descrever qual avaria)
+      if (finalRes === "liberado_obs" && answers.danos_veiculo === "sim" && !resultadoMotivo.trim()) return false;
       if (getMissingChecklistAnswers(answers).length > 0) return false;
       return true;
     }
