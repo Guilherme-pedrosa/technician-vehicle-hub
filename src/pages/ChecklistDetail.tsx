@@ -1055,7 +1055,7 @@ export default function ChecklistDetail() {
                   const opt = f.options.find((o) => o.value === currentVal);
                   const obsValue = editing
                     ? (editObs[f.key] ?? "")
-                    : ((cl as any)[`obs_${f.key}`] ?? detalhes?.observacoes_itens?.[f.key] ?? "");
+                    : ((cl as any)[`obs_${f.key}`] ?? detalhes?.observacoes_itens?.[f.key] ?? detalhes?.draft_answers?.[`obs_${f.key}`] ?? "");
 
                   return (
                     <div key={f.key} className="py-1.5">
