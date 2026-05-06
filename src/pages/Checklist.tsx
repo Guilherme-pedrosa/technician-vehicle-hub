@@ -1667,7 +1667,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
     // ── RESULTADO FINAL ──
     if (currentStep.id === "resultado") {
-      const finalRes = resultado || suggestedResult;
+      const finalRes = effectiveResultado(resultado || suggestedResult, suggestedResult);
       return (
         <div className="space-y-5">
           {/* Summary */}
