@@ -771,7 +771,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         if (data.observacoes) setObservacoes(data.observacoes);
         const det = (data.detalhes ?? {}) as any;
         if (det.draft_answers) setAnswers(det.draft_answers);
-        if (data.resultado && data.resultado !== "liberado") setResultado(data.resultado);
+        if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
         if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
