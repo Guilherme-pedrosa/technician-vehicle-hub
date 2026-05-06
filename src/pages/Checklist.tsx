@@ -1289,6 +1289,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
     const currentFields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[currentStep.id] ?? []).includes(field.category));
     if (currentFields.some((field) => !answers[field.key])) return false;
+
+    // Exigir descrição obrigatória para todos os campos non-conformes do step atual
+    const ncFieldsInStep = currentFields.filter((f) => isNonConforme(f.key, answers[f.key]));
+    for (const f of ncFieldsInStep) {
+      if (!answers[`obs_${f.key}`]?.trim()) return false;
+    }
+
     if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
       return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
     }
@@ -1627,7 +1634,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
-                      <Textarea placeholder={`Descreva o problema...`}
+                      <Label className="text-xs font-semibold text-destructive">Descreva o problema *</Label>
+                      <Textarea placeholder={field.key === "ruido_anormal" ? "Descreva o ruído anormal (ex: barulho ao frear, ruído no motor em marcha lenta...)" : `Descreva o problema com ${field.label.toLowerCase()}...`}
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                       <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
@@ -1876,10 +1884,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
                 {/* Conditional: photo of problem when non-conforme */}
                 {isNonConforme(field.key, answers[field.key]) && (
-                  <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
-                    <Textarea placeholder={`Descreva o problema com ${field.label.toLowerCase()}...`}
-                      value={answers[`obs_${field.key}`] ?? ""} rows={2}
-                      onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
+                    <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
+                      <Label className="text-xs font-semibold text-destructive">Descreva o problema *</Label>
+                      <Textarea placeholder={`Descreva o problema com ${field.label.toLowerCase()}...`}
+                        value={answers[`obs_${field.key}`] ?? ""} rows={2}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                     <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
                       validations={photoValidations[`exc_${field.key}`]}
                       uploadStates={photoUploads[`exc_${field.key}`]}
