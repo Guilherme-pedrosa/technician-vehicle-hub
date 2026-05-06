@@ -1289,6 +1289,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     if (currentStep.id === "info") return !!vehicleId && !!selectedDriverId;
     const currentFields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[currentStep.id] ?? []).includes(field.category));
     if (currentFields.some((field) => !answers[field.key])) return false;
+
+    // Exigir descrição obrigatória para todos os campos non-conformes do step atual
+    const ncFieldsInStep = currentFields.filter((f) => isNonConforme(f.key, answers[f.key]));
+    for (const f of ncFieldsInStep) {
+      if (!answers[`obs_${f.key}`]?.trim()) return false;
+    }
+
     if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
       return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
     }
