@@ -160,6 +160,14 @@ function getMissingChecklistAnswers(answers: FormData) {
   return CHECKLIST_FIELDS.filter((field) => !answers[field.key]);
 }
 
+const RESULTADO_SEVERITY: Record<string, number> = { liberado: 0, liberado_obs: 1, bloqueado: 2 };
+/** Returns the more restrictive of user choice and system suggestion */
+function effectiveResultado(userChoice: string, suggested: string): string {
+  const uSev = RESULTADO_SEVERITY[userChoice] ?? -1;
+  const sSev = RESULTADO_SEVERITY[suggested] ?? 0;
+  return sSev > uSev ? suggested : userChoice;
+}
+
 function isNonConforme(key: string, val: string) {
   return val === "nao_conforme" || val === "vencido" ||
     (key === "danos_veiculo" && val === "sim") ||
@@ -771,7 +779,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         if (data.observacoes) setObservacoes(data.observacoes);
         const det = (data.detalhes ?? {}) as any;
         if (det.draft_answers) setAnswers(det.draft_answers);
-        if (data.resultado && data.resultado !== "liberado") setResultado(data.resultado);
+        if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
         if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
@@ -1062,7 +1070,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         });
       }
 
-      const finalResultado = resultado || suggestedResult;
+      const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
 
       // Save checklist
       // Calcula troca_oleo automaticamente: "vencido" só passou da troca; "proximo" se ≤1000km; senão "ok"
@@ -1337,7 +1345,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return true;
     }
     if (currentStep.id === "resultado") {
-      const finalRes = resultado || suggestedResult;
+      const finalRes = effectiveResultado(resultado || suggestedResult, suggestedResult);
       // "bloqueado" exige motivo obrigatório
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
       // "liberado_obs" com avaria exige motivo (descrever qual avaria)
@@ -1659,7 +1667,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
     // ── RESULTADO FINAL ──
     if (currentStep.id === "resultado") {
-      const finalRes = resultado || suggestedResult;
+      const finalRes = effectiveResultado(resultado || suggestedResult, suggestedResult);
       return (
         <div className="space-y-5">
           {/* Summary */}
