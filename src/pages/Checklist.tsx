@@ -1634,7 +1634,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                   )}
                   {isNonConforme(field.key, answers[field.key]) && (
                     <div className="pl-2 border-l-2 border-destructive/30 ml-1 space-y-2">
-                      <Textarea placeholder={`Descreva o problema...`}
+                      <Label className="text-xs font-semibold text-destructive">Descreva o problema *</Label>
+                      <Textarea placeholder={field.key === "ruido_anormal" ? "Descreva o ruído anormal (ex: barulho ao frear, ruído no motor em marcha lenta...)" : `Descreva o problema com ${field.label.toLowerCase()}...`}
                         value={answers[`obs_${field.key}`] ?? ""} rows={2}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [`obs_${field.key}`]: e.target.value }))} />
                       <CameraCapture category={"danos" as PhotoCategory} photos={photos[`exc_${field.key}`] ?? []}
