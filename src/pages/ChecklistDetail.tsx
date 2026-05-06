@@ -192,7 +192,7 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
       const val = cl[f.key];
       const opt = f.options.find((o) => o.value === val);
       const nc = isNonConforme(f.key, val);
-      const obsValue = cl[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`] ?? detalhes?.observacoes_itens?.[f.key] ?? "";
+      const obsValue = cl[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`] ?? detalhes?.observacoes_itens?.[f.key] ?? detalhes?.draft_answers?.[`obs_${f.key}`] ?? "";
       rows.push([f.label, opt?.label ?? val ?? "—", nc && obsValue ? obsValue : ""]);
     });
   });
