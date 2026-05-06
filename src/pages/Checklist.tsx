@@ -1070,7 +1070,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         });
       }
 
-      const finalResultado = resultado || suggestedResult;
+      const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
 
       // Save checklist
       // Calcula troca_oleo automaticamente: "vencido" só passou da troca; "proximo" se ≤1000km; senão "ok"
@@ -1345,7 +1345,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       return true;
     }
     if (currentStep.id === "resultado") {
-      const finalRes = resultado || suggestedResult;
+      const finalRes = effectiveResultado(resultado || suggestedResult, suggestedResult);
       // "bloqueado" exige motivo obrigatório
       if (finalRes === "bloqueado" && !resultadoMotivo.trim()) return false;
       // "liberado_obs" com avaria exige motivo (descrever qual avaria)
