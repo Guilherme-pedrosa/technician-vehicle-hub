@@ -1022,7 +1022,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
   const hasCritical = criticalCount > 0 || trocaOleoVencida;
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta;
+  const hasAvaria = answers.danos_veiculo === "sim";
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || hasAvaria;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
