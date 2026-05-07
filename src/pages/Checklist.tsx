@@ -1012,11 +1012,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   // - "vencida" (crítico) só quando KM atual ≥ KM próxima troca (kmRestante ≤ 0)
   // - "próximo da troca" (observação) quando faltam ≤ 1000 km, mas ainda não venceu
   const KM_OLEO_ALERTA_MARGEM = 1000;
+  const KM_OLEO_QUASE_VENCIDA = 50; // ≤50km → forçar liberado_obs + chamado
   const KM_OLEO_MAX_INTERVALO_FUTURO = 10_000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) : null;
   const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
   const trocaOleoIntervaloInvalido = kmRestanteOleo !== null ? kmRestanteOleo > KM_OLEO_MAX_INTERVALO_FUTURO : false;
   const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= 0 : false;
+  const trocaOleoQuaseVencida = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_QUASE_VENCIDA : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
 
@@ -1029,9 +1031,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
-  const hasCritical = criticalCount > 0 || trocaOleoVencida;
+  // Óleo quase vencido (≤50km) ou vencido NÃO bloqueia — força liberado_obs
+  const hasCritical = criticalCount > 0;
   const hasAvaria = answers.danos_veiculo === "sim";
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || hasAvaria;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
