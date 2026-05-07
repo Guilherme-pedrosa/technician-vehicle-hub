@@ -684,6 +684,54 @@ export default function ChecklistDetail() {
     }
   };
 
+  const handleRevalidateSinglePhoto = async (category: string) => {
+    if (!cl) return;
+    setRevalidatingSingle(category);
+    try {
+      const urls = fotosData[category];
+      if (!urls || urls.length === 0) { toast.error("Nenhuma foto nesta categoria."); return; }
+
+      const singleFotosData: Record<string, string[]> = { [category]: urls };
+      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
+
+      const existingInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria !== category);
+      const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
+      const existingForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((f: any) => f.categoria !== category);
+
+      const newDetalhes: any = {
+        ...detalhes,
+        fotos_invalidas: [...existingInvalidas, ...invalidas],
+        fotos_erro_validacao: [...existingErros, ...erros],
+        fotos_forcadas: existingForcadas,
+        revalidado_em: new Date().toISOString(),
+      };
+      if (kmLidoPainel !== null) {
+        newDetalhes.km_lido_painel = kmLidoPainel;
+      }
+
+      const { error } = await supabase.from("vehicle_checklists").update({
+        detalhes: newDetalhes,
+      } as any).eq("id", cl.id);
+
+      if (error) throw error;
+
+      const totalIssues = invalidas.length + erros.length;
+      const label = PHOTO_META[category as PhotoCategory]?.label ?? category;
+      if (totalIssues === 0) {
+        toast.success(`✅ ${label}: foto aprovada na revalidação!`);
+      } else {
+        toast.warning(`${label}: foto reprovada na revalidação.`);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+    } catch (err: any) {
+      toast.error("Erro ao revalidar foto: " + (err?.message ?? "Erro desconhecido"));
+    } finally {
+      setRevalidatingSingle(null);
+    }
+  };
+
   const handleExportPdf = async () => {
     setExportingPdf(true);
     try { await exportChecklistPDF(cl, vehicle, driverName); } catch (e) { console.error(e); }
