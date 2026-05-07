@@ -1012,11 +1012,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   // - "vencida" (crítico) só quando KM atual ≥ KM próxima troca (kmRestante ≤ 0)
   // - "próximo da troca" (observação) quando faltam ≤ 1000 km, mas ainda não venceu
   const KM_OLEO_ALERTA_MARGEM = 1000;
+  const KM_OLEO_QUASE_VENCIDA = 50; // ≤50km → forçar liberado_obs + chamado
   const KM_OLEO_MAX_INTERVALO_FUTURO = 10_000;
   const kmTrocaNum = kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) : null;
   const kmRestanteOleo = kmTrocaNum !== null && selectedVehicle ? kmTrocaNum - selectedVehicle.km_atual : null;
   const trocaOleoIntervaloInvalido = kmRestanteOleo !== null ? kmRestanteOleo > KM_OLEO_MAX_INTERVALO_FUTURO : false;
   const trocaOleoVencida = kmRestanteOleo !== null ? kmRestanteOleo <= 0 : false;
+  const trocaOleoQuaseVencida = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_QUASE_VENCIDA : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
 
@@ -1029,9 +1031,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, answers[f.key])), [answers]);
   const criticalCount = useMemo(() =>
     CHECKLIST_FIELDS.filter((f) => isCriticalNonConforme(f.key, answers[f.key])).length, [answers]);
-  const hasCritical = criticalCount > 0 || trocaOleoVencida;
+  // Óleo quase vencido (≤50km) ou vencido NÃO bloqueia — força liberado_obs
+  const hasCritical = criticalCount > 0;
   const hasAvaria = answers.danos_veiculo === "sim";
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || hasAvaria;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
@@ -1074,7 +1077,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       // Save checklist
       // Calcula troca_oleo automaticamente: "vencido" só passou da troca; "proximo" se ≤1000km; senão "ok"
-      const trocaOleoStatus = trocaOleoVencida ? "vencido" : trocaOleoProxima ? "proximo" : "ok";
+      const trocaOleoStatus = trocaOleoVencida ? "vencido" : trocaOleoQuaseVencida ? "vencido" : trocaOleoProxima ? "proximo" : "ok";
 
       const persistedAnswers = Object.fromEntries(
         Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
@@ -1151,8 +1154,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
         }).join("\n");
-        const oleoStatusLabel = trocaOleoVencida ? "vencida" : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
-        const oilLine = trocaOleoAlerta ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
+        const oleoStatusLabel = trocaOleoVencida ? "vencida" : trocaOleoQuaseVencida ? `quase vencida — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km` : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
+        const oilLine = (trocaOleoAlerta || trocaOleoQuaseVencida) ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
         
         // Include photo validation issues
         const photoIssueLines: string[] = [];
@@ -1201,11 +1204,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           }
 
           // Troca de óleo (vencida ou próxima)
-          if (trocaOleoAlerta) {
+          if (trocaOleoAlerta || trocaOleoQuaseVencida) {
             actions.push({
               ticket_id: ticketData.id,
-              descricao: trocaOleoVencida
-                ? "Realizar troca de óleo (vencida)"
+              descricao: (trocaOleoVencida || trocaOleoQuaseVencida)
+                ? `Realizar troca de óleo URGENTE (faltam ${kmRestanteOleo !== null && kmRestanteOleo <= 0 ? "0" : kmRestanteOleo?.toLocaleString("pt-BR")} km)`
                 : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`,
               created_by: userId,
               sort_order: sortOrder++,
@@ -1582,8 +1585,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     <div className={`rounded-lg p-2 text-xs font-medium ${
                       trocaOleoIntervaloInvalido
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
-                        : trocaOleoVencida
-                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : trocaOleoVencida || trocaOleoQuaseVencida
+                        ? "bg-warning/10 text-warning border border-warning/30"
                         : trocaOleoProxima
                           ? "bg-warning/10 text-warning border border-warning/30"
                           : "bg-success/10 text-success border border-success/30"
@@ -1594,7 +1597,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                           return `❌ INVÁLIDO — Próxima troca ${restante.toLocaleString("pt-BR")} km à frente. O limite aceito é ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km.`;
                         }
                         if (restante <= 0) {
-                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${(kmTrocaNum ?? 0).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
+                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${(kmTrocaNum ?? 0).toLocaleString("pt-BR")}. Será liberado com observação e chamado será aberto.`;
+                        }
+                        if (restante <= KM_OLEO_QUASE_VENCIDA) {
+                          return `⚠️ QUASE VENCIDA — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Será liberado com observação e chamado será aberto.`;
                         }
                         if (restante <= KM_OLEO_ALERTA_MARGEM) {
                           return `⚠️ PRÓXIMO DA TROCA — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto, mas o veículo pode ser liberado.`;
