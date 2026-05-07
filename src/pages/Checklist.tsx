@@ -54,7 +54,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_te: { label: "🔵 Pneu Traseiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_td: { label: "🔵 Pneu Traseiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
-  calibracao: { label: "📏 Calibração dos Pneus", hint: "Foto do calibrador mostrando pressão", min: 1 },
+  calibracao: { label: "📏 Calibragem — Mangueira no Pneu", hint: "Foto do veículo com a mangueira do calibrador conectada na roda (mostrando que está calibrando)", min: 1 },
   estepe: { label: "🔄 Pneu Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
   // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
