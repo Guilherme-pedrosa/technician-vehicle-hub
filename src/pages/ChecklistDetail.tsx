@@ -49,7 +49,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; icon: string }> = {
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", icon: "🔵" },
   pneu_te: { label: "🔵 Pneu Traseiro Esquerdo", icon: "🔵" },
   pneu_td: { label: "🔵 Pneu Traseiro Direito", icon: "🔵" },
-  calibracao: { label: "📏 Calibração dos Pneus", icon: "📏" },
+  calibracao: { label: "📏 Calibragem — Mangueira no Pneu", icon: "📏" },
   estepe: { label: "🔄 Pneu Estepe", icon: "🔄" },
   farois_lanternas: { label: "💡 Faróis e Lanternas", icon: "💡" },
   motor: { label: "⚙️ Compartimento do Motor", icon: "⚙️" },
