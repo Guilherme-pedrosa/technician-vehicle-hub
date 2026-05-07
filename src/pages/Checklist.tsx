@@ -1077,7 +1077,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
 
       // Save checklist
       // Calcula troca_oleo automaticamente: "vencido" só passou da troca; "proximo" se ≤1000km; senão "ok"
-      const trocaOleoStatus = trocaOleoVencida ? "vencido" : trocaOleoProxima ? "proximo" : "ok";
+      const trocaOleoStatus = trocaOleoVencida ? "vencido" : trocaOleoQuaseVencida ? "vencido" : trocaOleoProxima ? "proximo" : "ok";
 
       const persistedAnswers = Object.fromEntries(
         Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
