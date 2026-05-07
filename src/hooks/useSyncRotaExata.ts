@@ -112,7 +112,9 @@ async function syncVehiclesFromData(vehiclesToSync: ReturnType<typeof parseVehic
       // PROTEÇÃO: nunca regredir o km_atual. Se o KM da Rota Exata for menor
       // que o cadastrado, mantemos o cadastrado (admin pode ter corrigido).
       const matchKm = (match as any).km_atual ?? 0;
-      const payload: any = { ...vehicle };
+      // Só atualiza km_atual e adesao_id/placa — NUNCA sobrescreve marca/modelo/ano/tipo
+      // que o admin pode ter editado manualmente.
+      const payload: any = { adesao_id: vehicle.adesao_id, placa: vehicle.placa, km_atual: vehicle.km_atual };
       if (vehicle.km_atual < matchKm) {
         const diff = matchKm - vehicle.km_atual;
         if (diff > REGRESSION_THRESHOLD) {
