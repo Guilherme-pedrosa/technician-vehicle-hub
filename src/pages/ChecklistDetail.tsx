@@ -121,22 +121,30 @@ const DETAIL_SECTIONS = [
 // Photo row
 // ═══════════════════════════════════════════
 
-function PhotoRow({ category, urls, isFlagged, flagReasons }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[] }) {
+function PhotoRow({ category, urls, isFlagged, flagReasons, onRevalidate, isRevalidating }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[]; onRevalidate?: () => void; isRevalidating?: boolean }) {
   if (!urls || urls.length === 0) return null;
   const meta = PHOTO_META[category];
   return (
     <div className={`py-2 ${isFlagged ? "bg-destructive/5 rounded-lg px-2" : ""}`}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm flex-1">{meta?.label ?? category}</span>
-        {isFlagged ? (
-          <Badge variant="destructive" className="text-[10px] gap-1 px-1.5 py-0">
-            <AlertTriangle className="w-2.5 h-2.5" /> Inadequada
-          </Badge>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
-            <CheckCircle className="w-3.5 h-3.5" /> OK
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {onRevalidate && (
+            <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] gap-1 text-muted-foreground hover:text-primary" onClick={onRevalidate} disabled={isRevalidating}>
+              {isRevalidating ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <RefreshCw className="w-2.5 h-2.5" />}
+              {isRevalidating ? "..." : "Revalidar"}
+            </Button>
+          )}
+          {isFlagged ? (
+            <Badge variant="destructive" className="text-[10px] gap-1 px-1.5 py-0">
+              <AlertTriangle className="w-2.5 h-2.5" /> Inadequada
+            </Badge>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+              <CheckCircle className="w-3.5 h-3.5" /> OK
+            </span>
+          )}
+        </div>
       </div>
       {isFlagged && flagReasons && flagReasons.length > 0 && (
         <p className="text-[11px] text-destructive font-medium mb-1.5">⚠️ {flagReasons.join("; ")}</p>
@@ -346,6 +354,7 @@ export default function ChecklistDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
+  const [revalidatingSingle, setRevalidatingSingle] = useState<string | null>(null);
   const [scanningKm, setScanningKm] = useState(false);
   const [syncingKmRota, setSyncingKmRota] = useState(false);
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; mode: "liberar" | "rebloquear" } | null>(null);
@@ -672,6 +681,54 @@ export default function ChecklistDetail() {
       toast.error("Erro ao revalidar: " + (err?.message ?? "Erro desconhecido"));
     } finally {
       setRevalidating(false);
+    }
+  };
+
+  const handleRevalidateSinglePhoto = async (category: string) => {
+    if (!cl) return;
+    setRevalidatingSingle(category);
+    try {
+      const urls = fotosData[category];
+      if (!urls || urls.length === 0) { toast.error("Nenhuma foto nesta categoria."); return; }
+
+      const singleFotosData: Record<string, string[]> = { [category]: urls };
+      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
+
+      const existingInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria !== category);
+      const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
+      const existingForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((f: any) => f.categoria !== category);
+
+      const newDetalhes: any = {
+        ...detalhes,
+        fotos_invalidas: [...existingInvalidas, ...invalidas],
+        fotos_erro_validacao: [...existingErros, ...erros],
+        fotos_forcadas: existingForcadas,
+        revalidado_em: new Date().toISOString(),
+      };
+      if (kmLidoPainel !== null) {
+        newDetalhes.km_lido_painel = kmLidoPainel;
+      }
+
+      const { error } = await supabase.from("vehicle_checklists").update({
+        detalhes: newDetalhes,
+      } as any).eq("id", cl.id);
+
+      if (error) throw error;
+
+      const totalIssues = invalidas.length + erros.length;
+      const label = PHOTO_META[category as PhotoCategory]?.label ?? category;
+      if (totalIssues === 0) {
+        toast.success(`✅ ${label}: foto aprovada na revalidação!`);
+      } else {
+        toast.warning(`${label}: foto reprovada na revalidação.`);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
+    } catch (err: any) {
+      toast.error("Erro ao revalidar foto: " + (err?.message ?? "Erro desconhecido"));
+    } finally {
+      setRevalidatingSingle(null);
     }
   };
 
@@ -1046,7 +1103,7 @@ export default function ChecklistDetail() {
 
               <div className="space-y-1 divide-y divide-border">
                 {sectionPhotos.map((cat) => (
-                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} />
+                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} onRevalidate={isAdmin ? () => handleRevalidateSinglePhoto(cat) : undefined} isRevalidating={revalidatingSingle === cat} />
                 ))}
 
                 {sectionFields.map((f) => {
