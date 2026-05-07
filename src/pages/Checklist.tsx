@@ -37,7 +37,7 @@ import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDia
 
 type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
-  | "nivel_oleo" | "reservatorio_agua"
+  | "nivel_oleo" | "reservatorio_agua" | "etiqueta_oleo"
   | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao_de" | "calibracao_dd" | "calibracao_te" | "calibracao_td" | "estepe"
   | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
@@ -49,6 +49,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto lateral esquerda completa", min: 1 },
   exterior_direita: { label: "📸 Lateral Direita", hint: "Foto lateral direita completa", min: 1 },
   nivel_oleo: { label: "🛢️ Nível de Óleo", hint: "Foto da vareta ou indicador de nível", min: 1 },
+  etiqueta_oleo: { label: "🏷️ Etiqueta de Troca de Óleo", hint: "Foto da etiqueta colada no para-brisa ou no motor com a KM da próxima troca", min: 1 },
   reservatorio_agua: { label: "💧 Reservatório de Água", hint: "Mostre o LÍQUIDO dentro do reservatório (lateral com a marca do nível, ou abra a tampa)", min: 1 },
   pneu_de: { label: "🔵 Pneu Dianteiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
@@ -704,7 +705,7 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
 
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
-  capo: ["motor", "nivel_oleo", "reservatorio_agua"],
+  capo: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"],
   calibracao: ["calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"],
   exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
   interior: ["interior"],
@@ -2201,7 +2202,7 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
 // Detail sections for dialog (matching wizard flow)
 const DIALOG_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
-  { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
+  { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },

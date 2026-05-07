@@ -32,7 +32,7 @@ import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
 
 type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
-  | "nivel_oleo" | "reservatorio_agua"
+  | "nivel_oleo" | "reservatorio_agua" | "etiqueta_oleo"
   | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao_de" | "calibracao_dd" | "calibracao_te" | "calibracao_td" | "estepe"
   | "farois_lanternas" | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
@@ -44,6 +44,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; icon: string }> = {
   exterior_esquerda: { label: "📸 Lateral Esquerda", icon: "📸" },
   exterior_direita: { label: "📸 Lateral Direita", icon: "📸" },
   nivel_oleo: { label: "🛢️ Nível de Óleo", icon: "🛢️" },
+  etiqueta_oleo: { label: "🏷️ Etiqueta de Troca de Óleo", icon: "🏷️" },
   reservatorio_agua: { label: "💧 Reservatório de Água", icon: "💧" },
   pneu_de: { label: "🔵 Pneu Dianteiro Esquerdo", icon: "🔵" },
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", icon: "🔵" },
@@ -115,7 +116,7 @@ const DETAIL_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fields: [] as string[] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fields: ["Exterior"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"] as PhotoCategory[], fields: ["Pneus"] },
-  { id: "capo", title: "Capô Aberto", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fields: ["Capô"] },
+  { id: "capo", title: "Capô Aberto", icon: Wrench, photos: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"] as PhotoCategory[], fields: ["Capô"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fields: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fields: ["Danos"] },
 ];
