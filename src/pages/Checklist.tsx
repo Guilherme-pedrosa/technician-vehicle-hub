@@ -38,7 +38,7 @@ import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDia
 type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
   | "nivel_oleo" | "reservatorio_agua"
-  | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao" | "estepe"
+  | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao_de" | "calibracao_dd" | "calibracao_te" | "calibracao_td" | "estepe"
   | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
 
@@ -54,7 +54,10 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_te: { label: "🔵 Pneu Traseiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_td: { label: "🔵 Pneu Traseiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
-  calibracao: { label: "📏 Calibragem — Mangueira no Pneu", hint: "Foto do veículo com a mangueira do calibrador conectada na roda (mostrando que está calibrando)", min: 1 },
+  calibracao_de: { label: "📏 Calibragem — Dianteiro Esquerdo", hint: "Foto da mangueira do calibrador conectada no pneu dianteiro esquerdo", min: 1 },
+  calibracao_dd: { label: "📏 Calibragem — Dianteiro Direito", hint: "Foto da mangueira do calibrador conectada no pneu dianteiro direito", min: 1 },
+  calibracao_te: { label: "📏 Calibragem — Traseiro Esquerdo", hint: "Foto da mangueira do calibrador conectada no pneu traseiro esquerdo", min: 1 },
+  calibracao_td: { label: "📏 Calibragem — Traseiro Direito", hint: "Foto da mangueira do calibrador conectada no pneu traseiro direito", min: 1 },
   estepe: { label: "🔄 Pneu Estepe", hint: "Foto mostrando condição do estepe", min: 1 },
   // farois_lanternas removido — agora a verificação é feita nas fotos de frente/traseira (faróis acesos)
   motor: { label: "⚙️ Compartimento do Motor", hint: "Foto do motor aberto", min: 1 },
@@ -702,7 +705,7 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   painel: ["painel"],
   capo: ["motor", "nivel_oleo", "reservatorio_agua"],
-  calibracao: ["calibracao", "estepe", "itens_seguranca"],
+  calibracao: ["calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"],
   exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"],
   interior: ["interior"],
 };
@@ -2199,7 +2202,7 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
 const DIALOG_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
   { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
-  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
+  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fieldCategories: ["Danos"] },
