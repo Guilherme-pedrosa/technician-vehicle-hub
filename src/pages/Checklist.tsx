@@ -37,7 +37,7 @@ import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDia
 
 type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
-  | "nivel_oleo" | "reservatorio_agua"
+  | "nivel_oleo" | "reservatorio_agua" | "etiqueta_oleo"
   | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao_de" | "calibracao_dd" | "calibracao_te" | "calibracao_td" | "estepe"
   | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
