@@ -1103,7 +1103,7 @@ export default function ChecklistDetail() {
 
               <div className="space-y-1 divide-y divide-border">
                 {sectionPhotos.map((cat) => (
-                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} />
+                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} onRevalidate={isAdmin ? () => handleRevalidateSinglePhoto(cat) : undefined} isRevalidating={revalidatingSingle === cat} />
                 ))}
 
                 {sectionFields.map((f) => {
