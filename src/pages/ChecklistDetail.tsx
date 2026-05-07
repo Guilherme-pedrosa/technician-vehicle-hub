@@ -33,7 +33,7 @@ import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
 type PhotoCategory =
   | "painel" | "exterior_frente" | "exterior_traseira" | "exterior_esquerda" | "exterior_direita"
   | "nivel_oleo" | "reservatorio_agua"
-  | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao" | "estepe"
+  | "pneu_de" | "pneu_dd" | "pneu_te" | "pneu_td" | "calibracao_de" | "calibracao_dd" | "calibracao_te" | "calibracao_td" | "estepe"
   | "farois_lanternas" | "motor" | "itens_seguranca" | "interior"
   | "danos" | "avaria";
 
@@ -49,7 +49,10 @@ const PHOTO_META: Record<PhotoCategory, { label: string; icon: string }> = {
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", icon: "🔵" },
   pneu_te: { label: "🔵 Pneu Traseiro Esquerdo", icon: "🔵" },
   pneu_td: { label: "🔵 Pneu Traseiro Direito", icon: "🔵" },
-  calibracao: { label: "📏 Calibragem — Mangueira no Pneu", icon: "📏" },
+  calibracao_de: { label: "📏 Calibragem — Diant. Esquerdo", icon: "📏" },
+  calibracao_dd: { label: "📏 Calibragem — Diant. Direito", icon: "📏" },
+  calibracao_te: { label: "📏 Calibragem — Tras. Esquerdo", icon: "📏" },
+  calibracao_td: { label: "📏 Calibragem — Tras. Direito", icon: "📏" },
   estepe: { label: "🔄 Pneu Estepe", icon: "🔄" },
   farois_lanternas: { label: "💡 Faróis e Lanternas", icon: "💡" },
   motor: { label: "⚙️ Compartimento do Motor", icon: "⚙️" },
@@ -111,7 +114,7 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
 const DETAIL_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fields: [] as string[] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fields: ["Exterior"] },
-  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao", "estepe", "itens_seguranca"] as PhotoCategory[], fields: ["Pneus"] },
+  { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"] as PhotoCategory[], fields: ["Pneus"] },
   { id: "capo", title: "Capô Aberto", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fields: ["Capô"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fields: ["Interior"] },
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle, photos: ["danos", "avaria"] as PhotoCategory[], fields: ["Danos"] },

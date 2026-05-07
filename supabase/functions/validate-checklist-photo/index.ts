@@ -63,9 +63,24 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     criterio: "Deve mostrar claramente um pneu de veículo. ACEITE se a foto mostrar um pneu com a banda de rodagem visível. NÃO FAÇA DIAGNÓSTICOS sobre o estado do pneu (murcho, careca, desgastado, calibragem, pressão) — isso NÃO é sua função. Você deve APENAS validar que a foto mostra um pneu real de veículo com enquadramento e foco adequados. Na 'reason', descreva apenas o enquadramento. NUNCA diga que o pneu está murcho, vazio, furado, careca ou qualquer diagnóstico.",
     has_critical: false,
   },
-  calibracao: {
-    label: "Calibragem — Mangueira no Pneu",
-    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula de um pneu do veículo. O objetivo é comprovar que o técnico está calibrando. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se a foto mostrar apenas o calibrador sem conexão ao pneu, ou se não houver mangueira visível conectada.",
+  calibracao_de: {
+    label: "Calibragem — Dianteiro Esquerdo",
+    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu dianteiro esquerdo do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    has_critical: true,
+  },
+  calibracao_dd: {
+    label: "Calibragem — Dianteiro Direito",
+    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu dianteiro direito do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    has_critical: true,
+  },
+  calibracao_te: {
+    label: "Calibragem — Traseiro Esquerdo",
+    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu traseiro esquerdo do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    has_critical: true,
+  },
+  calibracao_td: {
+    label: "Calibragem — Traseiro Direito",
+    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu traseiro direito do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
     has_critical: true,
   },
   estepe: {
