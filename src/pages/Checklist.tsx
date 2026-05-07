@@ -1585,8 +1585,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                     <div className={`rounded-lg p-2 text-xs font-medium ${
                       trocaOleoIntervaloInvalido
                         ? "bg-destructive/10 text-destructive border border-destructive/30"
-                        : trocaOleoVencida
-                        ? "bg-destructive/10 text-destructive border border-destructive/30"
+                        : trocaOleoVencida || trocaOleoQuaseVencida
+                        ? "bg-warning/10 text-warning border border-warning/30"
                         : trocaOleoProxima
                           ? "bg-warning/10 text-warning border border-warning/30"
                           : "bg-success/10 text-success border border-success/30"
