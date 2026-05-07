@@ -49,6 +49,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; hint: string; min: numb
   exterior_esquerda: { label: "📸 Lateral Esquerda", hint: "Foto lateral esquerda completa", min: 1 },
   exterior_direita: { label: "📸 Lateral Direita", hint: "Foto lateral direita completa", min: 1 },
   nivel_oleo: { label: "🛢️ Nível de Óleo", hint: "Foto da vareta ou indicador de nível", min: 1 },
+  etiqueta_oleo: { label: "🏷️ Etiqueta de Troca de Óleo", hint: "Foto da etiqueta colada no para-brisa ou no motor com a KM da próxima troca", min: 1 },
   reservatorio_agua: { label: "💧 Reservatório de Água", hint: "Mostre o LÍQUIDO dentro do reservatório (lateral com a marca do nível, ou abra a tampa)", min: 1 },
   pneu_de: { label: "🔵 Pneu Dianteiro Esquerdo", hint: "Foto mostrando banda de rodagem", min: 1 },
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", hint: "Foto mostrando banda de rodagem", min: 1 },
