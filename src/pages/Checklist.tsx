@@ -1597,7 +1597,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
                           return `❌ INVÁLIDO — Próxima troca ${restante.toLocaleString("pt-BR")} km à frente. O limite aceito é ${KM_OLEO_MAX_INTERVALO_FUTURO.toLocaleString("pt-BR")} km.`;
                         }
                         if (restante <= 0) {
-                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${(kmTrocaNum ?? 0).toLocaleString("pt-BR")}. Não conformidade será registrada.`;
+                          return `⚠️ VENCIDA — KM atual ${selectedVehicle.km_atual.toLocaleString("pt-BR")} ≥ próxima troca ${(kmTrocaNum ?? 0).toLocaleString("pt-BR")}. Será liberado com observação e chamado será aberto.`;
+                        }
+                        if (restante <= KM_OLEO_QUASE_VENCIDA) {
+                          return `⚠️ QUASE VENCIDA — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Será liberado com observação e chamado será aberto.`;
                         }
                         if (restante <= KM_OLEO_ALERTA_MARGEM) {
                           return `⚠️ PRÓXIMO DA TROCA — Faltam apenas ${restante.toLocaleString("pt-BR")} km. Chamado de programação será aberto, mas o veículo pode ser liberado.`;
