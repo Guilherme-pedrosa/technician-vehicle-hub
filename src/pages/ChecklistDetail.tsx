@@ -354,6 +354,7 @@ export default function ChecklistDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
+  const [revalidatingSingle, setRevalidatingSingle] = useState<string | null>(null);
   const [scanningKm, setScanningKm] = useState(false);
   const [syncingKmRota, setSyncingKmRota] = useState(false);
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; mode: "liberar" | "rebloquear" } | null>(null);
