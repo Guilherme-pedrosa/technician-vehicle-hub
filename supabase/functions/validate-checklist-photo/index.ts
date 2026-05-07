@@ -64,8 +64,8 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
     has_critical: false,
   },
   calibracao: {
-    label: "Calibrador de pressão",
-    criterio: "Deve mostrar o calibrador/medidor de pressão de pneus com o valor visível e legível.",
+    label: "Calibragem — Mangueira no Pneu",
+    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula de um pneu do veículo. O objetivo é comprovar que o técnico está calibrando. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se a foto mostrar apenas o calibrador sem conexão ao pneu, ou se não houver mangueira visível conectada.",
     has_critical: true,
   },
   estepe: {
