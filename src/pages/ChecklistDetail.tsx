@@ -44,6 +44,7 @@ const PHOTO_META: Record<PhotoCategory, { label: string; icon: string }> = {
   exterior_esquerda: { label: "📸 Lateral Esquerda", icon: "📸" },
   exterior_direita: { label: "📸 Lateral Direita", icon: "📸" },
   nivel_oleo: { label: "🛢️ Nível de Óleo", icon: "🛢️" },
+  etiqueta_oleo: { label: "🏷️ Etiqueta de Troca de Óleo", icon: "🏷️" },
   reservatorio_agua: { label: "💧 Reservatório de Água", icon: "💧" },
   pneu_de: { label: "🔵 Pneu Dianteiro Esquerdo", icon: "🔵" },
   pneu_dd: { label: "🔵 Pneu Dianteiro Direito", icon: "🔵" },
