@@ -155,6 +155,16 @@ type UploadSummaryItem = {
 };
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
+const LEGACY_DRAFT_PHOTO_KEYS = new Set(["calibracao", "farois_lanternas"]);
+
+function isRestorableDraftPhotoKey(key: string) {
+  return key in PHOTO_META || key.startsWith("exc_");
+}
+
+function hasLegacyDraftPhotos(fotos: Record<string, string[]> | null | undefined) {
+  if (!fotos) return false;
+  return Object.keys(fotos).some((key) => LEGACY_DRAFT_PHOTO_KEYS.has(key));
+}
 
 function getBlankChecklistAnswers(): FormData {
   return Object.fromEntries(CHECKLIST_FIELDS.map((field) => [field.key, ""]));
@@ -695,6 +705,8 @@ const STEPS = [
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
 ];
 
+const CALIBRACAO_STEP_INDEX = 3;
+
 const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
   capo: ["Capô"],
   calibracao: ["Pneus"],
@@ -787,18 +799,34 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
         if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
-        if (typeof det.draft_step === "number" && det.draft_step > 0) setStep(det.draft_step);
+        const fotos = (data.fotos ?? {}) as Record<string, string[]>;
+        const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
+        const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
+
+        const calibracaoStepIndex = getCalibracaoStepIndex();
+
+        if (draftHasLegacyPhotos && savedStep >= calibracaoStepIndex && calibracaoStepIndex >= 0) {
+          setStep(calibracaoStepIndex);
+        } else if (savedStep > 0) {
+          setStep(savedStep);
+        }
+
         if (data.termo_aceito) setTermoAceito(data.termo_aceito);
         // Fotos já salvas no draft — restaurar URLs
-        const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         if (Object.keys(fotos).length > 0) {
           const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
           for (const [cat, urls] of Object.entries(fotos)) {
+            if (!isRestorableDraftPhotoKey(cat)) continue;
             restoredUploads[cat] = urls.map((url) => ({ status: "done", uploadedUrl: url }));
           }
           setPhotoUploads(restoredUploads as any);
         }
-        toast.info("Rascunho anterior restaurado. Fotos já salvas foram mantidas.", { duration: 5000 });
+        toast.info(
+          draftHasLegacyPhotos
+            ? "Rascunho antigo restaurado. Voltei para a etapa de calibração para pedir as novas fotos."
+            : "Rascunho anterior restaurado. Fotos já salvas foram mantidas.",
+          { duration: 5000 },
+        );
       } catch (err) {
         console.error("Erro ao carregar rascunho:", err);
       }
