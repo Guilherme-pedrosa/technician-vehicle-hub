@@ -918,6 +918,7 @@ export type Database = {
           farois_lanternas: string
           fluidos_ok: string
           fotos: Json | null
+          freios: string
           id: string
           itens_seguranca: string
           kit_ok: string
@@ -958,6 +959,7 @@ export type Database = {
           farois_lanternas?: string
           fluidos_ok?: string
           fotos?: Json | null
+          freios?: string
           id?: string
           itens_seguranca?: string
           kit_ok?: string
@@ -998,6 +1000,7 @@ export type Database = {
           farois_lanternas?: string
           fluidos_ok?: string
           fotos?: Json | null
+          freios?: string
           id?: string
           itens_seguranca?: string
           kit_ok?: string
