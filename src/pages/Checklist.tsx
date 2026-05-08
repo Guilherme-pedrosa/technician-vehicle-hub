@@ -157,10 +157,6 @@ type UploadSummaryItem = {
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
 const LEGACY_DRAFT_PHOTO_KEYS = new Set(["calibracao", "farois_lanternas"]);
 
-function getCalibracaoStepIndex() {
-  return STEPS.findIndex((step) => step.id === "calibracao");
-}
-
 function isRestorableDraftPhotoKey(key: string) {
   return key in PHOTO_META || key.startsWith("exc_");
 }
@@ -708,6 +704,8 @@ const STEPS = [
   { id: "danos", title: "Danos e Avarias", icon: AlertTriangle },
   { id: "resultado", title: "Resultado Final", icon: ShieldCheck },
 ];
+
+const CALIBRACAO_STEP_INDEX = 3;
 
 const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
   capo: ["Capô"],
