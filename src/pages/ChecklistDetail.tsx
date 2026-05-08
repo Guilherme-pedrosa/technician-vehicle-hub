@@ -90,6 +90,7 @@ const CHECKLIST_FIELDS: ChecklistField[] = [
   { key: "nivel_agua", label: "Nível de água/arrefecimento OK?", category: "Capô", options: CONFORME_NAO, critical: true },
   { key: "ruido_anormal", label: "Existe algum ruído anormal?", category: "Capô", options: NAO_SIM, critical: true },
   { key: "cambio", label: "Câmbio funcionando corretamente?", category: "Interior", options: CONFORME_NAO, critical: true },
+  { key: "freios", label: "Freios funcionando corretamente (pedal firme, sem ruído)?", category: "Interior", options: CONFORME_NAO, critical: true },
   { key: "som", label: "Som/rádio funcionando?", category: "Interior", options: CONFORME_NAO },
   { key: "acessorios", label: "Acessórios e ferramentas presentes?", category: "Interior", options: SIM_NAO },
   { key: "danos_veiculo", label: "Há algum dano/avaria nova no veículo?", category: "Danos", options: NAO_SIM },
