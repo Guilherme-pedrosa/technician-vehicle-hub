@@ -156,7 +156,10 @@ type UploadSummaryItem = {
 
 const CHECKLIST_DB_FIELD_KEYS = new Set(CHECKLIST_FIELDS.map((field) => field.key));
 const LEGACY_DRAFT_PHOTO_KEYS = new Set(["calibracao", "farois_lanternas"]);
-const CALIBRACAO_STEP_INDEX = STEPS.findIndex((step) => step.id === "calibracao");
+
+function getCalibracaoStepIndex() {
+  return STEPS.findIndex((step) => step.id === "calibracao");
+}
 
 function isRestorableDraftPhotoKey(key: string) {
   return key in PHOTO_META || key.startsWith("exc_");
@@ -802,8 +805,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
 
-        if (draftHasLegacyPhotos && savedStep >= CALIBRACAO_STEP_INDEX && CALIBRACAO_STEP_INDEX >= 0) {
-          setStep(CALIBRACAO_STEP_INDEX);
+        const calibracaoStepIndex = getCalibracaoStepIndex();
+
+        if (draftHasLegacyPhotos && savedStep >= calibracaoStepIndex && calibracaoStepIndex >= 0) {
+          setStep(calibracaoStepIndex);
         } else if (savedStep > 0) {
           setStep(savedStep);
         }
