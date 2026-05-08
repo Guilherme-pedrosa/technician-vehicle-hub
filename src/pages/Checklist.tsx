@@ -723,6 +723,23 @@ const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
   interior: ["interior"],
 };
 
+function getFirstIncompleteRequiredPhotoStepIndex(fotos: Record<string, string[]> | null | undefined, savedStep: number) {
+  if (!fotos || savedStep <= 0) return -1;
+
+  for (let index = 0; index <= Math.min(savedStep, STEPS.length - 1); index++) {
+    const requiredPhotos = STEP_PHOTOS[STEPS[index].id] ?? [];
+    const hasMissingRequiredPhoto = requiredPhotos.some((cat) => {
+      const urls = fotos[cat];
+      const minimum = PHOTO_META[cat]?.min ?? 1;
+      return !Array.isArray(urls) || urls.length < minimum;
+    });
+
+    if (hasMissingRequiredPhoto) return index;
+  }
+
+  return -1;
+}
+
 // ═══════════════════════════════════════════
 // FORM DIALOG
 // ═══════════════════════════════════════════
@@ -802,11 +819,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
+        const incompletePhotoStepIndex = getFirstIncompleteRequiredPhotoStepIndex(fotos, savedStep);
 
-        const calibracaoStepIndex = getCalibracaoStepIndex();
-
-        if (draftHasLegacyPhotos && savedStep >= calibracaoStepIndex && calibracaoStepIndex >= 0) {
-          setStep(calibracaoStepIndex);
+        if (incompletePhotoStepIndex >= 0) {
+          setStep(incompletePhotoStepIndex);
         } else if (savedStep > 0) {
           setStep(savedStep);
         }
@@ -817,7 +833,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
           for (const [cat, urls] of Object.entries(fotos)) {
             if (!isRestorableDraftPhotoKey(cat)) continue;
-            restoredUploads[cat] = urls.map((url) => ({ status: "done", uploadedUrl: url }));
+            restoredUploads[cat] = urls.map((url) => ({ status: "uploaded", uploadedUrl: url }));
           }
           setPhotoUploads(restoredUploads as any);
         }
