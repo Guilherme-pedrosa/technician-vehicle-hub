@@ -70,22 +70,22 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   calibracao_de: {
     label: "Calibragem — Dianteiro Esquerdo",
-    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu dianteiro esquerdo do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu dianteiro esquerdo E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
     has_critical: true,
   },
   calibracao_dd: {
     label: "Calibragem — Dianteiro Direito",
-    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu dianteiro direito do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu dianteiro direito E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
     has_critical: true,
   },
   calibracao_te: {
     label: "Calibragem — Traseiro Esquerdo",
-    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu traseiro esquerdo do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu traseiro esquerdo E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
     has_critical: true,
   },
   calibracao_td: {
     label: "Calibragem — Traseiro Direito",
-    criterio: "Deve mostrar a mangueira/bico do calibrador de pneus CONECTADA na válvula do pneu traseiro direito do veículo. ACEITE se aparecer a mangueira/bico encaixado no pneu. REJEITE se não houver mangueira visível conectada.",
+    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu traseiro direito E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
     has_critical: true,
   },
   estepe: {
