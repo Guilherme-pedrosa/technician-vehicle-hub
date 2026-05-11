@@ -499,24 +499,53 @@ Critério esperado: ${finalCriterio}`;
         // GATE SERVER-SIDE: para "painel", exigir leitura numérica segura para autopreenchimento.
         // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
         if (category === "painel") {
+          // === Reconciliação km_lido_raw vs km_lido ===
+          // Caso clássico do bug: IA devolveu km_lido_raw="27754 1" mas km_lido="27754"
+          // (último dígito foi descartado como se fosse decimal). Se NÃO houver separador
+          // decimal claro entre os dígitos do raw, o último dígito faz parte do hodômetro.
+          if (typeof result.km_lido_raw === "string" && result.km_lido_raw.length > 0) {
+            const raw = result.km_lido_raw.trim();
+            const hasDecimalSeparator = /[.,]/.test(raw); // ponto ou vírgula
+            const onlyDigits = raw.replace(/[^\d]/g, "");
+            if (!hasDecimalSeparator && onlyDigits.length > (result.km_lido || "").length) {
+              console.log(`[painel] Reconciliando km_lido com km_lido_raw (sem separador decimal). raw="${raw}" lidoAntes=${result.km_lido} lidoDepois=${onlyDigits}`);
+              result.km_lido = onlyDigits;
+              result.km_decimal_detected = false;
+              result.km_decimal_reason = result.km_decimal_reason || "Sem separador decimal visível — todos os dígitos antes de 'km' fazem parte do hodômetro";
+            }
+          }
+          result.km_digit_count = (result.km_lido || "").length;
+
           const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
           const kmHasExpectedDigits = !expectedKmDigits || (result.km_lido || "").length === expectedKmDigits;
+          // km_suspeito: histórico de 6+ dígitos mas leitura tem 5- dígitos
+          const kmSuspeito = !!(expectedVehicleKm && expectedVehicleKm >= 100000 && Number(result.km_lido || "0") < 100000);
+          // Auto-update só liberado quando tudo está consistente
+          result.km_suspeito = kmSuspeito;
+          result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
+
           if (!kmOk) {
             console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
             result.km_lido = "";
+            result.km_auto_update_allowed = false;
             result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
-          } else if (!kmHasExpectedDigits) {
-            console.log(`[painel] Rejeitado por quantidade de dígitos incompatível. esperado=${expectedKmDigits} lido=${result.km_lido}`);
+          } else if (!kmHasExpectedDigits || kmSuspeito) {
+            console.log(`[painel] Rejeitado por inconsistência de dígitos. esperado=${expectedKmDigits}(${expectedVehicleKm}) lido=${result.km_lido} suspeito=${kmSuspeito}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
-            result.km_lido = "";
-            result.reason = `Leitura rejeitada: o KM cadastrado tem ${expectedKmDigits} dígitos e a IA retornou uma leitura incompleta. Tire outra foto mais próxima do display.`;
+            result.km_auto_update_allowed = false;
+            // mantemos km_lido para auditoria mas bloqueamos auto-update
+            result.reason = `Leitura rejeitada por inconsistência de dígitos: KM cadastrado ~${expectedVehicleKm} (${expectedKmDigits} dígitos) e IA leu "${result.km_lido}" (${result.km_lido.length} dígitos). Verifique se o último dígito antes de "km" foi lido.`;
+          } else if (result.km_ambiguous) {
+            console.log(`[painel] Leitura marcada como ambígua. raw=${result.km_lido_raw || "-"} lido=${result.km_lido}`);
+            result.km_auto_update_allowed = false;
+            // não invalida a foto, apenas bloqueia auto-update — usuário confere manualmente
           } else {
-            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido}`);
+            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido} (raw="${result.km_lido_raw || result.km_lido}")`);
           }
         }
 
