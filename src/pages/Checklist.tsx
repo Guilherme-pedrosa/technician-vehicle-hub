@@ -1572,7 +1572,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} vehicleKmAtual={selectedVehicle?.km_atual} limpezaClaim={answers.limpeza_organizacao} />
 
           {/* BANNER de bloqueio: foto inválida = veículo NÃO sai */}
           {temFotoInvalida && !temFotoValida && (
