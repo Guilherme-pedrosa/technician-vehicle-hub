@@ -1792,14 +1792,27 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
           <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} vehicleKmAtual={selectedVehicle?.km_atual} limpezaClaim={answers.limpeza_organizacao} />
 
-          {/* BANNER de bloqueio: foto inválida = veículo NÃO sai */}
+          {/* BANNER de bloqueio: foto NÃO mostra o painel */}
           {temFotoInvalida && !temFotoValida && (
             <div className="rounded-xl border-2 border-destructive bg-destructive/10 p-3 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-bold text-destructive">Foto do painel rejeitada</p>
+                <p className="text-sm font-bold text-destructive">Foto fora do padrão do painel</p>
                 <p className="text-xs text-destructive/90">
-                  O hodômetro precisa estar nítido e legível. Aproxime-se do painel, enquadre o display do KM e tire outra foto. <strong>Sem foto válida o veículo não pode seguir viagem.</strong>
+                  A foto precisa mostrar o painel/cluster do veículo com o display do hodômetro. Reenquadre e tire outra. <strong>Sem foto válida do painel o checklist não pode seguir.</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* AVISO leve: foto aceita, mas KM não auto-preenchido */}
+          {temFotoValida && painelVals.some((v: any) => v?.status === "valid" && v?.result?.km_painel_nao_confirmado) && (
+            <div className="rounded-xl border-2 border-warning/40 bg-warning/10 p-3 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold">Painel aceito. KM não atualizado automaticamente.</p>
+                <p className="text-xs text-muted-foreground">
+                  A leitura do hodômetro não foi confirmada com segurança. Digite o KM manualmente abaixo ou tire outra foto mais próxima do display.
                 </p>
               </div>
             </div>

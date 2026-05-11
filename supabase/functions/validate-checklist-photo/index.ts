@@ -387,8 +387,8 @@ ${expectedKmDigits ? `6. CONTEXTO DE VALIDAÇÃO: o veículo cadastrado está em
 7. Retorne "km_lido_raw" como string com a leitura visual EXATAMENTE como aparece (pode conter espaços ou separador, ex.: "27754 1"). Retorne "km_lido" como string contendo APENAS dígitos do KM total — sem pontos, vírgulas, espaços, unidade ou decimal — incluindo o último dígito se ele NÃO for separado por decimal claro (ex.: "277541").
 8. Retorne "km_digit_count" = quantidade de dígitos em km_lido. Retorne "km_decimal_detected"=true APENAS se você viu um separador decimal claro (ponto/vírgula/quadrante destacado); caso contrário false. Em "km_decimal_reason" descreva brevemente o que viu (ex.: "ponto entre os dois últimos dígitos", "nenhum separador decimal visível").
 9. Marque "km_ambiguous"=true se: o último dígito puder ser interpretado tanto como decimal quanto como parte do hodômetro; algum dígito estiver parcialmente coberto/refletindo; houver risco de confundir 3/5/6/8/9/0; ou a quantidade de dígitos não bater com o esperado.
-10. Se QUALQUER dígito estiver realmente ilegível (não apenas pequeno) — km_legivel=false, km_lido="", km_lido_raw="", valid=false, e na reason explique o problema.
-11. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
+10. Se QUALQUER dígito estiver ilegível ou houver dúvida — km_legivel=false, km_lido="", km_lido_raw="" (mas NÃO marque valid=false só por causa disso). A foto continua válida desde que mostre o painel/cluster e o display do ODO. A reprovação de "valid" é APENAS para foto que não mostre o painel.
+11. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, devolva km_legivel=false e siga.
 
 CAMPOS:
 - "km_lido_raw": string visual como aparece, com espaço/separador se houver (ex.: "27754 1", "277541", "277541.2").
@@ -397,9 +397,12 @@ CAMPOS:
 - "km_decimal_detected": true APENAS com separador decimal claro.
 - "km_decimal_reason": descrição curta do que motivou km_decimal_detected.
 - "km_ambiguous": true em qualquer dúvida sobre o último dígito ou quantidade de dígitos.
-- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false.
-- Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, valid=false.
-- Sem leitura 100% confirmada e sem km_lido, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
+- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false — sem invalidar a foto.
+
+REGRA DE VALIDAÇÃO DA FOTO DO PAINEL (separada do KM):
+- "valid"=true quando a foto mostrar claramente o painel/cluster de instrumentos do veículo COM o display do hodômetro/ODO visível e a imagem tiver foco suficiente para confirmar a categoria. NÃO exija leitura do KM para considerar a foto válida.
+- "valid"=false APENAS quando: a foto não mostrar painel/cluster (ex.: rádio, ar-condicionado, volante, console central isolado, parte aleatória do veículo); o painel estiver tão cortado/escuro/borrado que não dê para confirmar que é o painel; ou o display do ODO não apareça de forma alguma.
+- A leitura do KM (km_legivel/km_lido/km_auto_update_allowed) é uma validação SEPARADA — pode falhar sem reprovar a foto.
 ` : ""}${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
 VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
 O técnico afirmou que o veículo está LIMPO E ORGANIZADO. Verifique se a foto confirma isso.
@@ -501,16 +504,15 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
-        // GATE SERVER-SIDE: para "painel", exigir leitura numérica segura para autopreenchimento.
-        // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
+        // GATE SERVER-SIDE — PAINEL: separar validação da FOTO da leitura do KM.
+        // - A foto continua válida se mostrar painel + ODO + foco suficiente.
+        // - Se o KM não puder ser lido com segurança, apenas bloqueamos auto-update
+        //   (km_auto_update_allowed=false, km_painel_nao_confirmado=true) e geramos auditoria.
         if (category === "painel") {
           // === Reconciliação km_lido_raw vs km_lido ===
-          // Caso clássico do bug: IA devolveu km_lido_raw="27754 1" mas km_lido="27754"
-          // (último dígito foi descartado como se fosse decimal). Se NÃO houver separador
-          // decimal claro entre os dígitos do raw, o último dígito faz parte do hodômetro.
           if (typeof result.km_lido_raw === "string" && result.km_lido_raw.length > 0) {
             const raw = result.km_lido_raw.trim();
-            const hasDecimalSeparator = /[.,]/.test(raw); // ponto ou vírgula
+            const hasDecimalSeparator = /[.,]/.test(raw);
             const onlyDigits = raw.replace(/[^\d]/g, "");
             if (!hasDecimalSeparator && onlyDigits.length > (result.km_lido || "").length) {
               console.log(`[painel] Reconciliando km_lido com km_lido_raw (sem separador decimal). raw="${raw}" lidoAntes=${result.km_lido} lidoDepois=${onlyDigits}`);
@@ -523,34 +525,38 @@ Critério esperado: ${finalCriterio}`;
 
           const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
           const kmHasExpectedDigits = !expectedKmDigits || (result.km_lido || "").length === expectedKmDigits;
-          // km_suspeito: histórico de 6+ dígitos mas leitura tem 5- dígitos
           const kmSuspeito = !!(expectedVehicleKm && expectedVehicleKm >= 100000 && Number(result.km_lido || "0") < 100000);
-          // Auto-update só liberado quando tudo está consistente
           result.km_suspeito = kmSuspeito;
           result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
 
-          if (!kmOk) {
-            console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
+          // A foto SÓ é invalidada se a IA já marcou que não é painel (target_match=false ou foco ruim).
+          // Caso contrário, mantemos valid=true mesmo sem KM legível.
+          const fotoPainelOk = result.target_match === true && result.focus_ok !== false && result.quality !== "ruim";
+          if (!fotoPainelOk) {
             result.valid = false;
-            result.target_match = false;
-            result.critical_visible = false;
-            result.km_lido = "";
-            result.km_auto_update_allowed = false;
-            result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
-          } else if (!kmHasExpectedDigits || kmSuspeito) {
-            console.log(`[painel] Rejeitado por inconsistência de dígitos. esperado=${expectedKmDigits}(${expectedVehicleKm}) lido=${result.km_lido} suspeito=${kmSuspeito}`);
-            result.valid = false;
-            result.target_match = false;
-            result.critical_visible = false;
-            result.km_auto_update_allowed = false;
-            // mantemos km_lido para auditoria mas bloqueamos auto-update
-            result.reason = `Leitura rejeitada por inconsistência de dígitos: KM cadastrado ~${expectedVehicleKm} (${expectedKmDigits} dígitos) e IA leu "${result.km_lido}" (${result.km_lido.length} dígitos). Verifique se o último dígito antes de "km" foi lido.`;
-          } else if (result.km_ambiguous) {
-            console.log(`[painel] Leitura marcada como ambígua. raw=${result.km_lido_raw || "-"} lido=${result.km_lido}`);
-            result.km_auto_update_allowed = false;
-            // não invalida a foto, apenas bloqueia auto-update — usuário confere manualmente
+            result.reject_code = "panel_not_visible";
+            if (!result.reason || result.reason.length < 8) {
+              result.reason = "Foto não mostra o painel/cluster com clareza. Reenquadre o display do hodômetro.";
+            }
           } else {
-            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido} (raw="${result.km_lido_raw || result.km_lido}")`);
+            // Foto do painel aceita.
+            result.valid = true;
+            if (!result.km_auto_update_allowed) {
+              // KM não confirmado — não invalida a foto, apenas marca para auditoria.
+              result.reject_code = "km_not_confirmed";
+              result.km_painel_nao_confirmado = true;
+              result.severity = "warning";
+              result.audit_required = true;
+              if (kmSuspeito || (expectedKmDigits && !kmHasExpectedDigits && (result.km_lido || "").length > 0)) {
+                result.reason = `Foto do painel aceita. KM não atualizado automaticamente: leitura "${result.km_lido}" tem ${(result.km_lido || "").length} dígitos, cadastro tem ${expectedKmDigits || "?"} (~${expectedVehicleKm || "?"} km).`;
+              } else {
+                result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
+              }
+              console.log(`[painel] Foto aceita SEM auto-update do KM. km_lido="${result.km_lido}" km_legivel=${result.km_legivel} ambiguous=${result.km_ambiguous} suspeito=${kmSuspeito}`);
+            } else {
+              result.reject_code = null;
+              console.log(`[painel] Foto aceita COM auto-update do KM: ${result.km_lido}`);
+            }
           }
         }
 
@@ -577,7 +583,7 @@ Critério esperado: ${finalCriterio}`;
         }
 
         const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
-        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "painel", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
+        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
         if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
           console.log(`[${category}] Rejeitado por aprovação genérica sem evidência do critério. reason="${result.reason}"`);
           result.valid = false;
@@ -606,14 +612,17 @@ Critério esperado: ${finalCriterio}`;
     result.validation_finished_at = validationFinishedAt;
     result.validation_duration_ms =
       new Date(validationFinishedAt).getTime() - new Date(validationStartedAt).getTime();
-    result.severity = severityForCategory(category);
-    // audit_required = true quando a foto não estiver claramente válida.
-    result.audit_required = result.valid !== true;
+    // Severity: respeita override de painel ("warning" para km_not_confirmed); senão usa default da categoria.
+    if (!result.severity) result.severity = severityForCategory(category);
+    // audit_required: já pode ter sido marcado pelo gate do painel (km_not_confirmed). Caso contrário, true se foto inválida.
+    if (result.audit_required !== true) {
+      result.audit_required = result.valid !== true;
+    }
     // Sinaliza ao frontend que o KM do painel não foi confirmado pela IA.
     if (category === "painel" && (result.km_legivel !== true || !result.km_lido)) {
       result.km_painel_nao_confirmado = true;
     }
-    if (!result.reject_code) {
+    if (result.reject_code === undefined || (result.reject_code === null && result.valid !== true)) {
       result.reject_code = result.valid === true ? null : "validation_failed";
     }
 
