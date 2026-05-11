@@ -243,17 +243,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({
-        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-        critical_visible: false, quality: "ruim", confidence: 0,
-        reason: "Validação IA não configurada. Contate o administrador.",
-        ai_error: true,
-      }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const validationStartedAt = new Date().toISOString();
 
     const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim, expected_vehicle_km } = await req.json();
 
@@ -261,6 +251,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify(
+        aiErrorPayload(category, "Validação IA não configurada. Checklist liberado operacionalmente, mas enviado para auditoria.", validationStartedAt)
+      ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Try to load dynamic prompt from checklist_config
