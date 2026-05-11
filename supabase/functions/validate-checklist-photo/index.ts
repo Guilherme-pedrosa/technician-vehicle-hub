@@ -592,6 +592,30 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
+        if (category === "nivel_oleo") {
+          const reason = String(result.reason || "");
+          const rejectedOnlyByMissingLevelMarks =
+            result.valid !== true &&
+            result.target_match === true &&
+            result.focus_ok !== false &&
+            result.quality !== "ruim" &&
+            /vareta/i.test(reason) &&
+            /(ponta|retirad|fora do motor|óleo|oleo)/i.test(reason) &&
+            /(min|max|zona|nível|nivel|medição|medicao|pontilhad|hachurad|confirmar)/i.test(reason) &&
+            !/(ponta.*fora|fora.*enquadr|sem óleo|sem oleo|não h[aá] óleo|nao ha oleo|sem vareta|dentro do motor|desfocad|borrad|tremid)/i.test(reason);
+
+          if (rejectedOnlyByMissingLevelMarks) {
+            console.log(`[nivel_oleo] Aceito por regra server-side: vareta/ponta/óleo visíveis sem exigir MIN/MAX. reason="${reason}"`);
+            result.valid = true;
+            result.target_match = true;
+            result.critical_visible = true;
+            result.reject_code = null;
+            result.audit_required = false;
+            result.severity = "warning";
+            result.reason = "Vareta retirada com a ponta visível e óleo aparente na ponta. Foto aceita sem exigir marcações MIN/MAX.";
+          }
+        }
+
         const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
         const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
         if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
