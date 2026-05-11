@@ -83,7 +83,7 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   nivel_oleo: {
     label: "Nível de óleo",
-    criterio: "Deve mostrar a vareta de óleo do motor com o NÍVEL DO ÓLEO visível. A vareta deve estar fora do motor e o óleo deve ser visível na ponta da vareta. Verifique se o nível está entre as marcas MIN e MAX. Se o óleo estiver ABAIXO da marca MIN ou não for possível identificar o nível na vareta, marque critical_visible=false. Se o nível estiver entre MIN e MAX ou próximo do MAX, critical_visible=true.",
+    criterio: "Deve mostrar a vareta de óleo do motor RETIRADA (fora do motor), com a PONTA da vareta visível e o filme de óleo aderido à ponta. IMPORTANTE: a maioria das varetas NÃO tem letras 'MIN' e 'MAX' nem números — o indicador de nível costuma ser uma área ÁSPERA/PONTILHADA/HACHURADA/RANHURADA na ponta da vareta (geralmente os últimos 2–4 cm), delimitada por dois furos, dois entalhes/cortes laterais, ou pelo início e fim da textura pontilhada. O nível do óleo é onde o filme úmido/brilhante TERMINA dentro dessa zona pontilhada. ACEITE (critical_visible=true) quando: a ponta da vareta está visível, a zona pontilhada/hachurada aparece e dá para ver onde o óleo molhou (filme escuro/brilhante) dentro ou próximo dessa zona — mesmo sem letras MIN/MAX. REJEITE (critical_visible=false) APENAS se: a ponta da vareta estiver fora do enquadramento, suja/embaçada a ponto de não distinguir o filme de óleo, ou a vareta ainda dentro do motor. NÃO rejeite só porque não há letras MIN/MAX impressas — isso é normal. Na 'reason', descreva o que viu (ex.: 'Vareta retirada, zona pontilhada visível na ponta, óleo aparece molhado dentro da área hachurada').",
     has_critical: true,
   },
   etiqueta_oleo: {
