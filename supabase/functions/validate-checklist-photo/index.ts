@@ -348,7 +348,7 @@ Critério esperado: ${finalCriterio}`;
       signal: aiController.signal,
       headers: {
         "Lovable-API-Key": LOVABLE_API_KEY,
-        "X-Lovable-AIG-SDK": "edge-function",
+        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
