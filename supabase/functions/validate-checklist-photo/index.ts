@@ -322,10 +322,11 @@ Você DEVE enxergar, ler e retornar o número do KM total do hodômetro para pre
 PROCEDIMENTO OBRIGATÓRIO PASSO A PASSO:
 1. Localize o display do HODÔMETRO (NÃO velocímetro, NÃO RPM, NÃO trip parcial "TRIP A/B", NÃO temperatura, NÃO combustível, NÃO relógio). É o display de 5–7 dígitos da quilometragem TOTAL acumulada.
 2. Leia o KM dígito por dígito, da esquerda para a direita. Confira especialmente o PRIMEIRO dígito — nunca ignore "1" inicial em odômetros de 6 dígitos.
-3. Retorne "km_lido" como string contendo APENAS os dígitos do KM total, sem pontos, vírgulas, espaços, unidade ou decimal (ex.: "173552").
-4. Se houver casas decimais pequenas no fim do hodômetro, IGNORE o decimal e retorne apenas a parte inteira.
-5. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução, ângulo ruim, ou houver risco de confundir 3/5/6/8/9/0 — km_legivel=false, km_lido="", valid=false, e na reason explique o problema.
-6. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
+${expectedKmDigits ? `3. CONTEXTO DE VALIDAÇÃO: o veículo cadastrado está em torno de ${expectedVehicleKm} km e tem ${expectedKmDigits} dígitos. Portanto, a leitura da foto também deve ter ${expectedKmDigits} dígitos. Se você enxergar só ${expectedKmDigits - 1} dígitos, provavelmente perdeu o primeiro dígito — rejeite em vez de retornar leitura incompleta.` : ""}
+4. Retorne "km_lido" como string contendo APENAS os dígitos do KM total, sem pontos, vírgulas, espaços, unidade ou decimal (ex.: "173552").
+5. Se houver casas decimais pequenas no fim do hodômetro, IGNORE o decimal e retorne apenas a parte inteira.
+6. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução, ângulo ruim, ou houver risco de confundir 3/5/6/8/9/0 — km_legivel=false, km_lido="", valid=false, e na reason explique o problema.
+7. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
 
 CAMPOS:
 - "km_lido": obrigatório quando km_legivel=true; vazio quando houver qualquer dúvida.
@@ -361,7 +362,7 @@ Critério esperado: ${finalCriterio}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3.1-pro-preview",
+        model: PHOTO_VALIDATION_MODEL,
         temperature: 0,
         response_format: { type: "json_object" },
         messages: [
@@ -437,6 +438,7 @@ Critério esperado: ${finalCriterio}`;
         // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
         if (category === "painel") {
           const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
+          const kmHasExpectedDigits = !expectedKmDigits || (result.km_lido || "").length === expectedKmDigits;
           if (!kmOk) {
             console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
             result.valid = false;
@@ -444,6 +446,13 @@ Critério esperado: ${finalCriterio}`;
             result.critical_visible = false;
             result.km_lido = "";
             result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
+          } else if (!kmHasExpectedDigits) {
+            console.log(`[painel] Rejeitado por quantidade de dígitos incompatível. esperado=${expectedKmDigits} lido=${result.km_lido}`);
+            result.valid = false;
+            result.target_match = false;
+            result.critical_visible = false;
+            result.km_lido = "";
+            result.reason = `Leitura rejeitada: o KM cadastrado tem ${expectedKmDigits} dígitos e a IA retornou uma leitura incompleta. Tire outra foto mais próxima do display.`;
           } else {
             console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido}`);
           }
