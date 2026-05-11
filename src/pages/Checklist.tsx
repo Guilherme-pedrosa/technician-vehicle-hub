@@ -813,12 +813,13 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId, onNewChecklist }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
   openTrigger?: number;
   forceDraftId?: string | null;
+  onNewChecklist?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -2101,7 +2102,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   return (
     <Dialog open={open} onOpenChange={handleDialogClose}>
       <DialogTrigger asChild>
-        <Button className="gap-2 h-12 text-base px-6">
+        <Button className="gap-2 h-12 text-base px-6" onClick={onNewChecklist}>
           <Plus className="w-5 h-5" /> Novo Checklist
         </Button>
       </DialogTrigger>
