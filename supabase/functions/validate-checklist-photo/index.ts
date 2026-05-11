@@ -230,7 +230,8 @@ Deno.serve(async (req) => {
         .single();
       if (configData?.photo_categories) {
         const cats = configData.photo_categories as any[];
-        const match = cats.find((c: any) => c.key === category);
+        const baseCategory = category.replace(/_(de|dd|te|td)$/i, "");
+        const match = cats.find((c: any) => c.key === category) || cats.find((c: any) => c.key === baseCategory);
         if (match?.ai_prompt) {
           dynamicPrompt = match.ai_prompt;
         }
@@ -245,8 +246,11 @@ Deno.serve(async (req) => {
       has_critical: false,
     };
 
-    // Painel usa o critério versionado no código para não herdar prompts antigos que desativavam o OCR.
-    const finalCriterio = category === "painel" ? catConfig.criterio : (dynamicPrompt || catConfig.criterio);
+    // O prompt configurado no campo é prioritário; o critério versionado no código entra como trava técnica.
+    // Em caso de conflito, a IA deve aplicar a regra mais rigorosa e rejeitar em vez de aprovar por suposição.
+    const finalCriterio = dynamicPrompt
+      ? `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
+      : catConfig.criterio;
 
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
       ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
