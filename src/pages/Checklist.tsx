@@ -2739,23 +2739,29 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
 
           {/* Alertas de validação */}
-          {((detalhes?.fotos_invalidas?.length ?? 0) > 0 || (detalhes?.fotos_erro_validacao?.length ?? 0) > 0 || (detalhes?.fotos_forcadas?.length ?? 0) > 0) && (
+          {(() => {
+            const fotosInvalidas = ((detalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosErroValidacao = ((detalhes?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosForcadas = ((detalhes?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            if (fotosInvalidas.length === 0 && fotosErroValidacao.length === 0 && fotosForcadas.length === 0) return null;
+            return (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-1.5">
               <p className="text-xs font-bold text-destructive flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Fotos fora do padrão
               </p>
-              {(detalhes?.fotos_invalidas ?? []).map((ff: any, i: number) => (
+              {fotosInvalidas.map((ff: any, i: number) => (
                 <div key={`inv-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ")}
                 </div>
               ))}
-              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+              {fotosForcadas.map((ff: any, i: number) => (
                 <div key={i} className="text-xs text-muted-foreground">
                   <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
 
           <Separator />
 
