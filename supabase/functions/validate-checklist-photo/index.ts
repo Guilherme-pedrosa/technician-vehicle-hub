@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
     // O prompt configurado no campo é prioritário; o critério versionado no código entra como trava técnica.
     // Em caso de conflito, a IA deve aplicar a regra mais rigorosa e rejeitar em vez de aprovar por suposição.
     const finalCriterio = dynamicPrompt
-      ? category === "nivel_oleo"
+      ? category === "painel"
+        ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de KM legível, close-up perfeito ou OCR): ${catConfig.criterio}`
+        : category === "nivel_oleo"
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de MIN/MAX, zona exata ou medição perfeita): ${catConfig.criterio}`
         : `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
       : catConfig.criterio;
