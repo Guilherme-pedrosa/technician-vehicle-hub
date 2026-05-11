@@ -1471,7 +1471,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const temFotoValida = painelVals.some(
         (v) => v?.status === "valid"
-      ) || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
+      );
       if (!temFotoValida) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
@@ -1564,7 +1564,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
       const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
+      const temFotoValida = painelVals.some((v) => v?.status === "valid");
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
