@@ -1854,6 +1854,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               </p>
             )}
           </div>
+
+          {/* Etiqueta de troca de óleo — capturada junto com o painel para agilizar o fluxo */}
+          <div className="space-y-2 pt-1">
+            <p className="text-sm text-muted-foreground font-medium">🏷️ Tire também a foto da etiqueta de troca de óleo (para-brisa ou motor):</p>
+            <CameraCapture
+              category="etiqueta_oleo"
+              photos={photos["etiqueta_oleo"] ?? []}
+              onCapture={handleCapture}
+              onRemove={handleRemovePhoto}
+              required
+              validations={photoValidations["etiqueta_oleo"]}
+              uploadStates={photoUploads["etiqueta_oleo"]}
+              onValidationUpdate={handleValidationUpdate}
+              vehicleMarca={selectedVehicle?.marca}
+              vehicleModelo={selectedVehicle?.modelo}
+              limpezaClaim={answers.limpeza_organizacao}
+            />
+          </div>
         </div>
       );
     }
