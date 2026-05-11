@@ -813,11 +813,12 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
   openTrigger?: number;
+  forceDraftId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
