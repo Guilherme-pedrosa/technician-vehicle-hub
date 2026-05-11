@@ -327,7 +327,8 @@ Critério esperado: ${finalCriterio}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "google/gemini-2.5-pro",
+        temperature: 0,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -338,8 +339,7 @@ Critério esperado: ${finalCriterio}`;
             ],
           },
         ],
-        max_completion_tokens: 1000,
-        response_format: { type: "json_object" },
+        max_tokens: 1000,
       }),
     });
 
