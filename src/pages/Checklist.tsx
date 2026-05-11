@@ -902,7 +902,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
-        if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
+        // NÃO restaurar km_lido_painel do rascunho — valor crítico que deve ser sempre re-conferido
+        // pelo técnico no painel atual (evita arrastar erro de leitura/digitação entre sessões).
         const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
