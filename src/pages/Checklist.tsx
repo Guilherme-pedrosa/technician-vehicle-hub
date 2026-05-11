@@ -863,7 +863,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
   // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
   const [kmPainelManual, setKmPainelManual] = useState("");
-  const [, setKmPainelEditadoManualmente] = useState(false);
+  const kmPainelEditadoManualmenteRef = useRef(false);
 
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
@@ -1009,7 +1009,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
   }, [saveDraftToDb, open, vehicleId]);
 
-  // O KM do painel é sempre informado pelo técnico; a IA só valida se a foto está legível.
+  // O KM do painel é auto-preenchido pela IA quando a leitura estiver segura; o técnico pode corrigir.
 
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
@@ -1087,7 +1087,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     if (cat === "painel" && files.length > 0) {
       setKmPainelManual("");
-      setKmPainelEditadoManualmente(false);
+      kmPainelEditadoManualmenteRef.current = false;
     }
     return appendPhotosWithBackgroundUpload(cat, files);
   }, [appendPhotosWithBackgroundUpload]);
@@ -1097,7 +1097,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     if (cat === "painel") {
       setKmPainelManual("");
-      setKmPainelEditadoManualmente(false);
+      kmPainelEditadoManualmenteRef.current = false;
     }
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
@@ -1120,6 +1120,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     // no campo "Faróis e lanternas funcionando?"
     const r = validation.result;
     if (!r) return;
+    if (cat === "painel" && validation.status === "valid" && r.km_lido) {
+      const kmLido = r.km_lido.replace(/[^\d]/g, "");
+      if (/^\d{5,7}$/.test(kmLido) && !kmPainelEditadoManualmenteRef.current) {
+        setKmPainelManual(kmLido);
+        toast.success(`KM do painel preenchido automaticamente: ${Number(kmLido).toLocaleString("pt-BR")} km`, { duration: 5000 });
+      }
+    }
     const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
     const lanternaApagada = cat === "exterior_traseira" && r.lanternas_acesas === false;
     if (farolApagado || lanternaApagada) {
@@ -1150,7 +1157,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     setAnswers(getBlankChecklistAnswers());
     setKmProximaTroca("");
     setKmPainelManual("");
-    setKmPainelEditadoManualmente(false);
+    kmPainelEditadoManualmenteRef.current = false;
     setDraftId(null);
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
   };
@@ -1464,7 +1471,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const temFotoValida = painelVals.some(
         (v) => v?.status === "valid"
-      ) || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
+      );
       if (!temFotoValida) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
@@ -1557,7 +1564,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
       const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
+      const temFotoValida = painelVals.some((v) => v?.status === "valid");
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
@@ -1592,7 +1599,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               disabled={!temFotoValida}
               onChange={(e) => {
                 setKmPainelManual(e.target.value);
-                setKmPainelEditadoManualmente(true);
+                kmPainelEditadoManualmenteRef.current = true;
               }}
               className="h-12 text-base font-semibold tabular-nums"
             />
