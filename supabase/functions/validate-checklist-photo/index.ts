@@ -144,6 +144,30 @@ const INTERIOR_OVERSTRICT_REJECTION_PATTERNS = [
   /parte dos bancos dianteiros/i,
 ];
 
+function extractJsonObject(content: unknown): Record<string, unknown> | null {
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((part: any) => part?.text ?? part?.content ?? "").join("\n")
+      : "";
+
+  const candidates = [
+    text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim(),
+    text.match(/\{[\s\S]*\}/)?.[0] ?? "",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch (_) {
+      // tenta próximo formato
+    }
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
