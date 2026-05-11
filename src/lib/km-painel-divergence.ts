@@ -7,6 +7,11 @@
 // atualizado depois do checklist via sync automático.
 
 export const KM_PAINEL_DIVERGENCE_THRESHOLD = 50;
+// Diferenças negativas pequenas são esperadas (carro rodou entre a foto e o
+// último sync). Mas uma diferença negativa MUITO grande (> 2000 km) é, na
+// prática, indício de leitura errada (dígito perdido pela IA, ex.: 27.754
+// quando o real é 277.530). Tratamos isso como divergência.
+export const KM_PAINEL_NEGATIVE_THRESHOLD = 2000;
 
 export type KmPainelComparison = {
   lido: number;
@@ -47,13 +52,16 @@ export function computeKmPainelDivergence(
   if (lido === null) return null;
   const esperado = typeof vehicleKmAtual === "number" ? vehicleKmAtual : 0;
   const diferenca = lido - esperado;
-  // Só é divergente quando o KM lido na foto é MAIOR que o cadastrado + threshold.
-  // Diferenças negativas (lido < esperado) são esperadas: o carro rodou entre a
-  // hora da foto e o sync mais recente do Rota Exata, então o cadastro evoluiu.
+  // Divergente quando:
+  // - lido > esperado + 50 km (carro não pode estar à frente do sync mais recente)
+  // - lido < esperado - 2000 km (queda implausível indica dígito perdido na leitura da IA)
+  const divergente =
+    diferenca > KM_PAINEL_DIVERGENCE_THRESHOLD ||
+    -diferenca > KM_PAINEL_NEGATIVE_THRESHOLD;
   return {
     lido,
     esperado,
     diferenca,
-    divergente: diferenca > KM_PAINEL_DIVERGENCE_THRESHOLD,
+    divergente,
   };
 }
