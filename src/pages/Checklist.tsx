@@ -901,8 +901,8 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
 };
 
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
-  painel: ["painel"],
-  capo: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"],
+  painel: ["painel", "etiqueta_oleo"],
+  capo: ["motor", "nivel_oleo", "reservatorio_agua"],
   calibracao: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"],
   exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
   interior: ["interior"],
