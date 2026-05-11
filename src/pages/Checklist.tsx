@@ -1471,6 +1471,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
       // Bloqueia retrocesso de odômetro além da margem de 50 km
       if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
+      // Bloqueia leitura com menos dígitos que o cadastro (ex.: esqueceu o "1" inicial)
+      if (selectedVehicle) {
+        const cadDigits = String(selectedVehicle.km_atual).length;
+        const digDigits = String(kmManualNum).length;
+        if (cadDigits > 0 && digDigits < cadDigits) return false;
+      }
     }
     // CAPÔ: KM da próxima troca de óleo é OBRIGATÓRIO (item mais crítico do checklist)
     if (currentStep.id === "capo") {
