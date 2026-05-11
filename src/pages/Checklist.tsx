@@ -3042,8 +3042,8 @@ export default function Checklist() {
                           <td className="p-3 text-center">
                             <div className="inline-flex items-center gap-1">
                               {isDraft ? (
-                                cl.created_by === user?.id ? (
-                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => setFormOpenTrigger((n) => n + 1)}>
+                                (cl.created_by === user?.id || isAdmin) ? (
+                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => openDraft(cl)}>
                                     <Loader2 className="w-3.5 h-3.5" /> Continuar
                                   </Button>
                                 ) : (
