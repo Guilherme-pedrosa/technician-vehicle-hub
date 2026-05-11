@@ -928,7 +928,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           photos: {},
           photoUploads: restoredUploads,
           kmProximaTroca: det.km_proxima_troca ? String(det.km_proxima_troca) : "",
-          kmPainelManual: det.km_lido_painel ? String(det.km_lido_painel) : "",
+          kmPainelManual: "",
           resultado: data.resultado ?? "",
           resultadoMotivo: data.resultado_motivo ?? "",
           suggestedResult: data.resultado ?? "liberado",
