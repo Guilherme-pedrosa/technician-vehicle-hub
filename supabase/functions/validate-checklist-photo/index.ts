@@ -347,12 +347,14 @@ Critério esperado: ${finalCriterio}`;
       method: "POST",
       signal: aiController.signal,
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Lovable-API-Key": LOVABLE_API_KEY,
+        "X-Lovable-AIG-SDK": "edge-function",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-3.1-pro-preview",
         temperature: 0,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -388,9 +390,8 @@ Critério esperado: ${finalCriterio}`;
 
     let result: any;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = extractJsonObject(content);
+      if (parsed) {
         // Ensure all fields exist with defaults
         result = {
           valid: Boolean(parsed.valid),
