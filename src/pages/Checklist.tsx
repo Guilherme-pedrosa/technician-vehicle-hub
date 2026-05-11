@@ -642,6 +642,14 @@ function hasPersistedPhotoValidationMetadata(detalhes: any) {
     || Array.isArray(detalhes?.fotos_erro_validacao);
 }
 
+function isPanelKmNotConfirmedIssue(item: any) {
+  if (item?.categoria !== "painel") return false;
+  const text = [item?.status, item?.reject_code, ...(item?.motivos ?? []), item?.reason]
+    .filter(Boolean)
+    .join(" ");
+  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/cluster vis[ií]vel.*hod[oô]metro.*legibilidade|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
+}
+
 async function validatePhotoFromUrl(url: string, category: string): Promise<ValidationResult> {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Não foi possível baixar a foto para revalidação");
