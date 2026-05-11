@@ -574,8 +574,8 @@ export default function ChecklistDetail() {
       // Check if result is non-conforme and ensure a ticket exists
       const isNonConformeResult = editResultado !== "liberado";
       const nonConformeFields = CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, editFields[f.key]));
-      const fotosInvalidasCheck = (newDetalhes?.fotos_invalidas ?? []) as any[];
-      const fotosErroCheck = (newDetalhes?.fotos_erro_validacao ?? []) as any[];
+      const fotosInvalidasCheck = ((newDetalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+      const fotosErroCheck = ((newDetalhes?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
       const hasBadPhotos = fotosInvalidasCheck.length > 0 || fotosErroCheck.length > 0;
       const hasProblems = isNonConformeResult || nonConformeFields.length > 0 || hasBadPhotos;
 
@@ -601,7 +601,7 @@ export default function ChecklistDetail() {
               return `• ${f.label}: ${editFields[f.key]}${obs ? ` — "${obs}"` : ""}`;
             }).join("\n");
 
-            const fotosInvalidas = (newDetalhes?.fotos_invalidas ?? []) as any[];
+            const fotosInvalidas = ((newDetalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
             const photoIssueLines = fotosInvalidas.map((inv: any) => {
               const meta = PHOTO_META[inv.categoria as PhotoCategory];
               return `• 📷 ${meta?.label ?? inv.categoria}: ${inv.motivos?.[0] ?? "Fora do padrão"}`;
