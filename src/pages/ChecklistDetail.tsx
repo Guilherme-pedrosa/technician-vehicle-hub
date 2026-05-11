@@ -1091,9 +1091,9 @@ export default function ChecklistDetail() {
         const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fields.includes(f.category));
         if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
-        const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
-        const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
-        const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
+        const fotosForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+        const fotosInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+        const fotosErroValidacao: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
         const flaggedMap: Record<string, string[]> = {};
         [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
           flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
