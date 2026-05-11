@@ -647,7 +647,7 @@ export default function ChecklistDetail() {
     setRevalidating(true);
     try {
       toast.info("Revalidando fotos... isso pode levar alguns segundos.");
-      const { invalidas, erros } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
 
       // Update detalhes with new validation results
       const newDetalhes: any = {
@@ -657,6 +657,9 @@ export default function ChecklistDetail() {
         fotos_forcadas: [], // Clear forced since admin is revalidating
         revalidado_em: new Date().toISOString(),
       };
+      if (kmLidoPainel !== null) {
+        newDetalhes.km_lido_painel = kmLidoPainel;
+      }
       const { error } = await supabase.from("vehicle_checklists").update({
         detalhes: newDetalhes,
       } as any).eq("id", cl.id);
@@ -664,10 +667,11 @@ export default function ChecklistDetail() {
       if (error) throw error;
 
       const totalIssues = invalidas.length + erros.length;
+      const kmMsg = kmLidoPainel !== null ? ` KM do painel atualizado para ${kmLidoPainel.toLocaleString("pt-BR")}.` : "";
       if (totalIssues === 0) {
-        toast.success("✅ Todas as fotos foram aprovadas na revalidação!");
+        toast.success(`✅ Todas as fotos foram aprovadas na revalidação!${kmMsg}`);
       } else {
-        toast.warning(`Revalidação concluída: ${invalidas.length} foto(s) reprovada(s), ${erros.length} erro(s).`);
+        toast.warning(`Revalidação concluída: ${invalidas.length} foto(s) reprovada(s), ${erros.length} erro(s).${kmMsg}`);
       }
 
       queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
