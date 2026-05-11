@@ -880,7 +880,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         if (data.destino) setDestino(data.destino);
         if (data.observacoes) setObservacoes(data.observacoes);
         const det = (data.detalhes ?? {}) as any;
-        if (det.draft_answers) setAnswers(det.draft_answers);
+        const restoredAnswers = { ...getBlankChecklistAnswers(), ...((det.draft_answers ?? {}) as FormData) };
+        CHECKLIST_FIELDS.forEach((field) => {
+          const value = (data as any)[field.key];
+          if (!restoredAnswers[field.key] && value) restoredAnswers[field.key] = value;
+        });
+        setAnswers(restoredAnswers);
         if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
@@ -888,24 +893,33 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
-        const incompletePhotoStepIndex = getFirstIncompleteRequiredPhotoStepIndex(fotos, savedStep);
-
-        if (incompletePhotoStepIndex >= 0) {
-          setStep(incompletePhotoStepIndex);
-        } else if (savedStep > 0) {
-          setStep(savedStep);
-        }
-
         if (data.termo_aceito) setTermoAceito(data.termo_aceito);
         // Fotos já salvas no draft — restaurar URLs
+        const restoredUploads: PhotoUploadsMap = {};
+        const restoredValidations: Record<string, PhotoValidation[]> = {};
         if (Object.keys(fotos).length > 0) {
-          const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
           for (const [cat, urls] of Object.entries(fotos)) {
             if (!isRestorableDraftPhotoKey(cat)) continue;
             restoredUploads[cat] = urls.map((url) => ({ status: "uploaded", uploadedUrl: url }));
+            restoredValidations[cat] = urls.map(() => ({ status: "valid", result: { valid: true, quality: "aceitavel", reason: "Foto restaurada do rascunho" } }));
           }
-          setPhotoUploads(restoredUploads as any);
+          setPhotoUploads(restoredUploads);
+          setPhotoValidations(restoredValidations);
         }
+        const resumeStep = getFirstIncompleteStepIndex({
+          savedStep,
+          vehicleId: data.vehicle_id ?? "",
+          selectedDriverId: data.driver_id ?? autoDriverId,
+          answers: restoredAnswers,
+          photos: {},
+          photoUploads: restoredUploads,
+          kmProximaTroca: det.km_proxima_troca ? String(det.km_proxima_troca) : "",
+          kmPainelManual: det.km_lido_painel ? String(det.km_lido_painel) : "",
+          resultado: data.resultado ?? "",
+          resultadoMotivo: data.resultado_motivo ?? "",
+          suggestedResult: data.resultado ?? "liberado",
+        });
+        setStep(resumeStep);
         toast.info(
           draftHasLegacyPhotos
             ? "Rascunho antigo restaurado. Voltei para a etapa de calibração para pedir as novas fotos."
