@@ -265,10 +265,9 @@ async function revalidatePhotos(
   fotosData: Record<string, string[]>,
   vehicleMarca?: string,
   vehicleModelo?: string
-): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null }> {
+): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[] }> {
   const invalidas: RevalidationResult[] = [];
   const erros: RevalidationResult[] = [];
-  let kmLidoPainel: number | null = null;
 
   for (const [category, urls] of Object.entries(fotosData)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
@@ -333,7 +332,7 @@ async function revalidatePhotos(
     }
   }
 
-  return { invalidas, erros, kmLidoPainel };
+  return { invalidas, erros };
 }
 
 // ═══════════════════════════════════════════
