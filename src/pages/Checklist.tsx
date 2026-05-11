@@ -131,11 +131,12 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 type PhotosMap = Record<string, File[]>;
-type PhotoUploadsMap = Record<string, Array<{
+type PhotoUploadState = {
   status: "uploading" | "uploaded" | "error";
   uploadedUrl?: string;
   storagePath?: string;
-}>>;
+};
+type PhotoUploadsMap = Record<string, PhotoUploadState[]>;
 
 type ValidationSummaryItem = {
   categoria: string;
@@ -165,6 +166,14 @@ function isRestorableDraftPhotoKey(key: string) {
 function hasLegacyDraftPhotos(fotos: Record<string, string[]> | null | undefined) {
   if (!fotos) return false;
   return Object.keys(fotos).some((key) => LEGACY_DRAFT_PHOTO_KEYS.has(key));
+}
+
+function getUploadedPhotoUrls(uploadStates?: PhotoUploadState[]) {
+  return (uploadStates ?? []).map((item) => item?.uploadedUrl).filter(Boolean) as string[];
+}
+
+function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
+  return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
 }
 
 function getBlankChecklistAnswers(): FormData {
