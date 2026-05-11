@@ -2604,6 +2604,7 @@ export default function Checklist() {
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
+  const [formOpenTrigger, setFormOpenTrigger] = useState(0);
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
