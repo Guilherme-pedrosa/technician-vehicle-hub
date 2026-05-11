@@ -539,12 +539,14 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   vehicleMarca?: string;
   vehicleModelo?: string;
   limpezaClaim?: string;
-  uploadStates?: Array<{ status: "uploading" | "uploaded" | "error" }>;
+  uploadStates?: PhotoUploadState[];
 }) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
-  const hasEnough = photos.length >= meta.min;
+  const uploadedUrls = getUploadedPhotoUrls(uploadStates);
+  const displayCount = Math.max(photos.length, uploadedUrls.length);
+  const hasEnough = displayCount >= meta.min;
 
   const handleCapture = async (files: File[]) => {
     const preparedFiles = await onCapture(category, files);
@@ -593,13 +595,15 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
           <p className="text-xs text-muted-foreground">{meta.hint}</p>
         </div>
         <Badge variant={hasEnough ? "default" : "destructive"} className="text-[10px] shrink-0 ml-2">
-          {photos.length}/{meta.min}
+          {displayCount}/{meta.min}
         </Badge>
       </div>
 
-      {photos.length > 0 && (
+      {displayCount > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {photos.map((file, i) => {
+          {Array.from({ length: displayCount }).map((_, i) => {
+            const file = photos[i];
+            const restoredUrl = !file ? uploadedUrls[i] : undefined;
             const v = validations?.[i];
             const upload = uploadStates?.[i];
             const borderColor = upload?.status === "error"
@@ -618,7 +622,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
-                  <PhotoPreview file={file} />
+                  {file ? <PhotoPreview file={file} /> : <RestoredPhotoPreview src={restoredUrl!} />}
                   {v?.status === "validating" && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
