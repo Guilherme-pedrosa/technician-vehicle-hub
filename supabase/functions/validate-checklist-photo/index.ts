@@ -1,4 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  AI_VISION_MODEL,
+  AI_GATEWAY_URL,
+  PHOTO_VALIDATION_PROMPT_VERSION,
+} from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,8 +11,48 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Modelo definido com consentimento explícito do dono do app para melhorar a leitura visual do KM do painel.
-const PHOTO_VALIDATION_MODEL = "openai/gpt-5.4";
+// Modelo de visão para validação de fotos críticas (painel, etiqueta, etc).
+// Único provedor permitido: OpenAI (mem://constraints/openai-only).
+const PHOTO_VALIDATION_MODEL = AI_VISION_MODEL;
+
+// Categorias críticas — fotos forçadas/erros aqui geram severity "critical".
+const CRITICAL_CATEGORIES = new Set([
+  "painel",
+  "nivel_oleo",
+  "etiqueta_oleo",
+  "reservatorio_agua",
+  "itens_seguranca",
+  "pneu_de", "pneu_dd", "pneu_te", "pneu_td",
+]);
+
+function severityForCategory(category: string): "critical" | "warning" {
+  return CRITICAL_CATEGORIES.has(category) ? "critical" : "warning";
+}
+
+/** Constrói payload padrão de erro de IA (não aprova foto, exige auditoria). */
+function aiErrorPayload(category: string, reason: string, startedAt: string) {
+  const finishedAt = new Date().toISOString();
+  return {
+    valid: null,
+    vehicle_match: null,
+    target_match: null,
+    focus_ok: null,
+    critical_visible: null,
+    quality: "ruim",
+    confidence: 0,
+    reason,
+    status: "ai_error",
+    ai_error: true,
+    audit_required: true,
+    severity: severityForCategory(category),
+    reject_code: "ai_unavailable",
+    model_used: PHOTO_VALIDATION_MODEL,
+    prompt_version: PHOTO_VALIDATION_PROMPT_VERSION,
+    validation_started_at: startedAt,
+    validation_finished_at: finishedAt,
+    validation_duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+  };
+}
 
 // Critérios específicos por categoria
 const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
@@ -198,17 +243,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({
-        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-        critical_visible: false, quality: "ruim", confidence: 0,
-        reason: "Validação IA não configurada. Contate o administrador.",
-        ai_error: true,
-      }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const validationStartedAt = new Date().toISOString();
 
     const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim, expected_vehicle_km } = await req.json();
 
@@ -216,6 +251,13 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify(
+        aiErrorPayload(category, "Validação IA não configurada. Checklist liberado operacionalmente, mas enviado para auditoria.", validationStartedAt)
+      ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Try to load dynamic prompt from checklist_config
@@ -359,7 +401,7 @@ Critério esperado: ${finalCriterio}`;
     const aiController = new AbortController();
     const aiTimeout = setTimeout(() => aiController.abort(), 25000);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       signal: aiController.signal,
       headers: {
@@ -390,14 +432,9 @@ Critério esperado: ${finalCriterio}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI Gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({
-        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-        critical_visible: false, quality: "ruim", confidence: 0,
-        reason: "Erro na validação IA. Tente novamente.",
-        ai_error: true,
-      }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify(
+        aiErrorPayload(category, `Validação IA indisponível (HTTP ${response.status}). Checklist liberado operacionalmente, mas enviado para auditoria.`, validationStartedAt)
+      ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const data = await response.json();
@@ -508,18 +545,33 @@ Critério esperado: ${finalCriterio}`;
       };
     }
 
+    // Anexa metadados de auditoria à resposta de sucesso (para o frontend persistir).
+    const validationFinishedAt = new Date().toISOString();
+    result.model_used = PHOTO_VALIDATION_MODEL;
+    result.prompt_version = PHOTO_VALIDATION_PROMPT_VERSION;
+    result.validation_started_at = validationStartedAt;
+    result.validation_finished_at = validationFinishedAt;
+    result.validation_duration_ms =
+      new Date(validationFinishedAt).getTime() - new Date(validationStartedAt).getTime();
+    result.severity = severityForCategory(category);
+    // audit_required = true quando a foto não estiver claramente válida.
+    result.audit_required = result.valid !== true;
+    // Sinaliza ao frontend que o KM do painel não foi confirmado pela IA.
+    if (category === "painel" && (result.km_legivel !== true || !result.km_lido)) {
+      result.km_painel_nao_confirmado = true;
+    }
+    if (!result.reject_code) {
+      result.reject_code = result.valid === true ? null : "validation_failed";
+    }
+
     return new Response(JSON.stringify(result), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
     console.error("Validation error:", error);
-    return new Response(JSON.stringify({
-      valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-      critical_visible: false, quality: "ruim", confidence: 0,
-      reason: "Erro na validação. Tente novamente.",
-      ai_error: true,
-    }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const cat = (typeof (globalThis as any).__lastCategory === "string") ? (globalThis as any).__lastCategory : "unknown";
+    return new Response(JSON.stringify(
+      aiErrorPayload(cat, "Erro na validação IA. Checklist liberado operacionalmente, mas enviado para auditoria.", new Date().toISOString())
+    ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

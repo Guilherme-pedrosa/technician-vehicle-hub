@@ -24,6 +24,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const {
+      event_type, // "nc" (default) | "audit_alert"
       checklist_id,
       placa,
       modelo,
@@ -35,6 +36,12 @@ serve(async (req) => {
       troca_oleo_vencida,
       observacoes,
       avaria_descricao,
+      // Campos extras para audit_alert
+      audit_events,         // array de { categoria, label, status, motivo, severity, photo_url, model_used, confidence }
+      checklist_url,
+      veiculo_id,
+      condutor,
+      km_painel_nao_confirmado,
     } = body;
 
     // Get only ADMIN users
@@ -91,9 +98,93 @@ serve(async (req) => {
       ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;">🛢️ Troca de Óleo</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">VENCIDA</td></tr>`
       : "";
 
-    const subject = `⚠️ NC Checklist — ${placa} — ${data}`;
+    const isAudit = event_type === "audit_alert";
 
-    const html = `
+    // ============= AUDITORIA DE IA =============
+    // Renderiza um template diferente quando o evento for de auditoria
+    // (foto forçada, IA pendente no submit, erro de IA, KM não confirmado).
+    const severityColor = (s: string) =>
+      s === "critical" ? "#b91c1c" : s === "warning" ? "#b45309" : "#1e40af";
+    const statusLabel = (st: string) => {
+      const map: Record<string, string> = {
+        forced: "Forçada pelo técnico",
+        pending_at_submit: "IA pendente no envio",
+        ai_error: "Erro de validação IA",
+        invalid: "Reprovada pela IA",
+      };
+      return map[st] || st;
+    };
+
+    const auditEventsHtml = isAudit && Array.isArray(audit_events)
+      ? audit_events
+          .map(
+            (e: any) => `
+        <tr>
+          <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
+            <strong>${e.label || e.categoria}</strong><br>
+            <span style="color:#666;font-size:12px;">${e.categoria}</span>
+            ${e.photo_url ? `<br><a href="${e.photo_url}" style="color:#2563eb;font-size:12px;">Ver foto</a>` : ""}
+          </td>
+          <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
+            <span style="display:inline-block;padding:3px 8px;border-radius:4px;color:white;background:${severityColor(e.severity || "warning")};font-size:11px;font-weight:600;">${(e.severity || "warning").toUpperCase()}</span><br>
+            <strong style="color:${severityColor(e.severity || "warning")};">${statusLabel(e.status)}</strong>
+            ${e.motivo ? `<br><span style="color:#444;font-size:13px;">${e.motivo}</span>` : ""}
+            ${e.model_used ? `<br><span style="color:#999;font-size:11px;">modelo: ${e.model_used}${typeof e.confidence === "number" ? ` · conf: ${(e.confidence * 100).toFixed(0)}%` : ""}</span>` : ""}
+          </td>
+        </tr>`,
+          )
+          .join("")
+      : "";
+
+    const subject = isAudit
+      ? `🔍 Alerta de validação IA no checklist — ${placa} — ${data}`
+      : `⚠️ NC Checklist — ${placa} — ${data}`;
+
+    const html = isAudit ? `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f4f4f5;">
+  <div style="max-width:640px;margin:20px auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+    <div style="background:#b45309;color:white;padding:24px;text-align:center;">
+      <h1 style="margin:0;font-size:20px;">🔍 Alerta de Validação IA</h1>
+      <p style="margin:8px 0 0;opacity:0.9;font-size:14px;">Checklist Pré-Operação · trilha de auditoria</p>
+    </div>
+    <div style="padding:24px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+        <tr><td style="padding:6px;color:#666;width:140px;">Veículo:</td><td style="padding:6px;font-weight:600;">${placa} — ${modelo}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Condutor:</td><td style="padding:6px;">${condutor || "—"}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Técnico que salvou:</td><td style="padding:6px;font-weight:600;">${tecnico}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Data/Hora:</td><td style="padding:6px;">${data}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Resultado operacional:</td><td style="padding:6px;">${resultado}</td></tr>
+        ${km_painel_nao_confirmado ? `<tr><td style="padding:6px;color:#b91c1c;">⚠️ Painel:</td><td style="padding:6px;color:#b91c1c;font-weight:600;">KM do hodômetro NÃO confirmado pela IA — verificar valor manual</td></tr>` : ""}
+      </table>
+
+      ${auditEventsHtml ? `
+      <h2 style="font-size:16px;margin:20px 0 10px;color:#333;">Eventos de auditoria (${audit_events.length})</h2>
+      <table style="width:100%;border-collapse:collapse;background:#fefce8;border-radius:8px;">
+        <thead><tr><th style="padding:10px;text-align:left;border-bottom:2px solid #fde68a;color:#854d0e;">Categoria</th><th style="padding:10px;text-align:left;border-bottom:2px solid #fde68a;color:#854d0e;">Status / Motivo</th></tr></thead>
+        <tbody>${auditEventsHtml}</tbody>
+      </table>` : ""}
+
+      ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${observacoes}</div>` : ""}
+
+      <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;">
+        <p style="margin:0 0 8px;color:#1e40af;font-size:14px;"><strong>O que fazer:</strong></p>
+        <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:13px;">
+          <li>Conferir as fotos forçadas/pendentes acima.</li>
+          <li>Validar com o técnico responsável caso recorrente.</li>
+          <li>Se necessário, reprocessar a foto na tela do checklist.</li>
+        </ul>
+        ${checklist_url ? `<p style="margin:12px 0 0;text-align:center;"><a href="${checklist_url}" style="display:inline-block;padding:10px 16px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:600;">Abrir checklist</a></p>` : ""}
+      </div>
+    </div>
+    <div style="padding:16px;text-align:center;color:#999;font-size:12px;border-top:1px solid #eee;">
+      Tech Fleet Check — Trilha de auditoria de IA
+    </div>
+  </div>
+</body>
+</html>` : `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>

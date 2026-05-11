@@ -1,11 +1,45 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { AI_OCR_MODEL, AI_OCR_VERIFY_MODEL } from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+/**
+ * Coerce numeric values vindos do OCR. Aceita number ou string em formato
+ * brasileiro ("123,45", "1.234,56") ou inglês ("173552", "1234.56").
+ * Retorna null se não for possível interpretar como número finito.
+ *
+ * Importante: NÃO zera. Quando o modelo retorna string, ainda
+ * conseguimos extrair o valor (regra 15 da especificação).
+ */
+function coerceNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/[^\d.,\-]/g, "");
+  if (!trimmed) return null;
+  // Formato BR: "1.234,56" → "1234.56". Formato US: "1,234.56" → "1234.56".
+  let normalized = trimmed;
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+  if (hasComma && hasDot) {
+    // Assume o separador decimal é o último que aparece.
+    if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = normalized.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    normalized = normalized.replace(",", ".");
+  }
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
 
 const AUVO_BASE = "https://api.auvo.com.br/v2";
 const EXCLUDED_PLATES = new Set(["DIW9D20", "IXO3G66", "OHW9F00"]);
@@ -442,7 +476,7 @@ async function extractTextFromAttachment(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.4-mini",
+        model: AI_OCR_MODEL,
         temperature: 0,
         max_tokens: 400,
         messages: [
@@ -502,7 +536,7 @@ async function extractTextFromAttachment(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-5.4",
+          model: AI_OCR_VERIFY_MODEL,
           temperature: 0,
           max_tokens: 120,
           messages: [
@@ -556,9 +590,9 @@ async function extractTextFromAttachment(
       text: String(parsed?.text ?? "").trim(),
       clues,
       placa: knownPlate ?? (!knownPlates.length && placaRaw.length === 7 ? placaRaw : null),
-      km: typeof parsed?.km === "number" ? (parsed.km as number) : null,
-      litros: typeof parsed?.litros === "number" ? (parsed.litros as number) : null,
-      valor: typeof parsed?.valor === "number" ? (parsed.valor as number) : null,
+      km: coerceNumber(parsed?.km),
+      litros: coerceNumber(parsed?.litros),
+      valor: coerceNumber(parsed?.valor),
       raw_plate_candidate: placaRaw || null,
     } as AttachmentOcr;
     console.log(`[OCR] ok placa=${result.placa ?? "-"} raw=${placaRaw || "-"} km=${result.km ?? "-"} url=${imageUrl}`);
