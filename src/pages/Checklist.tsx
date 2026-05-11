@@ -1184,14 +1184,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const date = format(now, "yyyy-MM-dd");
 
       const fotosUrls: Record<string, string[]> = {};
-      for (const [cat, files] of Object.entries(photos)) {
-        fotosUrls[cat] = files.map((_, idx) => {
-          const uploadedUrl = photoUploads[cat]?.[idx]?.uploadedUrl;
-          if (!uploadedUrl) {
-            throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
-          }
-          return uploadedUrl;
-        });
+      const photoKeys = new Set([...Object.keys(photos), ...Object.keys(photoUploads)]);
+      for (const cat of photoKeys) {
+        const urls = getUploadedPhotoUrls(photoUploads[cat]);
+        if ((photos[cat]?.length ?? 0) > urls.length) {
+          throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
+        }
+        if (urls.length > 0) fotosUrls[cat] = urls;
       }
 
       const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
