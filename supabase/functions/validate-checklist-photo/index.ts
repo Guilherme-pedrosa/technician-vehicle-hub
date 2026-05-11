@@ -6,9 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Modelo padrão/baixo custo que já era usado na validação de fotos.
-// Não alterar para modelo Pro/preview/caro sem consentimento explícito do dono do app.
-const PHOTO_VALIDATION_MODEL = "google/gemini-2.5-flash";
+// Modelo definido com consentimento explícito do dono do app para melhorar a leitura visual do KM do painel.
+const PHOTO_VALIDATION_MODEL = "openai/gpt-5.4";
 
 // Critérios específicos por categoria
 const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
