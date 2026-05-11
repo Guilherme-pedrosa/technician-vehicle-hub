@@ -1442,12 +1442,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
 
     if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
-      return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
+      return !!answers.obs_danos_veiculo?.trim() && getAvailablePhotoCount(photos, photoUploads, "avaria") > 0;
     }
     // Check mandatory photos for photo steps
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
-      const missing = requiredPhotos.filter((cat) => !(photos[cat]?.length > 0));
+      const missing = requiredPhotos.filter((cat) => getAvailablePhotoCount(photos, photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1));
       if (currentStep.id === "danos") {
         // danos photos only required if danos_veiculo === "sim"
         return true;
@@ -1461,7 +1461,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const temFotoValida = painelVals.some(
         (v) => v?.status === "valid"
-      );
+      ) || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       if (!temFotoValida) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
