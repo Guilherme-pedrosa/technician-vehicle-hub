@@ -590,9 +590,9 @@ async function extractTextFromAttachment(
       text: String(parsed?.text ?? "").trim(),
       clues,
       placa: knownPlate ?? (!knownPlates.length && placaRaw.length === 7 ? placaRaw : null),
-      km: typeof parsed?.km === "number" ? (parsed.km as number) : null,
-      litros: typeof parsed?.litros === "number" ? (parsed.litros as number) : null,
-      valor: typeof parsed?.valor === "number" ? (parsed.valor as number) : null,
+      km: coerceNumber(parsed?.km),
+      litros: coerceNumber(parsed?.litros),
+      valor: coerceNumber(parsed?.valor),
       raw_plate_candidate: placaRaw || null,
     } as AttachmentOcr;
     console.log(`[OCR] ok placa=${result.placa ?? "-"} raw=${placaRaw || "-"} km=${result.km ?? "-"} url=${imageUrl}`);
