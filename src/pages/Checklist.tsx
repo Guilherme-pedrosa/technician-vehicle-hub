@@ -2787,9 +2787,9 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
             const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fieldCategories.includes(f.category));
             if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
-            const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
-            const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
-            const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
+            const fotosForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosErroValidacao: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
             const flaggedMap: Record<string, string[]> = {};
             [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
               flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
@@ -3137,9 +3137,9 @@ export default function Checklist() {
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                    const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
-                  const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
-                  const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
-                  const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                  const forcedPhotos = ((det?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                  const invalidPhotos = ((det?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                  const errorPhotos = ((det?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
                   // Comparação sob demanda usando km_atual mais recente do veículo
@@ -3278,9 +3278,9 @@ export default function Checklist() {
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                       const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
-                      const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
-                      const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
-                      const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                      const forcedPhotos = ((det?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                      const invalidPhotos = ((det?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                      const errorPhotos = ((det?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
                       // Comparação sob demanda usando km_atual mais recente do veículo
