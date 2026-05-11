@@ -699,6 +699,10 @@ function PhotoPreview({ file }: { file: File }) {
   return <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />;
 }
 
+function RestoredPhotoPreview({ src }: { src: string }) {
+  return <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />;
+}
+
 // ═══════════════════════════════════════════
 // WIZARD STEPS — Fluxo produtivo do técnico
 // Lógica: info → painel (KM) → capô (óleo+água+motor, CARRO DESLIGADO) → pneus → 360°/exterior (pode mover o carro) → interior+kit → danos → resultado
