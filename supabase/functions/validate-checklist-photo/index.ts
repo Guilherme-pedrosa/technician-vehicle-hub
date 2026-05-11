@@ -1,4 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  AI_VISION_MODEL,
+  AI_GATEWAY_URL,
+  PHOTO_VALIDATION_PROMPT_VERSION,
+} from "../_shared/ai-models.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,8 +11,48 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Modelo definido com consentimento explícito do dono do app para melhorar a leitura visual do KM do painel.
-const PHOTO_VALIDATION_MODEL = "openai/gpt-5.4";
+// Modelo de visão para validação de fotos críticas (painel, etiqueta, etc).
+// Único provedor permitido: OpenAI (mem://constraints/openai-only).
+const PHOTO_VALIDATION_MODEL = AI_VISION_MODEL;
+
+// Categorias críticas — fotos forçadas/erros aqui geram severity "critical".
+const CRITICAL_CATEGORIES = new Set([
+  "painel",
+  "nivel_oleo",
+  "etiqueta_oleo",
+  "reservatorio_agua",
+  "itens_seguranca",
+  "pneu_de", "pneu_dd", "pneu_te", "pneu_td",
+]);
+
+function severityForCategory(category: string): "critical" | "warning" {
+  return CRITICAL_CATEGORIES.has(category) ? "critical" : "warning";
+}
+
+/** Constrói payload padrão de erro de IA (não aprova foto, exige auditoria). */
+function aiErrorPayload(category: string, reason: string, startedAt: string) {
+  const finishedAt = new Date().toISOString();
+  return {
+    valid: null,
+    vehicle_match: null,
+    target_match: null,
+    focus_ok: null,
+    critical_visible: null,
+    quality: "ruim",
+    confidence: 0,
+    reason,
+    status: "ai_error",
+    ai_error: true,
+    audit_required: true,
+    severity: severityForCategory(category),
+    reject_code: "ai_unavailable",
+    model_used: PHOTO_VALIDATION_MODEL,
+    prompt_version: PHOTO_VALIDATION_PROMPT_VERSION,
+    validation_started_at: startedAt,
+    validation_finished_at: finishedAt,
+    validation_duration_ms: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+  };
+}
 
 // Critérios específicos por categoria
 const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
