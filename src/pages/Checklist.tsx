@@ -1084,12 +1084,20 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   }, [photoUploads, photos, uploadWithRetry, vehicleId]);
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
+    if (cat === "painel" && files.length > 0) {
+      setKmPainelManual("");
+      setKmPainelEditadoManualmente(false);
+    }
     return appendPhotosWithBackgroundUpload(cat, files);
   }, [appendPhotosWithBackgroundUpload]);
   const handleCaptureForStorageKey = useCallback(async (storageKey: string, files: File[]) => {
     return appendPhotosWithBackgroundUpload(storageKey, files);
   }, [appendPhotosWithBackgroundUpload]);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
+    if (cat === "painel") {
+      setKmPainelManual("");
+      setKmPainelEditadoManualmente(false);
+    }
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
