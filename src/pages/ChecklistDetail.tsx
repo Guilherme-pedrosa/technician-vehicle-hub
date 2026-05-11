@@ -691,7 +691,7 @@ export default function ChecklistDetail() {
       if (!urls || urls.length === 0) { toast.error("Nenhuma foto nesta categoria."); return; }
 
       const singleFotosData: Record<string, string[]> = { [category]: urls };
-      const { invalidas, erros } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
 
       const existingInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria !== category);
       const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
@@ -704,6 +704,9 @@ export default function ChecklistDetail() {
         fotos_forcadas: existingForcadas,
         revalidado_em: new Date().toISOString(),
       };
+      if (category === "painel" && kmLidoPainel !== null) {
+        newDetalhes.km_lido_painel = kmLidoPainel;
+      }
       const { error } = await supabase.from("vehicle_checklists").update({
         detalhes: newDetalhes,
       } as any).eq("id", cl.id);
@@ -712,10 +715,11 @@ export default function ChecklistDetail() {
 
       const totalIssues = invalidas.length + erros.length;
       const label = PHOTO_META[category as PhotoCategory]?.label ?? category;
+      const kmMsg = category === "painel" && kmLidoPainel !== null ? ` KM atualizado para ${kmLidoPainel.toLocaleString("pt-BR")}.` : "";
       if (totalIssues === 0) {
-        toast.success(`✅ ${label}: foto aprovada na revalidação!`);
+        toast.success(`✅ ${label}: foto aprovada na revalidação!${kmMsg}`);
       } else {
-        toast.warning(`${label}: foto reprovada na revalidação.`);
+        toast.warning(`${label}: foto reprovada na revalidação.${kmMsg}`);
       }
 
       queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
