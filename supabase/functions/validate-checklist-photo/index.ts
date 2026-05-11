@@ -485,6 +485,16 @@ Critério esperado: ${finalCriterio}`;
             result.reason = result.reason || "Foto desfocada/borrada. Tire outra foto com mais nitidez.";
           }
         }
+
+        const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
+        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "painel", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
+        if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
+          console.log(`[${category}] Rejeitado por aprovação genérica sem evidência do critério. reason="${result.reason}"`);
+          result.valid = false;
+          result.target_match = false;
+          result.critical_visible = false;
+          result.reason = "A validação não descreveu os elementos obrigatórios do campo. Tire outra foto mostrando claramente o item exigido.";
+        }
       } else {
         result = {
           valid: false, vehicle_match: false, target_match: false, focus_ok: false,
