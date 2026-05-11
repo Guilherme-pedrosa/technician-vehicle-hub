@@ -1275,9 +1275,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
       let savedChecklist: { id: string } | null = null;
       if (draftId) {
-        // Finalize existing draft
+        // Finalize existing draft — preserva created_by original (admin pode estar ajudando)
+        const { created_by: _omit, ...updatePayload } = checklistPayload;
         const { data, error } = await supabase.from("vehicle_checklists")
-          .update(checklistPayload).eq("id", draftId).select("id").single();
+          .update(updatePayload).eq("id", draftId).select("id").single();
         if (error) throw error;
         savedChecklist = data;
       } else {
