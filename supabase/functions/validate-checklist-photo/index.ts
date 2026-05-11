@@ -246,7 +246,6 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "quality": "boa",
   "reason": "motivo breve em português",
   "confidence": 0.95${category === "painel" ? `,
-  "km_lido": "123456",
   "km_legivel": true` : ""}${category === "exterior_frente" ? `,
   "farois_acesos": true,
   "farois_observacao": "ambos os faróis aparentam estar acesos"` : ""}${category === "exterior_traseira" ? `,
@@ -283,21 +282,19 @@ Regras:
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
 - Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, mostrando só frente/traseira, ou sem cobertura suficiente da lateral devem ser rejeitadas.
 ${category === "painel" ? `
-REGRA OBRIGATÓRIA PARA PAINEL — PROVA DE LEITURA DO HODÔMETRO (MÁXIMO RIGOR — NÃO PODE ERRAR DÍGITO):
-Você DEVE LER os dígitos do hodômetro (KM total acumulado). ERROS DE LEITURA SÃO INACEITÁVEIS — É melhor recusar a foto do que retornar um número errado.
+REGRA OBRIGATÓRIA PARA PAINEL — LEGIBILIDADE DO HODÔMETRO:
+Você NÃO deve preencher nem estimar o número do KM. A leitura numérica final será digitada manualmente pelo técnico no app, porque erro de um único dígito compromete a manutenção.
 
 PROCEDIMENTO OBRIGATÓRIO PASSO A PASSO:
 1. Localize o display do HODÔMETRO (NÃO velocímetro, NÃO RPM, NÃO trip parcial "TRIP A/B", NÃO temperatura, NÃO combustível, NÃO relógio). É o display de 5–7 dígitos da quilometragem TOTAL acumulada.
-2. Leia cada dígito INDIVIDUALMENTE, da esquerda para a direita. Para cada dígito, pergunte-se: "Tenho CERTEZA ABSOLUTA?". Atenção redobrada com pares confundíveis: 3↔5, 3↔8, 5↔6, 6↔8, 0↔8, 1↔7, 2↔7, 0↔6, 4↔9.
-3. Se QUALQUER UM dos dígitos estiver minimamente ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, com baixa resolução ou se você precisar "chutar" — pare: km_legivel=false, km_lido="", valid=false, e na reason explique qual dígito está ambíguo (ex: "3º dígito ambíguo entre 3 e 5").
-4. NÃO complete dígitos por suposição. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Apenas leia o que está LITERALMENTE visível e nítido.
-5. Após ler, RELEIA mentalmente a sequência completa e confira dígito por dígito antes de responder.
+2. Verifique se TODOS os dígitos do hodômetro aparecem nítidos o suficiente para um humano ler manualmente no app, sem depender de chute.
+3. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução ou ângulo ruim — km_legivel=false, valid=false, e na reason explique o problema.
+4. NÃO retorne o valor do KM em nenhum campo. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde.
 
 CAMPOS:
-- "km_lido": string só com os dígitos exatos lidos. Se houver QUALQUER dúvida em qualquer dígito, retorne "".
-- "km_legivel": true APENAS com 100% de certeza de TODOS os dígitos. Em qualquer outro caso, false.
+- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos estão visualmente legíveis para conferência humana. Em qualquer outro caso, false.
 - Se houver casas decimais ".x" pequenas no fim do hodômetro, IGNORE o ponto e o decimal — leia só a parte inteira.
-- Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, km_lido="", valid=false.
+- Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, valid=false.
 - Sem leitura 100% confirmada, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
 ` : ""}${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
 VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
