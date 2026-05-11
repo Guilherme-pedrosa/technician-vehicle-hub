@@ -731,8 +731,12 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
       const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim, vehicleKmAtual);
+      const isAcceptedPanelWithoutKm = category === "painel"
+        && result.valid === true
+        && result.km_auto_update_allowed === false
+        && result.km_painel_nao_confirmado === true;
       onValidationUpdate(category, newIdx, {
-        status: result.valid ? "valid" : "invalid",
+        status: result.valid || isAcceptedPanelWithoutKm ? "valid" : "invalid",
         result,
       });
 
@@ -746,6 +750,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         if (result.critical_visible === false) details.push("dado ilegível");
         const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
+      } else if (isAcceptedPanelWithoutKm) {
+        toast.warning("Painel aceito. KM não atualizado automaticamente.", { duration: 6000 });
       }
 
       if (category === "interior" && result.valid && result.detected_elements) {
