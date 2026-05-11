@@ -1122,7 +1122,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     if (!r) return;
     if (cat === "painel" && validation.status === "valid" && r.km_lido) {
       const kmLido = r.km_lido.replace(/[^\d]/g, "");
-      if (/^\d{5,7}$/.test(kmLido) && !kmPainelEditadoManualmente) {
+      if (/^\d{5,7}$/.test(kmLido) && !kmPainelEditadoManualmenteRef.current) {
         setKmPainelManual(kmLido);
         toast.success(`KM do painel preenchido automaticamente: ${Number(kmLido).toLocaleString("pt-BR")} km`, { duration: 5000 });
       }
@@ -1141,7 +1141,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         { duration: 7000 },
       );
     }
-  }, [kmPainelEditadoManualmente]);
+  }, []);
   const handleValidationUpdateByStorageKey = useCallback((storageKey: string, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
       const arr = [...(prev[storageKey] ?? [])];
@@ -1157,7 +1157,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     setAnswers(getBlankChecklistAnswers());
     setKmProximaTroca("");
     setKmPainelManual("");
-    setKmPainelEditadoManualmente(false);
+    kmPainelEditadoManualmenteRef.current = false;
     setDraftId(null);
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
   };
@@ -1599,7 +1599,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               disabled={!temFotoValida}
               onChange={(e) => {
                 setKmPainelManual(e.target.value);
-                setKmPainelEditadoManualmente(true);
+                kmPainelEditadoManualmenteRef.current = true;
               }}
               className="h-12 text-base font-semibold tabular-nums"
             />
