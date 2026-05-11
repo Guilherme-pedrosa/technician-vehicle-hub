@@ -399,7 +399,7 @@ function buildAuditEvents(
     // 5) Interior incompleto
     if (category === "interior" && validations.length > 0) {
       const cov = getInteriorCoverage(validations);
-      if (!cov.complete && cov.missing.length > 0) {
+      if (!cov.ok && cov.missing.length > 0) {
         events.push({
           categoria: "interior",
           label: PHOTO_META.interior.label,
