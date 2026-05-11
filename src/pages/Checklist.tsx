@@ -813,10 +813,11 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
+  openTrigger?: number;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -824,6 +825,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (openTrigger && openTrigger > 0) setOpen(true);
+  }, [openTrigger]);
 
   // Auto-detect driver from logged user
   const autoDriverId = useMemo(() => {
@@ -2599,6 +2604,7 @@ export default function Checklist() {
   const [revalidatedChecklistMetadata, setRevalidatedChecklistMetadata] = useState<Record<string, PersistedPhotoValidationMetadata>>({});
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
+  const [formOpenTrigger, setFormOpenTrigger] = useState(0);
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -2706,7 +2712,7 @@ export default function Checklist() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
           <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
-        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} />}
+        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
@@ -2842,7 +2848,17 @@ export default function Checklist() {
                       <button
                         type="button"
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
-                        onClick={() => isDraft ? undefined : navigate(`/checklist/${cl.id}`)}
+                        onClick={() => {
+                          if (isDraft) {
+                            if (cl.created_by === user?.id) {
+                              setFormOpenTrigger((n) => n + 1);
+                            } else {
+                              toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
+                            }
+                          } else {
+                            navigate(`/checklist/${cl.id}`);
+                          }
+                        }}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -3015,9 +3031,19 @@ export default function Checklist() {
                           </td>
                           <td className="p-3 text-center">
                             <div className="inline-flex items-center gap-1">
-                              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
-                                <Eye className="w-3.5 h-3.5" /> Ver
-                              </Button>
+                              {isDraft ? (
+                                cl.created_by === user?.id ? (
+                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => setFormOpenTrigger((n) => n + 1)}>
+                                    <Loader2 className="w-3.5 h-3.5" /> Continuar
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">Rascunho de outro usuário</span>
+                                )
+                              ) : (
+                                <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                                  <Eye className="w-3.5 h-3.5" /> Ver
+                                </Button>
+                              )}
                               {isAdmin && cl.resultado === "bloqueado" && (
                                 <Button
                                   variant="outline"
