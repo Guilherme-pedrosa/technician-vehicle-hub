@@ -265,10 +265,9 @@ async function revalidatePhotos(
   fotosData: Record<string, string[]>,
   vehicleMarca?: string,
   vehicleModelo?: string
-): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null }> {
+): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[] }> {
   const invalidas: RevalidationResult[] = [];
   const erros: RevalidationResult[] = [];
-  let kmLidoPainel: number | null = null;
 
   for (const [category, urls] of Object.entries(fotosData)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
@@ -311,16 +310,7 @@ async function revalidatePhotos(
         if (!valResponse.ok) throw new Error("Validation request failed");
         const result = await valResponse.json();
 
-        // Capturar KM lido da foto do painel (mesma lógica do submit do checklist)
-        if (category === "painel" && result?.km_legivel === true && typeof result?.km_lido === "string") {
-          const digits = result.km_lido.replace(/[^\d]/g, "");
-          if (digits.length >= 3) {
-            const n = parseInt(digits, 10);
-            if (!isNaN(n) && n > 0 && (kmLidoPainel === null || n > kmLidoPainel)) {
-              kmLidoPainel = n;
-            }
-          }
-        }
+        // A IA só valida a legibilidade da foto do painel; o KM numérico não é extraído automaticamente.
 
         if (result.ai_error) {
           const existing = erros.find((e) => e.categoria === category);
@@ -342,7 +332,7 @@ async function revalidatePhotos(
     }
   }
 
-  return { invalidas, erros, kmLidoPainel };
+  return { invalidas, erros };
 }
 
 // ═══════════════════════════════════════════
@@ -650,7 +640,7 @@ export default function ChecklistDetail() {
     setRevalidating(true);
     try {
       toast.info("Revalidando fotos... isso pode levar alguns segundos.");
-      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
 
       // Update detalhes with new validation results
       const newDetalhes: any = {
@@ -660,12 +650,6 @@ export default function ChecklistDetail() {
         fotos_forcadas: [], // Clear forced since admin is revalidating
         revalidado_em: new Date().toISOString(),
       };
-      // Atualiza o KM lido na foto do painel quando a IA conseguiu ler.
-      // Se não conseguiu ler nesta revalidação, preserva o valor anterior (se houver).
-      if (kmLidoPainel !== null) {
-        newDetalhes.km_lido_painel = kmLidoPainel;
-      }
-
       const { error } = await supabase.from("vehicle_checklists").update({
         detalhes: newDetalhes,
       } as any).eq("id", cl.id);
@@ -673,11 +657,10 @@ export default function ChecklistDetail() {
       if (error) throw error;
 
       const totalIssues = invalidas.length + erros.length;
-      const kmMsg = kmLidoPainel !== null ? ` KM lido: ${kmLidoPainel.toLocaleString("pt-BR")}.` : "";
       if (totalIssues === 0) {
-        toast.success(`✅ Todas as fotos foram aprovadas na revalidação!${kmMsg}`);
+        toast.success("✅ Todas as fotos foram aprovadas na revalidação!");
       } else {
-        toast.warning(`Revalidação concluída: ${invalidas.length} foto(s) reprovada(s), ${erros.length} erro(s).${kmMsg}`);
+        toast.warning(`Revalidação concluída: ${invalidas.length} foto(s) reprovada(s), ${erros.length} erro(s).`);
       }
 
       queryClient.invalidateQueries({ queryKey: ["checklist-detail", id] });
@@ -697,7 +680,7 @@ export default function ChecklistDetail() {
       if (!urls || urls.length === 0) { toast.error("Nenhuma foto nesta categoria."); return; }
 
       const singleFotosData: Record<string, string[]> = { [category]: urls };
-      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
 
       const existingInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria !== category);
       const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
@@ -710,10 +693,6 @@ export default function ChecklistDetail() {
         fotos_forcadas: existingForcadas,
         revalidado_em: new Date().toISOString(),
       };
-      if (kmLidoPainel !== null) {
-        newDetalhes.km_lido_painel = kmLidoPainel;
-      }
-
       const { error } = await supabase.from("vehicle_checklists").update({
         detalhes: newDetalhes,
       } as any).eq("id", cl.id);

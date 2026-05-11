@@ -336,7 +336,10 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
   try {
     // Comprimir mais agressivamente APENAS pra validação IA (upload final mantém qualidade).
     // Reduz payload em ~80%, encurta drasticamente o tempo em 4G ruim.
-    const compactFile = await compressImage(file, 800, 0.6).catch(() => file);
+    // Painel precisa de resolução maior para avaliar legibilidade dos dígitos sem induzir erro de OCR.
+    const compactFile = category === "painel"
+      ? await compressImage(file, 1600, 0.9).catch(() => file)
+      : await compressImage(file, 800, 0.6).catch(() => file);
     const base64 = await fileToBase64(compactFile);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("Not authenticated");
@@ -860,7 +863,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
   // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
   const [kmPainelManual, setKmPainelManual] = useState("");
-  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
+  const [, setKmPainelEditadoManualmente] = useState(false);
 
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
@@ -1005,20 +1008,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
   }, [saveDraftToDb, open, vehicleId]);
 
-  // Auto-preencher kmPainelManual com o valor lido pela IA (apenas se o técnico ainda não digitou)
-  useEffect(() => {
-    if (kmPainelEditadoManualmente) return;
-    const painelValidations = photoValidations.painel ?? [];
-    let lidoNum: number | null = null;
-    for (const v of painelValidations) {
-      const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
-      if (raw.length >= 3 && v?.result?.km_legivel) {
-        const n = parseInt(raw, 10);
-        if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
-      }
-    }
-    if (lidoNum !== null) setKmPainelManual(String(lidoNum));
-  }, [photoValidations, kmPainelEditadoManualmente]);
+  // O KM do painel é sempre informado pelo técnico; a IA só valida se a foto está legível.
 
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
@@ -1094,12 +1084,20 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   }, [photoUploads, photos, uploadWithRetry, vehicleId]);
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
+    if (cat === "painel" && files.length > 0) {
+      setKmPainelManual("");
+      setKmPainelEditadoManualmente(false);
+    }
     return appendPhotosWithBackgroundUpload(cat, files);
   }, [appendPhotosWithBackgroundUpload]);
   const handleCaptureForStorageKey = useCallback(async (storageKey: string, files: File[]) => {
     return appendPhotosWithBackgroundUpload(storageKey, files);
   }, [appendPhotosWithBackgroundUpload]);
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
+    if (cat === "painel") {
+      setKmPainelManual("");
+      setKmPainelEditadoManualmente(false);
+    }
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
@@ -1258,17 +1256,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_erro_validacao: photoValidationSummary.errors,
           km_lido_painel: (() => {
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
-            if (!isNaN(manualNum) && manualNum >= 100) return manualNum;
-            const painelValidations = photoValidations.painel ?? [];
-            let lidoNum: number | null = null;
-            for (const v of painelValidations) {
-              const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
-              if (raw.length >= 3 && v?.result?.km_legivel) {
-                const n = parseInt(raw, 10);
-                if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
-              }
-            }
-            return lidoNum;
+            return !isNaN(manualNum) && manualNum >= 100 ? manualNum : null;
           })(),
         },
         ...persistedAnswers,
