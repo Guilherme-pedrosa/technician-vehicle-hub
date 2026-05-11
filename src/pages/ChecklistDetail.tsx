@@ -660,7 +660,7 @@ export default function ChecklistDetail() {
       // Update detalhes with new validation results
       const newDetalhes: any = {
         ...detalhes,
-        fotos_invalidas: invalidas,
+          fotos_invalidas: invalidas.filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: erros,
         fotos_forcadas: [], // Clear forced since admin is revalidating
         revalidado_em: new Date().toISOString(),
@@ -707,7 +707,7 @@ export default function ChecklistDetail() {
 
       const newDetalhes: any = {
         ...detalhes,
-        fotos_invalidas: [...existingInvalidas, ...invalidas],
+        fotos_invalidas: [...existingInvalidas, ...invalidas].filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: [...existingErros, ...erros],
         fotos_forcadas: existingForcadas,
         revalidado_em: new Date().toISOString(),
