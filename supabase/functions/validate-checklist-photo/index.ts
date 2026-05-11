@@ -612,14 +612,17 @@ Critério esperado: ${finalCriterio}`;
     result.validation_finished_at = validationFinishedAt;
     result.validation_duration_ms =
       new Date(validationFinishedAt).getTime() - new Date(validationStartedAt).getTime();
-    result.severity = severityForCategory(category);
-    // audit_required = true quando a foto não estiver claramente válida.
-    result.audit_required = result.valid !== true;
+    // Severity: respeita override de painel ("warning" para km_not_confirmed); senão usa default da categoria.
+    if (!result.severity) result.severity = severityForCategory(category);
+    // audit_required: já pode ter sido marcado pelo gate do painel (km_not_confirmed). Caso contrário, true se foto inválida.
+    if (result.audit_required !== true) {
+      result.audit_required = result.valid !== true;
+    }
     // Sinaliza ao frontend que o KM do painel não foi confirmado pela IA.
     if (category === "painel" && (result.km_legivel !== true || !result.km_lido)) {
       result.km_painel_nao_confirmado = true;
     }
-    if (!result.reject_code) {
+    if (result.reject_code === undefined || (result.reject_code === null && result.valid !== true)) {
       result.reject_code = result.valid === true ? null : "validation_failed";
     }
 
