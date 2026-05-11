@@ -24,6 +24,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const {
+      event_type, // "nc" (default) | "audit_alert"
       checklist_id,
       placa,
       modelo,
@@ -35,6 +36,12 @@ serve(async (req) => {
       troca_oleo_vencida,
       observacoes,
       avaria_descricao,
+      // Campos extras para audit_alert
+      audit_events,         // array de { categoria, label, status, motivo, severity, photo_url, model_used, confidence }
+      checklist_url,
+      veiculo_id,
+      condutor,
+      km_painel_nao_confirmado,
     } = body;
 
     // Get only ADMIN users
