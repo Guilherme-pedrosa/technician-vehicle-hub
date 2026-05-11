@@ -246,6 +246,7 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "quality": "boa",
   "reason": "motivo breve em português",
   "confidence": 0.95${category === "painel" ? `,
+  "km_lido": "173552",
   "km_legivel": true` : ""}${category === "exterior_frente" ? `,
   "farois_acesos": true,
   "farois_observacao": "ambos os faróis aparentam estar acesos"` : ""}${category === "exterior_traseira" ? `,
@@ -283,19 +284,21 @@ Regras:
 - Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, mostrando só frente/traseira, ou sem cobertura suficiente da lateral devem ser rejeitadas.
 ${category === "painel" ? `
 REGRA OBRIGATÓRIA PARA PAINEL — LEGIBILIDADE DO HODÔMETRO:
-Você NÃO deve preencher nem estimar o número do KM. A leitura numérica final será digitada manualmente pelo técnico no app, porque erro de um único dígito compromete a manutenção.
+Você DEVE enxergar, ler e retornar o número do KM total do hodômetro para preenchimento automático do app — mas SOMENTE quando todos os dígitos estiverem visualmente claros.
 
 PROCEDIMENTO OBRIGATÓRIO PASSO A PASSO:
 1. Localize o display do HODÔMETRO (NÃO velocímetro, NÃO RPM, NÃO trip parcial "TRIP A/B", NÃO temperatura, NÃO combustível, NÃO relógio). É o display de 5–7 dígitos da quilometragem TOTAL acumulada.
-2. Verifique se TODOS os dígitos do hodômetro aparecem nítidos o suficiente para um humano ler manualmente no app, sem depender de chute.
-3. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução ou ângulo ruim — km_legivel=false, valid=false, e na reason explique o problema.
-4. NÃO retorne o valor do KM em nenhum campo. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde.
+2. Leia o KM dígito por dígito, da esquerda para a direita. Confira especialmente o PRIMEIRO dígito — nunca ignore "1" inicial em odômetros de 6 dígitos.
+3. Retorne "km_lido" como string contendo APENAS os dígitos do KM total, sem pontos, vírgulas, espaços, unidade ou decimal (ex.: "173552").
+4. Se houver casas decimais pequenas no fim do hodômetro, IGNORE o decimal e retorne apenas a parte inteira.
+5. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução, ângulo ruim, ou houver risco de confundir 3/5/6/8/9/0 — km_legivel=false, km_lido="", valid=false, e na reason explique o problema.
+6. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
 
 CAMPOS:
-- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos estão visualmente legíveis para conferência humana. Em qualquer outro caso, false.
-- Se houver casas decimais ".x" pequenas no fim do hodômetro, IGNORE o ponto e o decimal — leia só a parte inteira.
+- "km_lido": obrigatório quando km_legivel=true; vazio quando houver qualquer dúvida.
+- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false.
 - Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, valid=false.
-- Sem leitura 100% confirmada, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
+- Sem leitura 100% confirmada e sem km_lido, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
 ` : ""}${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
 VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
 O técnico afirmou que o veículo está LIMPO E ORGANIZADO. Verifique se a foto confirma isso.
@@ -375,7 +378,11 @@ Critério esperado: ${finalCriterio}`;
           reason: parsed.reason || "Sem motivo informado",
           confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
-          km_lido: typeof parsed.km_lido === "string" ? parsed.km_lido.replace(/[^\d]/g, "") : "",
+          km_lido: typeof parsed.km_lido === "string"
+            ? parsed.km_lido.replace(/[^\d]/g, "")
+            : typeof parsed.km_lido === "number"
+              ? String(Math.trunc(parsed.km_lido)).replace(/[^\d]/g, "")
+              : "",
           km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
           farois_acesos: parsed.farois_acesos === true ? true : parsed.farois_acesos === false ? false : null,
           farois_observacao: typeof parsed.farois_observacao === "string" ? parsed.farois_observacao : "",
@@ -392,19 +399,19 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
-        // GATE SERVER-SIDE: para "painel", exigir apenas legibilidade visual.
-        // O valor numérico do KM deve ser digitado/conferido pelo técnico no app.
+        // GATE SERVER-SIDE: para "painel", exigir leitura numérica segura para autopreenchimento.
+        // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
         if (category === "painel") {
-          result.km_lido = "";
-          const kmOk = result.km_legivel === true;
+          const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
           if (!kmOk) {
-            console.log(`[painel] Rejeitado por falta de legibilidade do KM. km_legivel=${result.km_legivel}`);
+            console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
-            result.reason = "Hodômetro (KM) não legível com segurança na foto. Aproxime-se do painel e enquadre o display do KM.";
+            result.km_lido = "";
+            result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
           } else {
-            console.log("[painel] Hodômetro legível; KM numérico será informado manualmente no app.");
+            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido}`);
           }
         }
 
