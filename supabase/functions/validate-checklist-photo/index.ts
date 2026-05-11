@@ -329,7 +329,7 @@ Critério esperado: ${finalCriterio}`;
             ],
           },
         ],
-        max_tokens: 250,
+        max_tokens: 1000,
         temperature: 0.1,
       }),
     });
