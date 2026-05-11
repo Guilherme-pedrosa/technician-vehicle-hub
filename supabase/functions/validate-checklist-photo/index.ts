@@ -545,18 +545,33 @@ Critério esperado: ${finalCriterio}`;
       };
     }
 
+    // Anexa metadados de auditoria à resposta de sucesso (para o frontend persistir).
+    const validationFinishedAt = new Date().toISOString();
+    result.model_used = PHOTO_VALIDATION_MODEL;
+    result.prompt_version = PHOTO_VALIDATION_PROMPT_VERSION;
+    result.validation_started_at = validationStartedAt;
+    result.validation_finished_at = validationFinishedAt;
+    result.validation_duration_ms =
+      new Date(validationFinishedAt).getTime() - new Date(validationStartedAt).getTime();
+    result.severity = severityForCategory(category);
+    // audit_required = true quando a foto não estiver claramente válida.
+    result.audit_required = result.valid !== true;
+    // Sinaliza ao frontend que o KM do painel não foi confirmado pela IA.
+    if (category === "painel" && (result.km_legivel !== true || !result.km_lido)) {
+      result.km_painel_nao_confirmado = true;
+    }
+    if (!result.reject_code) {
+      result.reject_code = result.valid === true ? null : "validation_failed";
+    }
+
     return new Response(JSON.stringify(result), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
     console.error("Validation error:", error);
-    return new Response(JSON.stringify({
-      valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-      critical_visible: false, quality: "ruim", confidence: 0,
-      reason: "Erro na validação. Tente novamente.",
-      ai_error: true,
-    }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const cat = (typeof (globalThis as any).__lastCategory === "string") ? (globalThis as any).__lastCategory : "unknown";
+    return new Response(JSON.stringify(
+      aiErrorPayload(cat, "Erro na validação IA. Checklist liberado operacionalmente, mas enviado para auditoria.", new Date().toISOString())
+    ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
