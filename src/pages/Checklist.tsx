@@ -870,14 +870,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     if (!open) return;
     (async () => {
       try {
-        const { data } = await supabase
-          .from("vehicle_checklists")
-          .select("*")
-          .eq("created_by", userId)
-          .eq("status", "rascunho" as any)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let query = supabase.from("vehicle_checklists").select("*");
+        if (forceDraftId) {
+          query = query.eq("id", forceDraftId);
+        } else {
+          query = query
+            .eq("created_by", userId)
+            .eq("status", "rascunho" as any)
+            .order("updated_at", { ascending: false })
+            .limit(1);
+        }
+        const { data } = await query.maybeSingle();
         if (!data) return;
         setDraftId(data.id);
         if (data.vehicle_id) setVehicleId(data.vehicle_id);
