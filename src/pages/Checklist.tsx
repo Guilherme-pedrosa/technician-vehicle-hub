@@ -2850,8 +2850,8 @@ export default function Checklist() {
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
                         onClick={() => {
                           if (isDraft) {
-                            if (cl.created_by === userId) {
-                              setOpen(true);
+                            if (cl.created_by === user?.id) {
+                              setFormOpenTrigger((n) => n + 1);
                             } else {
                               toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
                             }
