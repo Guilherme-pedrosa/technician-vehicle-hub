@@ -1,5 +1,5 @@
-// Utilitário para calcular sob demanda a divergência entre o KM lido na foto do
-// painel (extraído pela IA durante a validação no momento do checklist) e o KM
+// Utilitário para calcular sob demanda a divergência entre o KM informado pelo
+// técnico a partir da foto do painel no momento do checklist e o KM
 // cadastrado do veículo (fonte: Rota Exata, sincronizado de hora em hora).
 //
 // O cálculo é feito **sempre na exibição** (lista, detalhe, auditorias) para
@@ -19,7 +19,7 @@ export type KmPainelComparison = {
  * Extrai o KM lido do painel a partir do `detalhes` do checklist.
  * - Checklists novos: campo `km_lido_painel` (número direto).
  * - Checklists antigos: campo `km_painel.lido` (formato anterior).
- * Retorna `null` se a IA não conseguiu ler o KM (ou se o checklist é antigo
+ * Retorna `null` se o KM do painel não foi informado (ou se o checklist é antigo
  * sem nenhum desses campos).
  */
 export function extractKmLidoPainel(detalhes: any): number | null {
@@ -37,7 +37,7 @@ export function extractKmLidoPainel(detalhes: any): number | null {
 
 /**
  * Compara o KM lido com o KM cadastrado atual do veículo.
- * Retorna `null` se não há KM lido pela IA ou se o KM do veículo é desconhecido.
+ * Retorna `null` se não há KM do painel informado ou se o KM do veículo é desconhecido.
  */
 export function computeKmPainelDivergence(
   detalhes: any,
