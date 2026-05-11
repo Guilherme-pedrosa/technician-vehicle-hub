@@ -476,7 +476,7 @@ async function extractTextFromAttachment(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.4-mini",
+        model: AI_OCR_MODEL,
         temperature: 0,
         max_tokens: 400,
         messages: [
@@ -536,7 +536,7 @@ async function extractTextFromAttachment(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-5.4",
+          model: AI_OCR_VERIFY_MODEL,
           temperature: 0,
           max_tokens: 120,
           messages: [
