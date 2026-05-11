@@ -2712,7 +2712,7 @@ export default function Checklist() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
           <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
-        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} />}
+        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
