@@ -387,8 +387,8 @@ ${expectedKmDigits ? `6. CONTEXTO DE VALIDAÇÃO: o veículo cadastrado está em
 7. Retorne "km_lido_raw" como string com a leitura visual EXATAMENTE como aparece (pode conter espaços ou separador, ex.: "27754 1"). Retorne "km_lido" como string contendo APENAS dígitos do KM total — sem pontos, vírgulas, espaços, unidade ou decimal — incluindo o último dígito se ele NÃO for separado por decimal claro (ex.: "277541").
 8. Retorne "km_digit_count" = quantidade de dígitos em km_lido. Retorne "km_decimal_detected"=true APENAS se você viu um separador decimal claro (ponto/vírgula/quadrante destacado); caso contrário false. Em "km_decimal_reason" descreva brevemente o que viu (ex.: "ponto entre os dois últimos dígitos", "nenhum separador decimal visível").
 9. Marque "km_ambiguous"=true se: o último dígito puder ser interpretado tanto como decimal quanto como parte do hodômetro; algum dígito estiver parcialmente coberto/refletindo; houver risco de confundir 3/5/6/8/9/0; ou a quantidade de dígitos não bater com o esperado.
-10. Se QUALQUER dígito estiver realmente ilegível (não apenas pequeno) — km_legivel=false, km_lido="", km_lido_raw="", valid=false, e na reason explique o problema.
-11. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
+10. Se QUALQUER dígito estiver ilegível ou houver dúvida — km_legivel=false, km_lido="", km_lido_raw="" (mas NÃO marque valid=false só por causa disso). A foto continua válida desde que mostre o painel/cluster e o display do ODO. A reprovação de "valid" é APENAS para foto que não mostre o painel.
+11. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, devolva km_legivel=false e siga.
 
 CAMPOS:
 - "km_lido_raw": string visual como aparece, com espaço/separador se houver (ex.: "27754 1", "277541", "277541.2").
@@ -397,9 +397,12 @@ CAMPOS:
 - "km_decimal_detected": true APENAS com separador decimal claro.
 - "km_decimal_reason": descrição curta do que motivou km_decimal_detected.
 - "km_ambiguous": true em qualquer dúvida sobre o último dígito ou quantidade de dígitos.
-- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false.
-- Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, valid=false.
-- Sem leitura 100% confirmada e sem km_lido, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
+- "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false — sem invalidar a foto.
+
+REGRA DE VALIDAÇÃO DA FOTO DO PAINEL (separada do KM):
+- "valid"=true quando a foto mostrar claramente o painel/cluster de instrumentos do veículo COM o display do hodômetro/ODO visível e a imagem tiver foco suficiente para confirmar a categoria. NÃO exija leitura do KM para considerar a foto válida.
+- "valid"=false APENAS quando: a foto não mostrar painel/cluster (ex.: rádio, ar-condicionado, volante, console central isolado, parte aleatória do veículo); o painel estiver tão cortado/escuro/borrado que não dê para confirmar que é o painel; ou o display do ODO não apareça de forma alguma.
+- A leitura do KM (km_legivel/km_lido/km_auto_update_allowed) é uma validação SEPARADA — pode falhar sem reprovar a foto.
 ` : ""}${catConfig.has_cleanliness_check && limpeza_claim === "sim" ? `
 VERIFICAÇÃO DE LIMPEZA E ORGANIZAÇÃO:
 O técnico afirmou que o veículo está LIMPO E ORGANIZADO. Verifique se a foto confirma isso.
