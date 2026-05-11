@@ -1591,6 +1591,43 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       runBackgroundTasks().catch((err) =>
         console.error("Erro nas tarefas pós-save (ticket/e-mail):", err)
       );
+
+      // === AUDIT ALERT — independente do e-mail de NC ===
+      // Só dispara se houver ao menos 1 evento de auditoria IA. Não bloqueia o save.
+      if (auditEvents.length > 0 && savedChecklist) {
+        const checklistUrl = typeof window !== "undefined"
+          ? `${window.location.origin}/checklist/${savedChecklist.id}`
+          : undefined;
+        const auditPayload = {
+          event_type: "audit_alert" as const,
+          checklist_id: savedChecklist.id,
+          checklist_url: checklistUrl,
+          veiculo_id: vehicleId,
+          placa: selectedVehicle?.placa,
+          modelo: selectedVehicle?.modelo,
+          condutor: selectedDriver?.full_name ?? null,
+          tecnico: selectedDriver?.full_name ?? "—",
+          data: format(now, "dd/MM/yyyy HH:mm"),
+          resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
+          observacoes: observacoes || null,
+          km_painel_nao_confirmado: kmPainelNaoConfirmado,
+          audit_events: auditEvents,
+        };
+        console.log(`[checklist:audit] enviando audit_alert (${auditEvents.length} evento(s))`);
+        supabase.functions.invoke("notify-checklist-nc", { body: auditPayload })
+          .then(({ error }) => {
+            if (error) {
+              console.error("[checklist:audit] falha ao enviar audit_alert:", error);
+              supabase.from("vehicle_checklists")
+                .update({ detalhes: { ...(checklistPayload.detalhes ?? {}), audit_email_error: String(error?.message ?? error) } } as any)
+                .eq("id", savedChecklist!.id)
+                .then(() => undefined, () => undefined);
+            } else {
+              console.log("[checklist:audit] audit_alert enviado com sucesso");
+            }
+          })
+          .catch((err) => console.error("[checklist:audit] erro inesperado no envio:", err));
+      }
     },
     onSuccess: () => {
       setUploading(false);
