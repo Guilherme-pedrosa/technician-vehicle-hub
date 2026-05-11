@@ -2864,7 +2864,12 @@ export default function Checklist() {
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
                         onClick={() => {
                           if (isDraft) {
-                            openDraft(cl);
+                            if (cl.created_by === user?.id) {
+                              openDraft(cl);
+                            } else if (!isAdmin) {
+                              toast.info("Rascunho de outro usuário");
+                            }
+                            // admin: usa botões abaixo (Continuar / Ver)
                           } else {
                             navigate(`/checklist/${cl.id}`);
                           }
