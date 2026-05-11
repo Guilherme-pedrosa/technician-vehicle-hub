@@ -230,7 +230,8 @@ Deno.serve(async (req) => {
         .single();
       if (configData?.photo_categories) {
         const cats = configData.photo_categories as any[];
-        const match = cats.find((c: any) => c.key === category);
+        const baseCategory = category.replace(/_(de|dd|te|td)$/i, "");
+        const match = cats.find((c: any) => c.key === category) || cats.find((c: any) => c.key === baseCategory);
         if (match?.ai_prompt) {
           dynamicPrompt = match.ai_prompt;
         }
@@ -245,8 +246,11 @@ Deno.serve(async (req) => {
       has_critical: false,
     };
 
-    // Painel usa o critério versionado no código para não herdar prompts antigos que desativavam o OCR.
-    const finalCriterio = category === "painel" ? catConfig.criterio : (dynamicPrompt || catConfig.criterio);
+    // O prompt configurado no campo é prioritário; o critério versionado no código entra como trava técnica.
+    // Em caso de conflito, a IA deve aplicar a regra mais rigorosa e rejeitar em vez de aprovar por suposição.
+    const finalCriterio = dynamicPrompt
+      ? `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
+      : catConfig.criterio;
 
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
       ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
@@ -309,7 +313,10 @@ Regras:
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
-- Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
+- O CRITÉRIO ESPERADO abaixo é uma instrução obrigatória do campo atual. Leia e aplique esse critério literalmente antes de decidir.
+- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true.
+- Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
+- Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
 - Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 leve com corte.
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
@@ -408,7 +415,7 @@ Critério esperado: ${finalCriterio}`;
           target_match: parsed.target_match !== undefined ? Boolean(parsed.target_match) : false,
           focus_ok: parsed.focus_ok !== undefined ? Boolean(parsed.focus_ok) : false,
           critical_visible: parsed.critical_visible !== undefined ? Boolean(parsed.critical_visible) : !catConfig.has_critical,
-          quality: ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
+          quality: typeof parsed.quality === "string" && ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
           reason: parsed.reason || "Sem motivo informado",
           confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
@@ -477,6 +484,16 @@ Critério esperado: ${finalCriterio}`;
             result.valid = false;
             result.reason = result.reason || "Foto desfocada/borrada. Tire outra foto com mais nitidez.";
           }
+        }
+
+        const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
+        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "painel", "pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td"]);
+        if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
+          console.log(`[${category}] Rejeitado por aprovação genérica sem evidência do critério. reason="${result.reason}"`);
+          result.valid = false;
+          result.target_match = false;
+          result.critical_visible = false;
+          result.reason = "A validação não descreveu os elementos obrigatórios do campo. Tire outra foto mostrando claramente o item exigido.";
         }
       } else {
         result = {
