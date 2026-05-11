@@ -249,11 +249,173 @@ type ValidationResult = {
   detected_elements?: string[];
   km_lido?: string;
   km_legivel?: boolean;
+  km_painel_nao_confirmado?: boolean;
   farois_acesos?: boolean | null;
   farois_observacao?: string;
   lanternas_acesas?: boolean | null;
   lanternas_observacao?: string;
+  // Audit metadata propagado pela edge `validate-checklist-photo`
+  severity?: "critical" | "warning" | "info";
+  audit_required?: boolean;
+  reject_code?: string | null;
+  model_used?: string;
+  prompt_version?: string;
+  validation_duration_ms?: number;
+  status?: string;
 };
+
+// ═══════════════════════════════════════════
+// AUDIT EVENTS — trilha de auditoria IA
+// ═══════════════════════════════════════════
+// Categorias onde forçar/erro IA gera severity "critical".
+const CRITICAL_AUDIT_CATEGORIES = new Set<string>([
+  "painel",
+  "pneu_de", "pneu_dd", "pneu_te", "pneu_td", "estepe",
+  "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td",
+  "nivel_oleo", "reservatorio_agua", "etiqueta_oleo", "itens_seguranca",
+]);
+
+function auditSeverityFor(category: string, status: string): "critical" | "warning" {
+  if (status === "km_not_confirmed") return "critical";
+  if (status === "ai_error" || status === "pending_at_submit" || status === "interior_incomplete") {
+    return CRITICAL_AUDIT_CATEGORIES.has(category) ? "critical" : "warning";
+  }
+  if (status === "forced" || status === "invalid") {
+    return CRITICAL_AUDIT_CATEGORIES.has(category) ? "critical" : "warning";
+  }
+  return "warning";
+}
+
+type AuditEvent = {
+  categoria: string;
+  label: string;
+  status: "forced" | "pending_at_submit" | "ai_error" | "invalid" | "km_not_confirmed" | "interior_incomplete" | "km_divergence";
+  severity: "critical" | "warning";
+  motivo: string;
+  reason?: string;
+  reject_code?: string | null;
+  confidence?: number;
+  model_used?: string;
+  prompt_version?: string;
+  validation_duration_ms?: number;
+  photo_url?: string;
+  photo_index?: number;
+  forced_by?: string;
+  forced_at?: string;
+  audit_required: true;
+};
+
+function buildAuditEvents(
+  photos: PhotosMap,
+  photoValidations: Record<string, PhotoValidation[]>,
+  fotosUrls: Record<string, string[]>,
+  userId: string,
+): { auditEvents: AuditEvent[]; kmPainelNaoConfirmado: boolean } {
+  const events: AuditEvent[] = [];
+  let kmPainelNaoConfirmado = false;
+  const nowIso = new Date().toISOString();
+
+  (Object.keys(photos) as PhotoCategory[]).forEach((category) => {
+    const files = photos[category] ?? [];
+    const validations = photoValidations[category] ?? [];
+    const urls = fotosUrls[category] ?? [];
+    const label = PHOTO_META[category as PhotoCategory]?.label ?? category;
+
+    files.forEach((_file, idx) => {
+      const v = validations[idx];
+      const photo_url = urls[idx];
+      if (!v || v.status === "idle") return;
+
+      const baseMeta = {
+        reason: v.result?.reason,
+        reject_code: v.result?.reject_code ?? null,
+        confidence: v.result?.confidence,
+        model_used: v.result?.model_used,
+        prompt_version: v.result?.prompt_version,
+        validation_duration_ms: v.result?.validation_duration_ms,
+        photo_url,
+        photo_index: idx,
+        audit_required: true as const,
+      };
+
+      // 1) IA pendente no submit
+      if (v.status === "validating") {
+        events.push({
+          ...baseMeta,
+          categoria: category, label,
+          status: "pending_at_submit",
+          severity: auditSeverityFor(category, "pending_at_submit"),
+          motivo: "Checklist salvo antes da conclusão da validação por IA",
+          forced_by: userId,
+          forced_at: nowIso,
+        });
+        return;
+      }
+
+      // 2) Erro de IA
+      if (v.result?.ai_error) {
+        events.push({
+          ...baseMeta,
+          categoria: category, label,
+          status: "ai_error",
+          severity: auditSeverityFor(category, "ai_error"),
+          motivo: v.result?.reason ?? "Falha na validação automática da IA",
+          forced_by: userId,
+          forced_at: nowIso,
+        });
+        return;
+      }
+
+      // 3) Foto forçada pelo técnico
+      if (v.status === "forced") {
+        events.push({
+          ...baseMeta,
+          categoria: category, label,
+          status: "forced",
+          severity: auditSeverityFor(category, "forced"),
+          motivo: v.result?.reason
+            ? `Foto reprovada pela IA e usada mesmo assim: ${v.result.reason}`
+            : "Foto reprovada pela IA e usada mesmo assim",
+          forced_by: userId,
+          forced_at: nowIso,
+        });
+      }
+
+      // 4) Painel sem KM legível
+      if (category === "painel" && (v.result?.km_painel_nao_confirmado || v.result?.km_legivel === false)) {
+        kmPainelNaoConfirmado = true;
+        events.push({
+          ...baseMeta,
+          categoria: category, label,
+          status: "km_not_confirmed",
+          severity: auditSeverityFor(category, "km_not_confirmed"),
+          motivo: "KM do hodômetro não confirmado pela IA — verificar valor manual digitado",
+          forced_by: userId,
+          forced_at: nowIso,
+        });
+      }
+    });
+
+    // 5) Interior incompleto
+    if (category === "interior" && validations.length > 0) {
+      const cov = getInteriorCoverage(validations);
+      if (!cov.complete && cov.missing.length > 0) {
+        events.push({
+          categoria: "interior",
+          label: PHOTO_META.interior.label,
+          status: "interior_incomplete",
+          severity: auditSeverityFor("interior", "interior_incomplete"),
+          motivo: `Cobertura parcial do interior. Faltam: ${cov.missing.join(", ")}`,
+          audit_required: true,
+          forced_by: userId,
+          forced_at: nowIso,
+        });
+      }
+    }
+  });
+
+  return { auditEvents: events, kmPainelNaoConfirmado };
+}
 
 // Comparação KM painel × cadastro: feita sob demanda na exibição
 // (helper em src/lib/km-painel-divergence.ts) para não atrasar o submit do
