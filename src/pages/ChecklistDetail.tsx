@@ -265,9 +265,10 @@ async function revalidatePhotos(
   fotosData: Record<string, string[]>,
   vehicleMarca?: string,
   vehicleModelo?: string
-): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[] }> {
+): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null }> {
   const invalidas: RevalidationResult[] = [];
   const erros: RevalidationResult[] = [];
+  let kmLidoPainel: number | null = null;
 
   for (const [category, urls] of Object.entries(fotosData)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
@@ -310,7 +311,13 @@ async function revalidatePhotos(
         if (!valResponse.ok) throw new Error("Validation request failed");
         const result = await valResponse.json();
 
-        // A IA só valida a legibilidade da foto do painel; o KM numérico não é extraído automaticamente.
+        // Para a foto do painel, capturar o KM lido pela IA quando aprovado e legível.
+        if (category === "painel" && result.valid && result.km_legivel === true) {
+          const raw = typeof result.km_lido === "string" ? result.km_lido.replace(/[^\d]/g, "") : "";
+          if (/^\d{5,7}$/.test(raw)) {
+            kmLidoPainel = Number(raw);
+          }
+        }
 
         if (result.ai_error) {
           const existing = erros.find((e) => e.categoria === category);
@@ -332,7 +339,7 @@ async function revalidatePhotos(
     }
   }
 
-  return { invalidas, erros };
+  return { invalidas, erros, kmLidoPainel };
 }
 
 // ═══════════════════════════════════════════
