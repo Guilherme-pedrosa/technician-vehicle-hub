@@ -171,8 +171,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
       return new Response(JSON.stringify({
         valid: false, vehicle_match: false, target_match: false, focus_ok: false,
         critical_visible: false, quality: "ruim", confidence: 0,
@@ -310,15 +310,15 @@ Critério esperado: ${finalCriterio}`;
     const aiController = new AbortController();
     const aiTimeout = setTimeout(() => aiController.abort(), 25000);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       signal: aiController.signal,
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-5.4",
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -329,8 +329,8 @@ Critério esperado: ${finalCriterio}`;
             ],
           },
         ],
-        max_tokens: 1000,
-        temperature: 0.1,
+        max_completion_tokens: 1000,
+        response_format: { type: "json_object" },
       }),
     });
 
