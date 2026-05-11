@@ -2615,13 +2615,15 @@ export default function Checklist() {
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
   const [formOpenTrigger, setFormOpenTrigger] = useState(0);
   const [forceDraftId, setForceDraftId] = useState<string | null>(null);
+  const currentUserDriverIds = useMemo(() => new Set(localDrivers.filter((d) => d.user_id === user?.id).map((d) => d.id)), [localDrivers, user?.id]);
+  const canCurrentUserContinueDraft = useCallback((cl: any) => cl.created_by === user?.id || currentUserDriverIds.has(cl.driver_id), [currentUserDriverIds, user?.id]);
   const openDraft = (cl: any) => {
-    const isOwn = cl.created_by === user?.id;
-    if (!isOwn && !isAdmin) {
+    const canContinue = canCurrentUserContinueDraft(cl);
+    if (!canContinue && !isAdmin) {
       toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
       return;
     }
-    setForceDraftId(isOwn ? null : cl.id);
+    setForceDraftId(canContinue ? null : cl.id);
     setFormOpenTrigger((n) => n + 1);
   };
 
@@ -2731,7 +2733,7 @@ export default function Checklist() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
           <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
-        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} />}
+        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} onNewChecklist={() => setForceDraftId(null)} />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
