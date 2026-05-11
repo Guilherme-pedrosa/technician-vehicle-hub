@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
     // O prompt configurado no campo é prioritário; o critério versionado no código entra como trava técnica.
     // Em caso de conflito, a IA deve aplicar a regra mais rigorosa e rejeitar em vez de aprovar por suposição.
     const finalCriterio = dynamicPrompt
-      ? `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
+      ? category === "nivel_oleo"
+        ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de MIN/MAX, zona exata ou medição perfeita): ${catConfig.criterio}`
+        : `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
       : catConfig.criterio;
 
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
@@ -368,6 +370,14 @@ Regras:
 - Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 leve com corte.
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
 - Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, mostrando só frente/traseira, ou sem cobertura suficiente da lateral devem ser rejeitadas.
+${category === "nivel_oleo" ? `
+REGRA OBRIGATÓRIA PARA NÍVEL DE ÓLEO — NÃO EXIGIR MIN/MAX:
+- A maioria das varetas NÃO mostra letras MIN/MAX. NÃO reprove por ausência de MIN/MAX, números, furos, entalhes ou zona pontilhada perfeitamente nítida.
+- Se a vareta estiver retirada do motor, a ponta estiver no enquadramento e houver qualquer filme/mancha úmida/escura/brilhante de óleo na ponta, retorne valid=true, target_match=true, critical_visible=true.
+- NÃO exija confirmar o nível exato entre mínimo e máximo. A finalidade da foto é confirmar a vareta retirada e a presença visual de óleo na ponta.
+- Se a vareta e a ponta aparecem, mas a zona de medição não é óbvia, aceite mesmo assim quando houver óleo visível na ponta.
+- Só retorne valid=false se não houver vareta, a ponta estiver fora do quadro, a vareta estiver dentro do motor, não houver óleo visível na ponta, ou a imagem estiver ruim a ponto de não confirmar a vareta/ponta.
+` : ""}
 ${category === "painel" ? `
 REGRA OBRIGATÓRIA PARA PAINEL — LEGIBILIDADE DO HODÔMETRO:
 Você DEVE enxergar, ler e retornar o número do KM total do hodômetro para preenchimento automático do app — mas SOMENTE quando todos os dígitos estiverem visualmente claros.
@@ -579,6 +589,30 @@ Critério esperado: ${finalCriterio}`;
             console.log(`[interior] Rejeitado por falta de foco/qualidade. quality=${result.quality}, focus_ok=${result.focus_ok}`);
             result.valid = false;
             result.reason = result.reason || "Foto desfocada/borrada. Tire outra foto com mais nitidez.";
+          }
+        }
+
+        if (category === "nivel_oleo") {
+          const reason = String(result.reason || "");
+          const rejectedOnlyByMissingLevelMarks =
+            result.valid !== true &&
+            result.target_match === true &&
+            result.focus_ok !== false &&
+            result.quality !== "ruim" &&
+            /vareta/i.test(reason) &&
+            /(ponta|retirad|fora do motor|óleo|oleo)/i.test(reason) &&
+            /(min|max|zona|nível|nivel|medição|medicao|pontilhad|hachurad|confirmar)/i.test(reason) &&
+            !/(ponta.*fora|fora.*enquadr|sem óleo|sem oleo|não h[aá] óleo|nao ha oleo|sem vareta|dentro do motor|desfocad|borrad|tremid)/i.test(reason);
+
+          if (rejectedOnlyByMissingLevelMarks) {
+            console.log(`[nivel_oleo] Aceito por regra server-side: vareta/ponta/óleo visíveis sem exigir MIN/MAX. reason="${reason}"`);
+            result.valid = true;
+            result.target_match = true;
+            result.critical_visible = true;
+            result.reject_code = null;
+            result.audit_required = false;
+            result.severity = "warning";
+            result.reason = "Vareta retirada com a ponta visível e óleo aparente na ponta. Foto aceita sem exigir marcações MIN/MAX.";
           }
         }
 
