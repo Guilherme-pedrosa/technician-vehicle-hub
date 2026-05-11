@@ -980,7 +980,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       } as any;
 
       if (draftId) {
-        await supabase.from("vehicle_checklists").update(draftData).eq("id", draftId);
+        // NÃO sobrescrever created_by: preserva o autor original do rascunho
+        // (admin pode estar ajudando, mas o dono continua sendo quem começou)
+        const { created_by: _omit, ...updatePayload } = draftData;
+        await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftId);
       } else {
         const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
         if (data?.id) setDraftId(data.id);
