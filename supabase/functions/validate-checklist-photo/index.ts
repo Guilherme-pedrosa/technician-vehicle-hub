@@ -308,7 +308,7 @@ Critério esperado: ${finalCriterio}`;
     console.log(`Validating photo: category=${category}, vehicle=${vehicleInfo}, user=${user.id}`);
 
     const aiController = new AbortController();
-    const aiTimeout = setTimeout(() => aiController.abort(), 45000);
+    const aiTimeout = setTimeout(() => aiController.abort(), 25000);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
