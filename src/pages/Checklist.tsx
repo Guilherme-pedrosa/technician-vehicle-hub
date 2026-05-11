@@ -131,11 +131,12 @@ const CATEGORY_ICONS: Record<string, typeof Droplets> = {
 
 type FormData = Record<string, string>;
 type PhotosMap = Record<string, File[]>;
-type PhotoUploadsMap = Record<string, Array<{
+type PhotoUploadState = {
   status: "uploading" | "uploaded" | "error";
   uploadedUrl?: string;
   storagePath?: string;
-}>>;
+};
+type PhotoUploadsMap = Record<string, PhotoUploadState[]>;
 
 type ValidationSummaryItem = {
   categoria: string;
@@ -165,6 +166,14 @@ function isRestorableDraftPhotoKey(key: string) {
 function hasLegacyDraftPhotos(fotos: Record<string, string[]> | null | undefined) {
   if (!fotos) return false;
   return Object.keys(fotos).some((key) => LEGACY_DRAFT_PHOTO_KEYS.has(key));
+}
+
+function getUploadedPhotoUrls(uploadStates?: PhotoUploadState[]) {
+  return (uploadStates ?? []).map((item) => item?.uploadedUrl).filter(Boolean) as string[];
+}
+
+function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
+  return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
 }
 
 function getBlankChecklistAnswers(): FormData {
@@ -530,12 +539,14 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   vehicleMarca?: string;
   vehicleModelo?: string;
   limpezaClaim?: string;
-  uploadStates?: Array<{ status: "uploading" | "uploaded" | "error" }>;
+  uploadStates?: PhotoUploadState[];
 }) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const meta = PHOTO_META[category];
-  const hasEnough = photos.length >= meta.min;
+  const uploadedUrls = getUploadedPhotoUrls(uploadStates);
+  const displayCount = Math.max(photos.length, uploadedUrls.length);
+  const hasEnough = displayCount >= meta.min;
 
   const handleCapture = async (files: File[]) => {
     const preparedFiles = await onCapture(category, files);
@@ -543,7 +554,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
     if (!onValidationUpdate || preparedFiles.length === 0) return;
 
     await Promise.all(preparedFiles.map(async (file, offset) => {
-      const newIdx = photos.length + offset;
+      const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
       const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim);
       onValidationUpdate(category, newIdx, {
@@ -584,13 +595,15 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
           <p className="text-xs text-muted-foreground">{meta.hint}</p>
         </div>
         <Badge variant={hasEnough ? "default" : "destructive"} className="text-[10px] shrink-0 ml-2">
-          {photos.length}/{meta.min}
+          {displayCount}/{meta.min}
         </Badge>
       </div>
 
-      {photos.length > 0 && (
+      {displayCount > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {photos.map((file, i) => {
+          {Array.from({ length: displayCount }).map((_, i) => {
+            const file = photos[i];
+            const restoredUrl = !file ? uploadedUrls[i] : undefined;
             const v = validations?.[i];
             const upload = uploadStates?.[i];
             const borderColor = upload?.status === "error"
@@ -609,7 +622,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
             return (
               <div key={i} className="space-y-1">
                 <div className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 ${borderColor}`}>
-                  <PhotoPreview file={file} />
+                  {file ? <PhotoPreview file={file} /> : <RestoredPhotoPreview src={restoredUrl!} />}
                   {v?.status === "validating" && (
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -690,6 +703,10 @@ function PhotoPreview({ file }: { file: File }) {
   return <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />;
 }
 
+function RestoredPhotoPreview({ src }: { src: string }) {
+  return <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />;
+}
+
 // ═══════════════════════════════════════════
 // WIZARD STEPS — Fluxo produtivo do técnico
 // Lógica: info → painel (KM) → capô (óleo+água+motor, CARRO DESLIGADO) → pneus → 360°/exterior (pode mover o carro) → interior+kit → danos → resultado
@@ -739,6 +756,57 @@ function getFirstIncompleteRequiredPhotoStepIndex(fotos: Record<string, string[]
   }
 
   return -1;
+}
+
+function getFirstIncompleteStepIndex(params: {
+  savedStep: number;
+  vehicleId: string;
+  selectedDriverId: string;
+  answers: FormData;
+  photos: PhotosMap;
+  photoUploads: PhotoUploadsMap;
+  kmProximaTroca: string;
+  kmPainelManual: string;
+  resultado: string;
+  resultadoMotivo: string;
+  suggestedResult: string;
+}) {
+  const maxStep = Math.min(Math.max(params.savedStep, 0), STEPS.length - 1);
+
+  for (let index = 0; index <= maxStep; index++) {
+    const stepId = STEPS[index].id;
+
+    if (stepId === "info" && (!params.vehicleId || !params.selectedDriverId)) return index;
+
+    const fields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[stepId] ?? []).includes(field.category));
+    if (fields.some((field) => !params.answers[field.key])) return index;
+    if (fields.some((field) => isNonConforme(field.key, params.answers[field.key]) && !params.answers[`obs_${field.key}`]?.trim())) return index;
+
+    const requiredPhotos = STEP_PHOTOS[stepId] ?? [];
+    if (stepId !== "danos" && requiredPhotos.some((cat) => getAvailablePhotoCount(params.photos, params.photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1))) return index;
+
+    if (stepId === "painel") {
+      const km = params.kmPainelManual ? parseInt(params.kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
+      if (isNaN(km) || km < 100) return index;
+    }
+
+    if (stepId === "capo") {
+      const km = params.kmProximaTroca ? parseInt(params.kmProximaTroca.replace(/[^\d]/g, ""), 10) : NaN;
+      if (isNaN(km) || km <= 0) return index;
+    }
+
+    if (stepId === "danos" && params.answers.danos_veiculo === "sim") {
+      if (!params.answers.obs_danos_veiculo?.trim() || getAvailablePhotoCount(params.photos, params.photoUploads, "avaria") < 1) return index;
+    }
+
+    if (stepId === "resultado") {
+      const finalResult = effectiveResultado(params.resultado || params.suggestedResult, params.suggestedResult);
+      if ((finalResult === "bloqueado" || (finalResult === "liberado_obs" && params.answers.danos_veiculo === "sim")) && !params.resultadoMotivo.trim()) return index;
+      if (getMissingChecklistAnswers(params.answers).length > 0) return index;
+    }
+  }
+
+  return maxStep;
 }
 
 // ═══════════════════════════════════════════
@@ -812,7 +880,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         if (data.destino) setDestino(data.destino);
         if (data.observacoes) setObservacoes(data.observacoes);
         const det = (data.detalhes ?? {}) as any;
-        if (det.draft_answers) setAnswers(det.draft_answers);
+        const restoredAnswers = { ...getBlankChecklistAnswers(), ...((det.draft_answers ?? {}) as FormData) };
+        CHECKLIST_FIELDS.forEach((field) => {
+          const value = (data as any)[field.key];
+          if (!restoredAnswers[field.key] && value) restoredAnswers[field.key] = value;
+        });
+        setAnswers(restoredAnswers);
         if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
@@ -820,24 +893,33 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
-        const incompletePhotoStepIndex = getFirstIncompleteRequiredPhotoStepIndex(fotos, savedStep);
-
-        if (incompletePhotoStepIndex >= 0) {
-          setStep(incompletePhotoStepIndex);
-        } else if (savedStep > 0) {
-          setStep(savedStep);
-        }
-
         if (data.termo_aceito) setTermoAceito(data.termo_aceito);
         // Fotos já salvas no draft — restaurar URLs
+        const restoredUploads: PhotoUploadsMap = {};
+        const restoredValidations: Record<string, PhotoValidation[]> = {};
         if (Object.keys(fotos).length > 0) {
-          const restoredUploads: Record<string, { status: string; uploadedUrl: string }[]> = {};
           for (const [cat, urls] of Object.entries(fotos)) {
             if (!isRestorableDraftPhotoKey(cat)) continue;
             restoredUploads[cat] = urls.map((url) => ({ status: "uploaded", uploadedUrl: url }));
+            restoredValidations[cat] = urls.map(() => ({ status: "valid", result: { valid: true, quality: "aceitavel", reason: "Foto restaurada do rascunho" } }));
           }
-          setPhotoUploads(restoredUploads as any);
+          setPhotoUploads(restoredUploads);
+          setPhotoValidations(restoredValidations);
         }
+        const resumeStep = getFirstIncompleteStepIndex({
+          savedStep,
+          vehicleId: data.vehicle_id ?? "",
+          selectedDriverId: data.driver_id ?? autoDriverId,
+          answers: restoredAnswers,
+          photos: {},
+          photoUploads: restoredUploads,
+          kmProximaTroca: det.km_proxima_troca ? String(det.km_proxima_troca) : "",
+          kmPainelManual: det.km_lido_painel ? String(det.km_lido_painel) : "",
+          resultado: data.resultado ?? "",
+          resultadoMotivo: data.resultado_motivo ?? "",
+          suggestedResult: data.resultado ?? "liberado",
+        });
+        setStep(resumeStep);
         toast.info(
           draftHasLegacyPhotos
             ? "Rascunho antigo restaurado. Voltei para a etapa de calibração para pedir as novas fotos."
@@ -959,9 +1041,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
 
     const compressed = await prepareCapturedImages(files);
-    const startIndex = photos[storageKey]?.length ?? 0;
+    const startIndex = Math.max(photos[storageKey]?.length ?? 0, photoUploads[storageKey]?.length ?? 0);
 
-    setPhotos((prev) => ({ ...prev, [storageKey]: [...(prev[storageKey] ?? []), ...compressed] }));
+    setPhotos((prev) => {
+      const arr = [...(prev[storageKey] ?? [])];
+      compressed.forEach((file, offset) => { arr[startIndex + offset] = file; });
+      return { ...prev, [storageKey]: arr };
+    });
     setPhotoUploads((prev) => ({
       ...prev,
       [storageKey]: [
@@ -992,7 +1078,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     })).catch(() => undefined);
 
     return compressed;
-  }, [photos, uploadWithRetry, vehicleId]);
+  }, [photoUploads, photos, uploadWithRetry, vehicleId]);
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     return appendPhotosWithBackgroundUpload(cat, files);
@@ -1112,14 +1198,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const date = format(now, "yyyy-MM-dd");
 
       const fotosUrls: Record<string, string[]> = {};
-      for (const [cat, files] of Object.entries(photos)) {
-        fotosUrls[cat] = files.map((_, idx) => {
-          const uploadedUrl = photoUploads[cat]?.[idx]?.uploadedUrl;
-          if (!uploadedUrl) {
-            throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
-          }
-          return uploadedUrl;
-        });
+      const photoKeys = new Set([...Object.keys(photos), ...Object.keys(photoUploads)]);
+      for (const cat of photoKeys) {
+        const urls = getUploadedPhotoUrls(photoUploads[cat]);
+        if ((photos[cat]?.length ?? 0) > urls.length) {
+          throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
+        }
+        if (urls.length > 0) fotosUrls[cat] = urls;
       }
 
       const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
@@ -1357,12 +1442,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
 
     if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
-      return !!answers.obs_danos_veiculo?.trim() && (photos.avaria?.length ?? 0) > 0;
+      return !!answers.obs_danos_veiculo?.trim() && getAvailablePhotoCount(photos, photoUploads, "avaria") > 0;
     }
     // Check mandatory photos for photo steps
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
-      const missing = requiredPhotos.filter((cat) => !(photos[cat]?.length > 0));
+      const missing = requiredPhotos.filter((cat) => getAvailablePhotoCount(photos, photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1));
       if (currentStep.id === "danos") {
         // danos photos only required if danos_veiculo === "sim"
         return true;
@@ -1376,7 +1461,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const temFotoValida = painelVals.some(
         (v) => v?.status === "valid"
-      );
+      ) || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       if (!temFotoValida) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
@@ -1459,13 +1544,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid");
+      const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
 
           {/* BANNER de bloqueio: foto inválida = veículo NÃO sai */}
           {temFotoInvalida && !temFotoValida && (
@@ -1537,7 +1622,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Caminhe ao redor do veículo tirando as fotos:</p>
           {extPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} uploadStates={photoUploads[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           ))}
           {extFields.length > 0 && (
             <>
@@ -1606,7 +1691,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <p className="text-xs text-muted-foreground">Tire todas as fotos e faça as conferências antes de fechar.</p>
           </div>
           {capoPhotos.map((cat) => (
-            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+            <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} uploadStates={photoUploads[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           ))}
           {capoFields.length > 0 && (
             <>
@@ -1906,7 +1991,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground font-medium">📷 Fotos obrigatórias desta etapa:</p>
             {stepPhotos.map((cat) => (
-              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+              <CameraCapture key={cat} category={cat} photos={photos[cat] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations[cat]} uploadStates={photoUploads[cat]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
             ))}
             <Separator />
           </div>
@@ -1974,7 +2059,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
             <Textarea placeholder="Descreva o dano/avaria encontrado..." rows={3}
               value={answers["obs_danos_veiculo"] ?? ""}
               onChange={(e) => setAnswers((prev) => ({ ...prev, obs_danos_veiculo: e.target.value }))} />
-            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+            <CameraCapture category="avaria" photos={photos["avaria"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["avaria"]} uploadStates={photoUploads["avaria"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
           </div>
         )}
       </div>
