@@ -902,7 +902,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         if (data.resultado) setResultado(data.resultado);
         if (data.resultado_motivo) setResultadoMotivo(data.resultado_motivo);
         if (det.km_proxima_troca) setKmProximaTroca(String(det.km_proxima_troca));
-        if (det.km_lido_painel) { setKmPainelManual(String(det.km_lido_painel)); setKmPainelEditadoManualmente(true); }
+        // NÃO restaurar km_lido_painel do rascunho — valor crítico que deve ser sempre re-conferido
+        // pelo técnico no painel atual (evita arrastar erro de leitura/digitação entre sessões).
         const fotos = (data.fotos ?? {}) as Record<string, string[]>;
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
@@ -927,7 +928,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           photos: {},
           photoUploads: restoredUploads,
           kmProximaTroca: det.km_proxima_troca ? String(det.km_proxima_troca) : "",
-          kmPainelManual: det.km_lido_painel ? String(det.km_lido_painel) : "",
+          kmPainelManual: "",
           resultado: data.resultado ?? "",
           resultadoMotivo: data.resultado_motivo ?? "",
           suggestedResult: data.resultado ?? "liberado",
@@ -1470,6 +1471,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
       // Bloqueia retrocesso de odômetro além da margem de 50 km
       if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
+      // Bloqueia leitura com menos dígitos que o cadastro (ex.: esqueceu o "1" inicial)
+      if (selectedVehicle) {
+        const cadDigits = String(selectedVehicle.km_atual).length;
+        const digDigits = String(kmManualNum).length;
+        if (cadDigits > 0 && digDigits < cadDigits) return false;
+      }
     }
     // CAPÔ: KM da próxima troca de óleo é OBRIGATÓRIO (item mais crítico do checklist)
     if (currentStep.id === "capo") {
@@ -1545,6 +1552,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
+      // Conta de dígitos: se cadastro tem 6 dígitos e técnico digitou só 5, é dígito faltando.
+      const cadastroDigits = selectedVehicle ? String(selectedVehicle.km_atual).length : 0;
+      const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
+      const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
       const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
@@ -1605,7 +1616,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
                 Cadastro: {selectedVehicle.km_atual.toLocaleString("pt-BR")} km · Diferença: {(kmManualNum - selectedVehicle.km_atual > 0 ? "+" : "")}{(kmManualNum - selectedVehicle.km_atual).toLocaleString("pt-BR")} km
               </p>
             )}
-            {kmRegredido && (
+            {kmFaltaDigito && (
+              <p className="text-[11px] text-destructive font-bold">
+                ⚠ Parece faltar dígito! Você digitou {digitadoDigits} dígitos, mas o cadastro tem {cadastroDigits} ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira se não esqueceu o primeiro número (ex.: o "1" inicial).
+              </p>
+            )}
+            {kmRegredido && !kmFaltaDigito && (
               <p className="text-[11px] text-destructive font-bold">
                 ⚠ KM informado é MENOR que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira o painel — odômetros não retrocedem.
               </p>
