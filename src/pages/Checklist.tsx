@@ -1546,6 +1546,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
+      // Conta de dígitos: se cadastro tem 6 dígitos e técnico digitou só 5, é dígito faltando.
+      const cadastroDigits = selectedVehicle ? String(selectedVehicle.km_atual).length : 0;
+      const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
+      const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
       const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
