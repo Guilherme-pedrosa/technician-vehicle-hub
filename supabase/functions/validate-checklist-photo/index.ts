@@ -547,16 +547,15 @@ Critério esperado: ${finalCriterio}`;
           const rejectedOnlyByKmOcr =
             result.valid !== true &&
             result.vehicle_match !== false &&
-            result.focus_ok !== false &&
-            result.quality !== "ruim" &&
             /(painel|cluster|hod[oô]metro|od[oô]metro|odo|veloc[ií]metro|display)/i.test(reason) &&
             /(pequeno|leg[ií]vel|legibilidade|d[ií]gitos|km|confirmar|seguran[çc]a|nitidez)/i.test(reason) &&
-            !/(n[aã]o mostra|sem painel|sem cluster|n[aã]o.*painel|r[aá]dio|ar-?condicionado|banco|interior sem|n[aã]o.*ve[ií]culo|fora do enquadramento|cortad[ao].*painel)/i.test(reason);
+            !/(n[aã]o mostra|sem painel|sem cluster|n[aã]o.*painel|r[aá]dio|ar-?condicionado|banco|interior sem|n[aã]o.*ve[ií]culo|fora do enquadramento|cortad[ao].*painel|t[aã]o (borrad|escura|cortad)|imposs[ií]vel confirmar.*painel)/i.test(reason);
           if (rejectedOnlyByKmOcr) {
             console.log(`[painel] Convertendo rejeição de OCR em painel aceito. reason="${reason}"`);
             result.target_match = true;
             result.vehicle_match = true;
             result.focus_ok = true;
+            result.quality = result.quality === "ruim" ? "aceitavel" : result.quality;
             result.critical_visible = true;
             result.km_legivel = false;
             result.km_lido = "";
