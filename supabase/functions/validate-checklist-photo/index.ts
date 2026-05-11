@@ -504,16 +504,15 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
-        // GATE SERVER-SIDE: para "painel", exigir leitura numérica segura para autopreenchimento.
-        // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
+        // GATE SERVER-SIDE — PAINEL: separar validação da FOTO da leitura do KM.
+        // - A foto continua válida se mostrar painel + ODO + foco suficiente.
+        // - Se o KM não puder ser lido com segurança, apenas bloqueamos auto-update
+        //   (km_auto_update_allowed=false, km_painel_nao_confirmado=true) e geramos auditoria.
         if (category === "painel") {
           // === Reconciliação km_lido_raw vs km_lido ===
-          // Caso clássico do bug: IA devolveu km_lido_raw="27754 1" mas km_lido="27754"
-          // (último dígito foi descartado como se fosse decimal). Se NÃO houver separador
-          // decimal claro entre os dígitos do raw, o último dígito faz parte do hodômetro.
           if (typeof result.km_lido_raw === "string" && result.km_lido_raw.length > 0) {
             const raw = result.km_lido_raw.trim();
-            const hasDecimalSeparator = /[.,]/.test(raw); // ponto ou vírgula
+            const hasDecimalSeparator = /[.,]/.test(raw);
             const onlyDigits = raw.replace(/[^\d]/g, "");
             if (!hasDecimalSeparator && onlyDigits.length > (result.km_lido || "").length) {
               console.log(`[painel] Reconciliando km_lido com km_lido_raw (sem separador decimal). raw="${raw}" lidoAntes=${result.km_lido} lidoDepois=${onlyDigits}`);
@@ -526,34 +525,38 @@ Critério esperado: ${finalCriterio}`;
 
           const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
           const kmHasExpectedDigits = !expectedKmDigits || (result.km_lido || "").length === expectedKmDigits;
-          // km_suspeito: histórico de 6+ dígitos mas leitura tem 5- dígitos
           const kmSuspeito = !!(expectedVehicleKm && expectedVehicleKm >= 100000 && Number(result.km_lido || "0") < 100000);
-          // Auto-update só liberado quando tudo está consistente
           result.km_suspeito = kmSuspeito;
           result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
 
-          if (!kmOk) {
-            console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
+          // A foto SÓ é invalidada se a IA já marcou que não é painel (target_match=false ou foco ruim).
+          // Caso contrário, mantemos valid=true mesmo sem KM legível.
+          const fotoPainelOk = result.target_match === true && result.focus_ok !== false && result.quality !== "ruim";
+          if (!fotoPainelOk) {
             result.valid = false;
-            result.target_match = false;
-            result.critical_visible = false;
-            result.km_lido = "";
-            result.km_auto_update_allowed = false;
-            result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
-          } else if (!kmHasExpectedDigits || kmSuspeito) {
-            console.log(`[painel] Rejeitado por inconsistência de dígitos. esperado=${expectedKmDigits}(${expectedVehicleKm}) lido=${result.km_lido} suspeito=${kmSuspeito}`);
-            result.valid = false;
-            result.target_match = false;
-            result.critical_visible = false;
-            result.km_auto_update_allowed = false;
-            // mantemos km_lido para auditoria mas bloqueamos auto-update
-            result.reason = `Leitura rejeitada por inconsistência de dígitos: KM cadastrado ~${expectedVehicleKm} (${expectedKmDigits} dígitos) e IA leu "${result.km_lido}" (${result.km_lido.length} dígitos). Verifique se o último dígito antes de "km" foi lido.`;
-          } else if (result.km_ambiguous) {
-            console.log(`[painel] Leitura marcada como ambígua. raw=${result.km_lido_raw || "-"} lido=${result.km_lido}`);
-            result.km_auto_update_allowed = false;
-            // não invalida a foto, apenas bloqueia auto-update — usuário confere manualmente
+            result.reject_code = "panel_not_visible";
+            if (!result.reason || result.reason.length < 8) {
+              result.reason = "Foto não mostra o painel/cluster com clareza. Reenquadre o display do hodômetro.";
+            }
           } else {
-            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido} (raw="${result.km_lido_raw || result.km_lido}")`);
+            // Foto do painel aceita.
+            result.valid = true;
+            if (!result.km_auto_update_allowed) {
+              // KM não confirmado — não invalida a foto, apenas marca para auditoria.
+              result.reject_code = "km_not_confirmed";
+              result.km_painel_nao_confirmado = true;
+              result.severity = "warning";
+              result.audit_required = true;
+              if (kmSuspeito || (expectedKmDigits && !kmHasExpectedDigits && (result.km_lido || "").length > 0)) {
+                result.reason = `Foto do painel aceita. KM não atualizado automaticamente: leitura "${result.km_lido}" tem ${(result.km_lido || "").length} dígitos, cadastro tem ${expectedKmDigits || "?"} (~${expectedVehicleKm || "?"} km).`;
+              } else {
+                result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
+              }
+              console.log(`[painel] Foto aceita SEM auto-update do KM. km_lido="${result.km_lido}" km_legivel=${result.km_legivel} ambiguous=${result.km_ambiguous} suspeito=${kmSuspeito}`);
+            } else {
+              result.reject_code = null;
+              console.log(`[painel] Foto aceita COM auto-update do KM: ${result.km_lido}`);
+            }
           }
         }
 
