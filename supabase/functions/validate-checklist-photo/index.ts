@@ -401,7 +401,7 @@ Critério esperado: ${finalCriterio}`;
     const aiController = new AbortController();
     const aiTimeout = setTimeout(() => aiController.abort(), 25000);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(AI_GATEWAY_URL, {
       method: "POST",
       signal: aiController.signal,
       headers: {
@@ -432,14 +432,9 @@ Critério esperado: ${finalCriterio}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI Gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({
-        valid: false, vehicle_match: false, target_match: false, focus_ok: false,
-        critical_visible: false, quality: "ruim", confidence: 0,
-        reason: "Erro na validação IA. Tente novamente.",
-        ai_error: true,
-      }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify(
+        aiErrorPayload(category, `Validação IA indisponível (HTTP ${response.status}). Checklist liberado operacionalmente, mas enviado para auditoria.`, validationStartedAt)
+      ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const data = await response.json();
