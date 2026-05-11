@@ -249,6 +249,7 @@ type ValidationResult = {
   detected_elements?: string[];
   km_lido?: string;
   km_legivel?: boolean;
+  km_auto_update_allowed?: boolean;
   km_painel_nao_confirmado?: boolean;
   farois_acesos?: boolean | null;
   farois_observacao?: string;
