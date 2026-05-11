@@ -936,13 +936,14 @@ export default function ChecklistDetail() {
                   <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Falha na validação automática"}
                 </div>
               ))}
-              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+              {fotosForcadas.map((ff: any, i: number) => (
                 <div key={`forced-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
 
