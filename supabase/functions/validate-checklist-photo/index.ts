@@ -415,7 +415,7 @@ Critério esperado: ${finalCriterio}`;
           target_match: parsed.target_match !== undefined ? Boolean(parsed.target_match) : false,
           focus_ok: parsed.focus_ok !== undefined ? Boolean(parsed.focus_ok) : false,
           critical_visible: parsed.critical_visible !== undefined ? Boolean(parsed.critical_visible) : !catConfig.has_critical,
-          quality: ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
+          quality: typeof parsed.quality === "string" && ["boa", "aceitavel", "ruim"].includes(parsed.quality) ? parsed.quality : "ruim",
           reason: parsed.reason || "Sem motivo informado",
           confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
           detected_elements: Array.isArray(parsed.detected_elements) ? parsed.detected_elements : undefined,
