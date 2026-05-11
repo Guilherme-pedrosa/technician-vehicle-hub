@@ -3043,9 +3043,16 @@ export default function Checklist() {
                             <div className="inline-flex items-center gap-1">
                               {isDraft ? (
                                 (cl.created_by === user?.id || isAdmin) ? (
-                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => openDraft(cl)}>
-                                    <Loader2 className="w-3.5 h-3.5" /> Continuar
-                                  </Button>
+                                  <>
+                                    <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => openDraft(cl)}>
+                                      <Loader2 className="w-3.5 h-3.5" /> Continuar
+                                    </Button>
+                                    {isAdmin && (
+                                      <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                                        <Eye className="w-3.5 h-3.5" /> Ver
+                                      </Button>
+                                    )}
+                                  </>
                                 ) : (
                                   <span className="text-xs text-muted-foreground italic">Rascunho de outro usuário</span>
                                 )
