@@ -554,7 +554,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
     if (!onValidationUpdate || preparedFiles.length === 0) return;
 
     await Promise.all(preparedFiles.map(async (file, offset) => {
-      const newIdx = photos.length + offset;
+      const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
       const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim);
       onValidationUpdate(category, newIdx, {
