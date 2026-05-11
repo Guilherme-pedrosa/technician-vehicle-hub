@@ -813,10 +813,11 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
+  openTrigger?: number;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -824,6 +825,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (openTrigger && openTrigger > 0) setOpen(true);
+  }, [openTrigger]);
 
   // Auto-detect driver from logged user
   const autoDriverId = useMemo(() => {
