@@ -2615,17 +2615,6 @@ export default function Checklist() {
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
   const [formOpenTrigger, setFormOpenTrigger] = useState(0);
   const [forceDraftId, setForceDraftId] = useState<string | null>(null);
-  const currentUserDriverIds = useMemo(() => new Set(localDrivers.filter((d) => d.user_id === user?.id).map((d) => d.id)), [localDrivers, user?.id]);
-  const canCurrentUserContinueDraft = useCallback((cl: any) => cl.created_by === user?.id || currentUserDriverIds.has(cl.driver_id), [currentUserDriverIds, user?.id]);
-  const openDraft = (cl: any) => {
-    const canContinue = canCurrentUserContinueDraft(cl);
-    if (!canContinue && !isAdmin) {
-      toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
-      return;
-    }
-    setForceDraftId(canContinue ? null : cl.id);
-    setFormOpenTrigger((n) => n + 1);
-  };
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
