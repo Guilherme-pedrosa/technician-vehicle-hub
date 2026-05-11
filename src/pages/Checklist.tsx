@@ -1286,9 +1286,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     if (!r) return;
     if (cat === "painel" && validation.status === "valid" && r.km_lido) {
       const kmLido = r.km_lido.replace(/[^\d]/g, "");
-      if (/^\d{5,7}$/.test(kmLido) && !kmPainelEditadoManualmenteRef.current) {
+      // Só auto-preenche se o backend confirmar que é seguro: leitura legível,
+      // sem ambiguidade, sem suspeita de dígitos faltando e auto-update permitido.
+      const autoUpdateAllowed = (r as any).km_auto_update_allowed === true;
+      const ambiguous = (r as any).km_ambiguous === true;
+      const suspeito = (r as any).km_suspeito === true;
+      if (/^\d{5,7}$/.test(kmLido) && autoUpdateAllowed && !ambiguous && !suspeito && r.km_legivel === true && !kmPainelEditadoManualmenteRef.current) {
         setKmPainelManual(kmLido);
         toast.success(`KM do painel preenchido automaticamente: ${Number(kmLido).toLocaleString("pt-BR")} km`, { duration: 5000 });
+      } else if ((ambiguous || suspeito) && !kmPainelEditadoManualmenteRef.current) {
+        toast.warning(`Leitura do hodômetro inconsistente — confira manualmente. IA leu: "${(r as any).km_lido_raw || kmLido}"`, { duration: 7000 });
       }
     }
     const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
