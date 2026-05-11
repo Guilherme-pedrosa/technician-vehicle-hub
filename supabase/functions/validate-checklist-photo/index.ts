@@ -392,18 +392,19 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
-        // GATE SERVER-SIDE: para "painel", exigir prova de leitura do KM (mínimo 3 dígitos)
+        // GATE SERVER-SIDE: para "painel", exigir apenas legibilidade visual.
+        // O valor numérico do KM deve ser digitado/conferido pelo técnico no app.
         if (category === "painel") {
-          const kmDigits = result.km_lido || "";
-          const kmOk = result.km_legivel === true && kmDigits.length >= 3;
+          result.km_lido = "";
+          const kmOk = result.km_legivel === true;
           if (!kmOk) {
-            console.log(`[painel] Rejeitado por falta de leitura do KM. km_lido="${kmDigits}", km_legivel=${result.km_legivel}`);
+            console.log(`[painel] Rejeitado por falta de legibilidade do KM. km_legivel=${result.km_legivel}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
-            result.reason = `Hodômetro (KM) não legível na foto. Aproxime-se do painel e enquadre o display do KM. (IA leu: "${kmDigits || "nada"}")`;
+            result.reason = "Hodômetro (KM) não legível com segurança na foto. Aproxime-se do painel e enquadre o display do KM.";
           } else {
-            console.log(`[painel] KM lido com sucesso: "${kmDigits}"`);
+            console.log("[painel] Hodômetro legível; KM numérico será informado manualmente no app.");
           }
         }
 
