@@ -144,6 +144,30 @@ const INTERIOR_OVERSTRICT_REJECTION_PATTERNS = [
   /parte dos bancos dianteiros/i,
 ];
 
+function extractJsonObject(content: unknown): Record<string, unknown> | null {
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((part: any) => part?.text ?? part?.content ?? "").join("\n")
+      : "";
+
+  const candidates = [
+    text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim(),
+    text.match(/\{[\s\S]*\}/)?.[0] ?? "",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch (_) {
+      // tenta próximo formato
+    }
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -323,12 +347,14 @@ Critério esperado: ${finalCriterio}`;
       method: "POST",
       signal: aiController.signal,
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Lovable-API-Key": LOVABLE_API_KEY,
+        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-3.1-pro-preview",
         temperature: 0,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -364,9 +390,8 @@ Critério esperado: ${finalCriterio}`;
 
     let result: any;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = extractJsonObject(content);
+      if (parsed) {
         // Ensure all fields exist with defaults
         result = {
           valid: Boolean(parsed.valid),
