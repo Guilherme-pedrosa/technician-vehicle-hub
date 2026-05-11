@@ -113,6 +113,14 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
   bloqueado: { label: "Bloqueado", color: "destructive" },
 };
 
+function isPanelKmNotConfirmedIssue(item: any) {
+  if (item?.categoria !== "painel") return false;
+  const text = [item?.status, item?.reject_code, ...(item?.motivos ?? []), item?.reason]
+    .filter(Boolean)
+    .join(" ");
+  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/cluster vis[ií]vel.*hod[oô]metro.*legibilidade|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
+}
+
 const DETAIL_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fields: [] as string[] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fields: ["Exterior"] },
