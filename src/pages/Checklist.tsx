@@ -1610,7 +1610,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
                 Cadastro: {selectedVehicle.km_atual.toLocaleString("pt-BR")} km · Diferença: {(kmManualNum - selectedVehicle.km_atual > 0 ? "+" : "")}{(kmManualNum - selectedVehicle.km_atual).toLocaleString("pt-BR")} km
               </p>
             )}
-            {kmRegredido && (
+            {kmFaltaDigito && (
+              <p className="text-[11px] text-destructive font-bold">
+                ⚠ Parece faltar dígito! Você digitou {digitadoDigits} dígitos, mas o cadastro tem {cadastroDigits} ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira se não esqueceu o primeiro número (ex.: o "1" inicial).
+              </p>
+            )}
+            {kmRegredido && !kmFaltaDigito && (
               <p className="text-[11px] text-destructive font-bold">
                 ⚠ KM informado é MENOR que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira o painel — odômetros não retrocedem.
               </p>
