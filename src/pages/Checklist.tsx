@@ -3031,9 +3031,19 @@ export default function Checklist() {
                           </td>
                           <td className="p-3 text-center">
                             <div className="inline-flex items-center gap-1">
-                              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
-                                <Eye className="w-3.5 h-3.5" /> Ver
-                              </Button>
+                              {isDraft ? (
+                                cl.created_by === user?.id ? (
+                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => setFormOpenTrigger((n) => n + 1)}>
+                                    <Loader2 className="w-3.5 h-3.5" /> Continuar
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">Rascunho de outro usuário</span>
+                                )
+                              ) : (
+                                <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => navigate(`/checklist/${cl.id}`)}>
+                                  <Eye className="w-3.5 h-3.5" /> Ver
+                                </Button>
+                              )}
                               {isAdmin && cl.resultado === "bloqueado" && (
                                 <Button
                                   variant="outline"
