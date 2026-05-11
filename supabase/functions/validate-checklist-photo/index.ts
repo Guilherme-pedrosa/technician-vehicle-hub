@@ -349,7 +349,9 @@ Regras:
 - "target_match": true somente se a imagem mostrar exatamente o item, peça ou área solicitada. Se mostrar algo completamente diferente (ex: foto de pessoa quando deveria ser pneu), false.
 - "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Se a foto estiver BORRADA, TREMIDA, DESFOCADA ao ponto que detalhes importantes (textos, bordas, contornos) não são nítidos, marque focus_ok=false e quality="ruim". NÃO aceite fotos desfocadas — o técnico pode e deve tirar outra foto. Uma leve perda de foco em áreas periféricas é tolerável, mas o ASSUNTO PRINCIPAL da foto deve estar nítido.
 - "critical_visible": ${catConfig.has_critical
-  ? 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
+  ? category === "painel"
+    ? 'true quando o painel/cluster e o display do hodômetro/ODO estiverem visíveis o suficiente para confirmar a categoria. NÃO use critical_visible=false apenas porque os dígitos do KM não puderam ser lidos.'
+    : 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
   : 'true (não há dado crítico a ser verificado nesta categoria)'}
 - "quality":
   - "boa" = imagem nítida, clara, bem enquadrada
@@ -365,7 +367,7 @@ Regras:
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
 - O CRITÉRIO ESPERADO abaixo é uma instrução obrigatória do campo atual. Leia e aplique esse critério literalmente antes de decidir.
-- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true.
+- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true. EXCEÇÃO ABSOLUTA: para categoria "painel", KM legível/OCR NÃO é requisito de valid; é apenas requisito de km_auto_update_allowed.
 - Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
 - Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
