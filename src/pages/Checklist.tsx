@@ -1405,6 +1405,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           .map(([key, value]) => [key.replace(/^obs_/, ""), value.trim()])
       );
 
+      // === AUDITORIA IA: monta lista única de eventos para persistir e notificar ===
+      const { auditEvents, kmPainelNaoConfirmado } = buildAuditEvents(
+        photos, photoValidations, fotosUrls, userId,
+      );
+      console.log(`[checklist:audit] ${auditEvents.length} evento(s) de auditoria IA montado(s)`, {
+        km_painel_nao_confirmado: kmPainelNaoConfirmado,
+        statuses: auditEvents.map((e) => e.status),
+      });
+
       const checklistPayload = {
         vehicle_id: vehicleId,
         driver_id: selectedDriverId || null,
