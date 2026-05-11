@@ -332,7 +332,7 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string): Promise<ValidationResult> {
+async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string, expectedVehicleKm?: number | null): Promise<ValidationResult> {
   try {
     // Comprimir mais agressivamente APENAS pra validação IA (upload final mantém qualidade).
     // Reduz payload em ~80%, encurta drasticamente o tempo em 4G ruim.
@@ -353,6 +353,7 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
       category: category === "danos" && limpezaClaim === "nao" ? "exc_limpeza_organizacao" : category,
       vehicle_marca: vehicleMarca || null,
       vehicle_modelo: vehicleModelo || null,
+      expected_vehicle_km: category === "painel" && expectedVehicleKm ? expectedVehicleKm : null,
     };
     if (category === "interior" && limpezaClaim) {
       body.limpeza_claim = limpezaClaim;
@@ -531,7 +532,7 @@ async function buildPersistedValidationMetadataFromUrls(fotos: Record<string, st
 // CAMERA CAPTURE COMPONENT
 // ═══════════════════════════════════════════
 
-function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, limpezaClaim, uploadStates }: {
+function CameraCapture({ category, photos, onCapture, onRemove, required, validations, onValidationUpdate, vehicleMarca, vehicleModelo, vehicleKmAtual, limpezaClaim, uploadStates }: {
   category: PhotoCategory;
   photos: File[];
   onCapture: (cat: PhotoCategory, files: File[]) => Promise<File[]>;
@@ -541,6 +542,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   onValidationUpdate?: (cat: PhotoCategory, idx: number, validation: PhotoValidation) => void;
   vehicleMarca?: string;
   vehicleModelo?: string;
+  vehicleKmAtual?: number | null;
   limpezaClaim?: string;
   uploadStates?: PhotoUploadState[];
 }) {
@@ -559,7 +561,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
     await Promise.all(preparedFiles.map(async (file, offset) => {
       const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
-      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim);
+      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim, vehicleKmAtual);
       onValidationUpdate(category, newIdx, {
         status: result.valid ? "valid" : "invalid",
         result,
@@ -1570,7 +1572,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
-          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} limpezaClaim={answers.limpeza_organizacao} />
+          <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} vehicleKmAtual={selectedVehicle?.km_atual} limpezaClaim={answers.limpeza_organizacao} />
 
           {/* BANNER de bloqueio: foto inválida = veículo NÃO sai */}
           {temFotoInvalida && !temFotoValida && (
