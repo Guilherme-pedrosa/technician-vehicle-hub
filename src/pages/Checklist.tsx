@@ -249,6 +249,7 @@ type ValidationResult = {
   detected_elements?: string[];
   km_lido?: string;
   km_legivel?: boolean;
+  km_auto_update_allowed?: boolean;
   km_painel_nao_confirmado?: boolean;
   farois_acesos?: boolean | null;
   farois_observacao?: string;
@@ -607,6 +608,12 @@ function summarizePhotoValidations(photos: PhotosMap, photoValidations: Record<s
       }
 
       if (validation.status === "invalid") {
+        const painelAceitoKmNaoConfirmado = category === "painel"
+          && validation.result?.valid === true
+          && validation.result?.km_auto_update_allowed === false
+          && validation.result?.km_painel_nao_confirmado === true;
+        if (painelAceitoKmNaoConfirmado) return;
+
         const item = ensureItem(invalidMap, category);
         const reason = validation.result?.reason ?? "Foto reprovada pela IA";
         if (!item.motivos.includes(reason)) item.motivos.push(reason);
@@ -633,6 +640,14 @@ function hasPersistedPhotoValidationMetadata(detalhes: any) {
   return Array.isArray(detalhes?.fotos_forcadas)
     || Array.isArray(detalhes?.fotos_invalidas)
     || Array.isArray(detalhes?.fotos_erro_validacao);
+}
+
+function isPanelKmNotConfirmedIssue(item: any) {
+  if (item?.categoria !== "painel") return false;
+  const text = [item?.status, item?.reject_code, ...(item?.motivos ?? []), item?.reason]
+    .filter(Boolean)
+    .join(" ");
+  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/?cluster vis[ií]vel.*hod[oô]metro.*legibilidade|Painel vis[ií]vel.*hod[oô]metro.*pequeno.*nitidez.*leitura leg[ií]vel|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
 }
 
 async function validatePhotoFromUrl(url: string, category: string): Promise<ValidationResult> {
@@ -724,8 +739,12 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
       const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim, vehicleKmAtual);
+      const isAcceptedPanelWithoutKm = category === "painel"
+        && result.valid === true
+        && result.km_auto_update_allowed === false
+        && result.km_painel_nao_confirmado === true;
       onValidationUpdate(category, newIdx, {
-        status: result.valid ? "valid" : "invalid",
+        status: result.valid || isAcceptedPanelWithoutKm ? "valid" : "invalid",
         result,
       });
 
@@ -739,6 +758,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         if (result.critical_visible === false) details.push("dado ilegível");
         const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
         toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
+      } else if (isAcceptedPanelWithoutKm) {
+        toast.warning("Painel aceito. KM não atualizado automaticamente.", { duration: 6000 });
       }
 
       if (category === "interior" && result.valid && result.detected_elements) {
@@ -1784,9 +1805,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
       const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid");
+      const isPainelAceitoKmNaoConfirmado = (v?: PhotoValidation) => v?.result?.valid === true && v?.result?.km_auto_update_allowed === false && v?.result?.km_painel_nao_confirmado === true;
+      const temFotoValida = painelVals.some((v) => v?.status === "valid" || isPainelAceitoKmNaoConfirmado(v));
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
-      const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
+      const temFotoInvalida = painelVals.some((v) => v?.status === "invalid" && !isPainelAceitoKmNaoConfirmado(v));
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
@@ -1806,13 +1828,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           )}
 
           {/* AVISO leve: foto aceita, mas KM não auto-preenchido */}
-          {temFotoValida && painelVals.some((v: any) => v?.status === "valid" && v?.result?.km_painel_nao_confirmado) && (
+          {temFotoValida && painelVals.some((v) => isPainelAceitoKmNaoConfirmado(v) || (v?.status === "valid" && v?.result?.km_painel_nao_confirmado)) && (
             <div className="rounded-xl border-2 border-warning/40 bg-warning/10 p-3 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-sm font-bold">Painel aceito. KM não atualizado automaticamente.</p>
                 <p className="text-xs text-muted-foreground">
-                  A leitura do hodômetro não foi confirmada com segurança. Digite o KM manualmente abaixo ou tire outra foto mais próxima do display.
+                  O KM não foi atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança. Se desejar preenchimento automático do KM, tire uma foto mais próxima do display.
                 </p>
               </div>
             </div>
@@ -2717,23 +2739,29 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
           {cl.resultado_motivo && <p className="text-sm italic text-muted-foreground">{cl.resultado_motivo}</p>}
 
           {/* Alertas de validação */}
-          {((detalhes?.fotos_invalidas?.length ?? 0) > 0 || (detalhes?.fotos_erro_validacao?.length ?? 0) > 0 || (detalhes?.fotos_forcadas?.length ?? 0) > 0) && (
+          {(() => {
+            const fotosInvalidas = ((detalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosErroValidacao = ((detalhes?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosForcadas = ((detalhes?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            if (fotosInvalidas.length === 0 && fotosErroValidacao.length === 0 && fotosForcadas.length === 0) return null;
+            return (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-1.5">
               <p className="text-xs font-bold text-destructive flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Fotos fora do padrão
               </p>
-              {(detalhes?.fotos_invalidas ?? []).map((ff: any, i: number) => (
+              {fotosInvalidas.map((ff: any, i: number) => (
                 <div key={`inv-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ")}
                 </div>
               ))}
-              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+              {fotosForcadas.map((ff: any, i: number) => (
                 <div key={i} className="text-xs text-muted-foreground">
                   <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
 
           <Separator />
 
@@ -2765,9 +2793,9 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
             const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fieldCategories.includes(f.category));
             if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
-            const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
-            const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
-            const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
+            const fotosForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosErroValidacao: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
             const flaggedMap: Record<string, string[]> = {};
             [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
               flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
@@ -3115,9 +3143,9 @@ export default function Checklist() {
                   const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                   const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                    const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
-                  const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
-                  const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
-                  const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                  const forcedPhotos = ((det?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                  const invalidPhotos = ((det?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                  const errorPhotos = ((det?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
                   const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                   const hasBadPhotos = allBadPhotos.length > 0;
                   // Comparação sob demanda usando km_atual mais recente do veículo
@@ -3256,9 +3284,9 @@ export default function Checklist() {
                       const res = RESULTADO_LABELS[cl.resultado] ?? { label: "—", color: "muted" };
                       const fotoCount = cl.fotos ? Object.values(cl.fotos as Record<string, any[]>).reduce((s: number, a) => s + (a?.length ?? 0), 0) : 0;
                       const det = hasPersistedPhotoValidationMetadata(cl.detalhes) ? ((cl.detalhes as any) ?? {}) : { ...((cl.detalhes as any) ?? {}), ...(revalidatedChecklistMetadata[cl.id] ?? {}) } as any;
-                      const forcedPhotos = (det?.fotos_forcadas ?? []) as any[];
-                      const invalidPhotos = (det?.fotos_invalidas ?? []) as any[];
-                      const errorPhotos = (det?.fotos_erro_validacao ?? []) as any[];
+                      const forcedPhotos = ((det?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                      const invalidPhotos = ((det?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+                      const errorPhotos = ((det?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
                       const allBadPhotos = [...forcedPhotos, ...invalidPhotos, ...errorPhotos];
                       const hasBadPhotos = allBadPhotos.length > 0;
                       // Comparação sob demanda usando km_atual mais recente do veículo

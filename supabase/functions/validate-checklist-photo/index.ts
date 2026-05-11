@@ -58,7 +58,7 @@ function aiErrorPayload(category: string, reason: string, startedAt: string) {
 const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
   painel: {
     label: "Painel do veículo",
-    criterio: "A foto deve ser um CLOSE-UP DIRETO do painel de instrumentos (cluster) do veículo, com o HODÔMETRO/ODÔMETRO (KM total) NITIDAMENTE LEGÍVEL — os dígitos do KM devem ser claramente identificáveis a olho nu na imagem. REQUISITOS OBRIGATÓRIOS: (1) o cluster de instrumentos (velocímetro, conta-giros, display do KM) deve OCUPAR a maior parte do enquadramento; (2) os números do hodômetro devem estar em FOCO e LEGÍVEIS — se estiverem borrados, distantes, refletindo demais, escuros ou cortados, REJEITE; (3) a foto deve ser tirada de FRENTE para o painel, não de lado. REJEITE OBRIGATORIAMENTE (valid=false, target_match=false, critical_visible=false) se: (a) a foto for uma visão ampla/panorâmica do interior mostrando volante, bancos ou para-brisa com o painel pequeno ao fundo; (b) o foco principal for o volante, console central, rádio ou airbag e não o cluster de instrumentos; (c) o KM/hodômetro não estiver legível ou nem aparecer; (d) a foto for de outro mostrador qualquer (ar-condicionado, rádio, GPS) que não seja o cluster com KM. Na 'reason', se rejeitar, explique exatamente o que está errado (ex: 'Foto panorâmica do interior, hodômetro não legível' ou 'Foco no volante, painel ao fundo sem KM visível').",
+    criterio: "A foto deve mostrar o painel/cluster de instrumentos real do veículo e o display do hodômetro/ODO, mesmo que o KM esteja pequeno ou ilegível. ACEITE como foto de painel quando aparecerem cluster, velocímetro/conta-giros/display e houver foco suficiente para confirmar que é painel de veículo. A leitura do KM é separada: se não conseguir ler todos os dígitos com 100% de segurança, mantenha valid=true e retorne km_legivel=false, km_lido='', km_auto_update_allowed=false, km_painel_nao_confirmado=true, audit_required=true, severity='warning', reject_code='km_not_confirmed'. REJEITE (valid=false) APENAS se a foto não mostrar painel/cluster, mostrar rádio/ar-condicionado/banco/volante/interior sem cluster, imagem que não seja de veículo, ou estiver tão borrada/escura/cortada que nem dê para confirmar que é painel.",
     has_critical: true,
   },
   exterior_frente: {
@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
     // O prompt configurado no campo é prioritário; o critério versionado no código entra como trava técnica.
     // Em caso de conflito, a IA deve aplicar a regra mais rigorosa e rejeitar em vez de aprovar por suposição.
     const finalCriterio = dynamicPrompt
-      ? category === "nivel_oleo"
+      ? category === "painel"
+        ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de KM legível, close-up perfeito ou OCR): ${catConfig.criterio}`
+        : category === "nivel_oleo"
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de MIN/MAX, zona exata ou medição perfeita): ${catConfig.criterio}`
         : `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
       : catConfig.criterio;
@@ -347,7 +349,9 @@ Regras:
 - "target_match": true somente se a imagem mostrar exatamente o item, peça ou área solicitada. Se mostrar algo completamente diferente (ex: foto de pessoa quando deveria ser pneu), false.
 - "focus_ok": true somente se a imagem tiver nitidez suficiente para verificar o item solicitado. Se a foto estiver BORRADA, TREMIDA, DESFOCADA ao ponto que detalhes importantes (textos, bordas, contornos) não são nítidos, marque focus_ok=false e quality="ruim". NÃO aceite fotos desfocadas — o técnico pode e deve tirar outra foto. Uma leve perda de foco em áreas periféricas é tolerável, mas o ASSUNTO PRINCIPAL da foto deve estar nítido.
 - "critical_visible": ${catConfig.has_critical
-  ? 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
+  ? category === "painel"
+    ? 'true quando o painel/cluster e o display do hodômetro/ODO estiverem visíveis o suficiente para confirmar a categoria. NÃO use critical_visible=false apenas porque os dígitos do KM não puderam ser lidos.'
+    : 'true somente quando o dado crítico principal estiver visível e legível na foto. false se o dado aparecer mas não puder ser lido/confirmado.'
   : 'true (não há dado crítico a ser verificado nesta categoria)'}
 - "quality":
   - "boa" = imagem nítida, clara, bem enquadrada
@@ -363,7 +367,7 @@ Regras:
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
 - O CRITÉRIO ESPERADO abaixo é uma instrução obrigatória do campo atual. Leia e aplique esse critério literalmente antes de decidir.
-- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true.
+- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true. EXCEÇÃO ABSOLUTA: para categoria "painel", KM legível/OCR NÃO é requisito de valid; é apenas requisito de km_auto_update_allowed.
 - Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
 - Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
@@ -539,12 +543,33 @@ Critério esperado: ${finalCriterio}`;
           result.km_suspeito = kmSuspeito;
           result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
 
-          // A foto SÓ é invalidada se a IA já marcou que não é painel (target_match=false ou foco ruim).
+          const reason = String(result.reason || "");
+          const rejectedOnlyByKmOcr =
+            result.valid !== true &&
+            result.vehicle_match !== false &&
+            /(painel|cluster|hod[oô]metro|od[oô]metro|odo|veloc[ií]metro|display)/i.test(reason) &&
+            /(pequeno|leg[ií]vel|legibilidade|d[ií]gitos|km|confirmar|seguran[çc]a|nitidez)/i.test(reason) &&
+            !/(n[aã]o mostra|sem painel|sem cluster|n[aã]o.*painel|r[aá]dio|ar-?condicionado|banco|interior sem|n[aã]o.*ve[ií]culo|fora do enquadramento|cortad[ao].*painel|t[aã]o (borrad|escura|cortad)|imposs[ií]vel confirmar.*painel)/i.test(reason);
+          if (rejectedOnlyByKmOcr) {
+            console.log(`[painel] Convertendo rejeição de OCR em painel aceito. reason="${reason}"`);
+            result.target_match = true;
+            result.vehicle_match = true;
+            result.focus_ok = true;
+            result.quality = result.quality === "ruim" ? "aceitavel" : result.quality;
+            result.critical_visible = true;
+            result.km_legivel = false;
+            result.km_lido = "";
+            result.km_digit_count = 0;
+            result.km_auto_update_allowed = false;
+          }
+
+          // A foto SÓ é invalidada se o problema for a FOTO: não é painel/cluster, ODO ausente, não-veículo ou qualidade impossível.
           // Caso contrário, mantemos valid=true mesmo sem KM legível.
-          const fotoPainelOk = result.target_match === true && result.focus_ok !== false && result.quality !== "ruim";
+          const fotoPainelOk = result.target_match === true && result.vehicle_match !== false && result.focus_ok !== false && result.quality !== "ruim";
           if (!fotoPainelOk) {
             result.valid = false;
             result.reject_code = "panel_not_visible";
+            result.km_auto_update_allowed = false;
             if (!result.reason || result.reason.length < 8) {
               result.reason = "Foto não mostra o painel/cluster com clareza. Reenquadre o display do hodômetro.";
             }
@@ -557,11 +582,7 @@ Critério esperado: ${finalCriterio}`;
               result.km_painel_nao_confirmado = true;
               result.severity = "warning";
               result.audit_required = true;
-              if (kmSuspeito || (expectedKmDigits && !kmHasExpectedDigits && (result.km_lido || "").length > 0)) {
-                result.reason = `Foto do painel aceita. KM não atualizado automaticamente: leitura "${result.km_lido}" tem ${(result.km_lido || "").length} dígitos, cadastro tem ${expectedKmDigits || "?"} (~${expectedVehicleKm || "?"} km).`;
-              } else {
-                result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
-              }
+              result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
               console.log(`[painel] Foto aceita SEM auto-update do KM. km_lido="${result.km_lido}" km_legivel=${result.km_legivel} ambiguous=${result.km_ambiguous} suspeito=${kmSuspeito}`);
             } else {
               result.reject_code = null;

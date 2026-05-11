@@ -113,6 +113,14 @@ const RESULTADO_LABELS: Record<string, { label: string; color: string }> = {
   bloqueado: { label: "Bloqueado", color: "destructive" },
 };
 
+function isPanelKmNotConfirmedIssue(item: any) {
+  if (item?.categoria !== "painel") return false;
+  const text = [item?.status, item?.reject_code, ...(item?.motivos ?? []), item?.reason]
+    .filter(Boolean)
+    .join(" ");
+  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/?cluster vis[ií]vel.*hod[oô]metro.*legibilidade|Painel vis[ií]vel.*hod[oô]metro.*pequeno.*nitidez.*leitura leg[ií]vel|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
+}
+
 const DETAIL_SECTIONS = [
   { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fields: [] as string[] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita", "farois_lanternas"] as PhotoCategory[], fields: ["Exterior"] },
@@ -566,8 +574,8 @@ export default function ChecklistDetail() {
       // Check if result is non-conforme and ensure a ticket exists
       const isNonConformeResult = editResultado !== "liberado";
       const nonConformeFields = CHECKLIST_FIELDS.filter((f) => isNonConforme(f.key, editFields[f.key]));
-      const fotosInvalidasCheck = (newDetalhes?.fotos_invalidas ?? []) as any[];
-      const fotosErroCheck = (newDetalhes?.fotos_erro_validacao ?? []) as any[];
+      const fotosInvalidasCheck = ((newDetalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+      const fotosErroCheck = ((newDetalhes?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
       const hasBadPhotos = fotosInvalidasCheck.length > 0 || fotosErroCheck.length > 0;
       const hasProblems = isNonConformeResult || nonConformeFields.length > 0 || hasBadPhotos;
 
@@ -593,7 +601,7 @@ export default function ChecklistDetail() {
               return `• ${f.label}: ${editFields[f.key]}${obs ? ` — "${obs}"` : ""}`;
             }).join("\n");
 
-            const fotosInvalidas = (newDetalhes?.fotos_invalidas ?? []) as any[];
+            const fotosInvalidas = ((newDetalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
             const photoIssueLines = fotosInvalidas.map((inv: any) => {
               const meta = PHOTO_META[inv.categoria as PhotoCategory];
               return `• 📷 ${meta?.label ?? inv.categoria}: ${inv.motivos?.[0] ?? "Fora do padrão"}`;
@@ -652,7 +660,7 @@ export default function ChecklistDetail() {
       // Update detalhes with new validation results
       const newDetalhes: any = {
         ...detalhes,
-        fotos_invalidas: invalidas,
+          fotos_invalidas: invalidas.filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: erros,
         fotos_forcadas: [], // Clear forced since admin is revalidating
         revalidado_em: new Date().toISOString(),
@@ -699,7 +707,7 @@ export default function ChecklistDetail() {
 
       const newDetalhes: any = {
         ...detalhes,
-        fotos_invalidas: [...existingInvalidas, ...invalidas],
+        fotos_invalidas: [...existingInvalidas, ...invalidas].filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: [...existingErros, ...erros],
         fotos_forcadas: existingForcadas,
         revalidado_em: new Date().toISOString(),
@@ -908,28 +916,34 @@ export default function ChecklistDetail() {
           </div>
 
           {/* Photo validation alerts */}
-          {!editing && ((detalhes?.fotos_invalidas?.length ?? 0) > 0 || (detalhes?.fotos_erro_validacao?.length ?? 0) > 0 || (detalhes?.fotos_forcadas?.length ?? 0) > 0) && (
+          {!editing && (() => {
+            const fotosInvalidas = ((detalhes?.fotos_invalidas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosErroValidacao = ((detalhes?.fotos_erro_validacao ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            const fotosForcadas = ((detalhes?.fotos_forcadas ?? []) as any[]).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+            if (fotosInvalidas.length === 0 && fotosErroValidacao.length === 0 && fotosForcadas.length === 0) return null;
+            return (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2 mt-4">
               <p className="text-xs font-bold text-destructive flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ Fotos fora do padrão
               </p>
-              {(detalhes?.fotos_invalidas ?? []).map((ff: any, i: number) => (
+              {fotosInvalidas.map((ff: any, i: number) => (
                 <div key={`invalid-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto reprovada pela IA"}
                 </div>
               ))}
-              {(detalhes?.fotos_erro_validacao ?? []).map((ff: any, i: number) => (
+              {fotosErroValidacao.map((ff: any, i: number) => (
                 <div key={`error-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-destructive">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Falha na validação automática"}
                 </div>
               ))}
-              {(detalhes?.fotos_forcadas ?? []).map((ff: any, i: number) => (
+              {fotosForcadas.map((ff: any, i: number) => (
                 <div key={`forced-${i}`} className="text-xs text-muted-foreground">
                   <span className="font-medium text-warning">{ff.label}:</span> {ff.motivos?.join("; ") ?? "Foto forçada pelo técnico"}
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
 
@@ -1077,9 +1091,9 @@ export default function ChecklistDetail() {
         const sectionFields = CHECKLIST_FIELDS.filter((f) => section.fields.includes(f.category));
         if (sectionPhotos.length === 0 && sectionFields.length === 0) return null;
 
-        const fotosForcadas: any[] = detalhes?.fotos_forcadas ?? [];
-        const fotosInvalidas: any[] = detalhes?.fotos_invalidas ?? [];
-        const fotosErroValidacao: any[] = detalhes?.fotos_erro_validacao ?? [];
+        const fotosForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+        const fotosInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
+        const fotosErroValidacao: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((ff: any) => !isPanelKmNotConfirmedIssue(ff));
         const flaggedMap: Record<string, string[]> = {};
         [...fotosInvalidas, ...fotosErroValidacao, ...fotosForcadas].forEach((ff: any) => {
           flaggedMap[ff.categoria] = ff.motivos ?? ["Foto fora do padrão"];
