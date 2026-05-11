@@ -313,7 +313,10 @@ Regras:
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
 - REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
-- Analise a foto com base nos ELEMENTOS VISUAIS listados no critério. Se qualquer um dos elementos indicados estiver presente na imagem, target_match deve ser true.
+- O CRITÉRIO ESPERADO abaixo é uma instrução obrigatória do campo atual. Leia e aplique esse critério literalmente antes de decidir.
+- Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true.
+- Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
+- Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
 - Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 leve com corte.
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
