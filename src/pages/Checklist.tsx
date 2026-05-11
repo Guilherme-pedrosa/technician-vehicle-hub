@@ -2609,6 +2609,16 @@ export default function Checklist() {
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
   const [formOpenTrigger, setFormOpenTrigger] = useState(0);
+  const [forceDraftId, setForceDraftId] = useState<string | null>(null);
+  const openDraft = (cl: any) => {
+    const isOwn = cl.created_by === user?.id;
+    if (!isOwn && !isAdmin) {
+      toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
+      return;
+    }
+    setForceDraftId(isOwn ? null : cl.id);
+    setFormOpenTrigger((n) => n + 1);
+  };
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
