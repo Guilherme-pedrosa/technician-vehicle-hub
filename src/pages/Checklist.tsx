@@ -608,6 +608,12 @@ function summarizePhotoValidations(photos: PhotosMap, photoValidations: Record<s
       }
 
       if (validation.status === "invalid") {
+        const painelAceitoKmNaoConfirmado = category === "painel"
+          && validation.result?.valid === true
+          && validation.result?.km_auto_update_allowed === false
+          && validation.result?.km_painel_nao_confirmado === true;
+        if (painelAceitoKmNaoConfirmado) return;
+
         const item = ensureItem(invalidMap, category);
         const reason = validation.result?.reason ?? "Foto reprovada pela IA";
         if (!item.motivos.includes(reason)) item.motivos.push(reason);
