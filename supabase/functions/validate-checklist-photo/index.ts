@@ -475,6 +475,11 @@ Critério esperado: ${finalCriterio}`;
             : typeof parsed.km_lido === "number"
               ? String(Math.trunc(parsed.km_lido)).replace(/[^\d]/g, "")
               : "",
+          km_lido_raw: typeof parsed.km_lido_raw === "string" ? parsed.km_lido_raw : "",
+          km_digit_count: typeof parsed.km_digit_count === "number" ? parsed.km_digit_count : 0,
+          km_decimal_detected: parsed.km_decimal_detected === true,
+          km_decimal_reason: typeof parsed.km_decimal_reason === "string" ? parsed.km_decimal_reason : "",
+          km_ambiguous: parsed.km_ambiguous === true,
           km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
           farois_acesos: parsed.farois_acesos === true ? true : parsed.farois_acesos === false ? false : null,
           farois_observacao: typeof parsed.farois_observacao === "string" ? parsed.farois_observacao : "",
