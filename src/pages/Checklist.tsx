@@ -2842,7 +2842,17 @@ export default function Checklist() {
                       <button
                         type="button"
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
-                        onClick={() => isDraft ? undefined : navigate(`/checklist/${cl.id}`)}
+                        onClick={() => {
+                          if (isDraft) {
+                            if (cl.created_by === userId) {
+                              setOpen(true);
+                            } else {
+                              toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
+                            }
+                          } else {
+                            navigate(`/checklist/${cl.id}`);
+                          }
+                        }}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
