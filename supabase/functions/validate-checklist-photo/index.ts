@@ -324,8 +324,13 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "quality": "boa",
   "reason": "motivo breve em português",
   "confidence": 0.95${category === "painel" ? `,
-  "km_lido": "173552",
-  "km_legivel": true` : ""}${category === "exterior_frente" ? `,
+  "km_lido_raw": "277541",
+  "km_lido": "277541",
+  "km_digit_count": 6,
+  "km_legivel": true,
+  "km_decimal_detected": false,
+  "km_decimal_reason": "",
+  "km_ambiguous": false` : ""}${category === "exterior_frente" ? `,
   "farois_acesos": true,
   "farois_observacao": "ambos os faróis aparentam estar acesos"` : ""}${category === "exterior_traseira" ? `,
   "lanternas_acesas": true,
@@ -370,14 +375,23 @@ Você DEVE enxergar, ler e retornar o número do KM total do hodômetro para pre
 PROCEDIMENTO OBRIGATÓRIO PASSO A PASSO:
 1. Localize o display do HODÔMETRO (NÃO velocímetro, NÃO RPM, NÃO trip parcial "TRIP A/B", NÃO temperatura, NÃO combustível, NÃO relógio). É o display de 5–7 dígitos da quilometragem TOTAL acumulada.
 2. Leia o KM dígito por dígito, da esquerda para a direita. Confira especialmente o PRIMEIRO dígito — nunca ignore "1" inicial em odômetros de 6 dígitos.
-${expectedKmDigits ? `3. CONTEXTO DE VALIDAÇÃO: o veículo cadastrado está em torno de ${expectedVehicleKm} km e tem ${expectedKmDigits} dígitos. Portanto, a leitura da foto também deve ter ${expectedKmDigits} dígitos. Se você enxergar só ${expectedKmDigits - 1} dígitos, provavelmente perdeu o primeiro dígito — rejeite em vez de retornar leitura incompleta.` : ""}
-4. Retorne "km_lido" como string contendo APENAS os dígitos do KM total, sem pontos, vírgulas, espaços, unidade ou decimal (ex.: "173552").
-5. Se houver casas decimais pequenas no fim do hodômetro, IGNORE o decimal e retorne apenas a parte inteira.
-6. Se QUALQUER dígito estiver ambíguo, parcialmente coberto, com reflexo, fora de foco, com pixel quebrado, baixa resolução, ângulo ruim, ou houver risco de confundir 3/5/6/8/9/0 — km_legivel=false, km_lido="", valid=false, e na reason explique o problema.
-7. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
+3. LEIA TODOS OS DÍGITOS VISÍVEIS ANTES DA UNIDADE "km". NÃO descarte o último dígito só porque ele aparece menor, mais fino, levemente deslocado, mais próximo de "km", em outra cor ou ligeiramente separado dos demais. Em painéis de Onix, Etios, Corolla e similares o último dígito do hodômetro frequentemente aparece visualmente diferente — ainda assim ELE FAZ PARTE DO HODÔMETRO TOTAL.
+4. SÓ trate o último dígito como decimal se houver UM SEPARADOR DECIMAL CLARO E INEQUÍVOCO antes dele: ponto (.), vírgula (,), ou um quadrante físico claramente separado/marcado como décimos (ex.: caixa retangular destacada). Tamanho menor, espaçamento ou proximidade da unidade "km" NÃO contam como separador decimal.
+5. Para um painel mostrando "27754 1 km" (sem ponto/vírgula entre 27754 e 1), a leitura correta é "277541" — NUNCA "27754". Se você não tem certeza se o último dígito é decimal ou parte do hodômetro, marque km_ambiguous=true e devolva todos os dígitos visíveis em km_lido_raw.
+${expectedKmDigits ? `6. CONTEXTO DE VALIDAÇÃO: o veículo cadastrado está em torno de ${expectedVehicleKm} km e tem ${expectedKmDigits} dígitos. A leitura da foto deve ter ${expectedKmDigits} dígitos. Se você enxergar menos dígitos, provavelmente perdeu o primeiro OU o último — rejeite em vez de retornar leitura incompleta.` : ""}
+7. Retorne "km_lido_raw" como string com a leitura visual EXATAMENTE como aparece (pode conter espaços ou separador, ex.: "27754 1"). Retorne "km_lido" como string contendo APENAS dígitos do KM total — sem pontos, vírgulas, espaços, unidade ou decimal — incluindo o último dígito se ele NÃO for separado por decimal claro (ex.: "277541").
+8. Retorne "km_digit_count" = quantidade de dígitos em km_lido. Retorne "km_decimal_detected"=true APENAS se você viu um separador decimal claro (ponto/vírgula/quadrante destacado); caso contrário false. Em "km_decimal_reason" descreva brevemente o que viu (ex.: "ponto entre os dois últimos dígitos", "nenhum separador decimal visível").
+9. Marque "km_ambiguous"=true se: o último dígito puder ser interpretado tanto como decimal quanto como parte do hodômetro; algum dígito estiver parcialmente coberto/refletindo; houver risco de confundir 3/5/6/8/9/0; ou a quantidade de dígitos não bater com o esperado.
+10. Se QUALQUER dígito estiver realmente ilegível (não apenas pequeno) — km_legivel=false, km_lido="", km_lido_raw="", valid=false, e na reason explique o problema.
+11. NÃO invente sequência numérica. NÃO use "valor mais provável". NÃO infira pela posição esperada. NÃO arredonde. Se não conseguir ler 100%, rejeite.
 
 CAMPOS:
-- "km_lido": obrigatório quando km_legivel=true; vazio quando houver qualquer dúvida.
+- "km_lido_raw": string visual como aparece, com espaço/separador se houver (ex.: "27754 1", "277541", "277541.2").
+- "km_lido": dígitos finais normalizados que devem ser usados como hodômetro total (ex.: "277541"). Vazio se ilegível.
+- "km_digit_count": número de dígitos em km_lido.
+- "km_decimal_detected": true APENAS com separador decimal claro.
+- "km_decimal_reason": descrição curta do que motivou km_decimal_detected.
+- "km_ambiguous": true em qualquer dúvida sobre o último dígito ou quantidade de dígitos.
 - "km_legivel": true APENAS com 100% de certeza de que TODOS os dígitos foram lidos corretamente. Em qualquer outro caso, false.
 - Se a foto for panorâmica, painel distante, borrada ou ângulo ruim → km_legivel=false, valid=false.
 - Sem leitura 100% confirmada e sem km_lido, a foto NÃO PODE ser aprovada. Prefira SEMPRE rejeitar a errar um dígito.
@@ -461,6 +475,11 @@ Critério esperado: ${finalCriterio}`;
             : typeof parsed.km_lido === "number"
               ? String(Math.trunc(parsed.km_lido)).replace(/[^\d]/g, "")
               : "",
+          km_lido_raw: typeof parsed.km_lido_raw === "string" ? parsed.km_lido_raw : "",
+          km_digit_count: typeof parsed.km_digit_count === "number" ? parsed.km_digit_count : 0,
+          km_decimal_detected: parsed.km_decimal_detected === true,
+          km_decimal_reason: typeof parsed.km_decimal_reason === "string" ? parsed.km_decimal_reason : "",
+          km_ambiguous: parsed.km_ambiguous === true,
           km_legivel: parsed.km_legivel !== undefined ? Boolean(parsed.km_legivel) : false,
           farois_acesos: parsed.farois_acesos === true ? true : parsed.farois_acesos === false ? false : null,
           farois_observacao: typeof parsed.farois_observacao === "string" ? parsed.farois_observacao : "",
@@ -480,24 +499,53 @@ Critério esperado: ${finalCriterio}`;
         // GATE SERVER-SIDE: para "painel", exigir leitura numérica segura para autopreenchimento.
         // Se houver qualquer dúvida, a foto é rejeitada para evitar aceitar KM incorreto.
         if (category === "painel") {
+          // === Reconciliação km_lido_raw vs km_lido ===
+          // Caso clássico do bug: IA devolveu km_lido_raw="27754 1" mas km_lido="27754"
+          // (último dígito foi descartado como se fosse decimal). Se NÃO houver separador
+          // decimal claro entre os dígitos do raw, o último dígito faz parte do hodômetro.
+          if (typeof result.km_lido_raw === "string" && result.km_lido_raw.length > 0) {
+            const raw = result.km_lido_raw.trim();
+            const hasDecimalSeparator = /[.,]/.test(raw); // ponto ou vírgula
+            const onlyDigits = raw.replace(/[^\d]/g, "");
+            if (!hasDecimalSeparator && onlyDigits.length > (result.km_lido || "").length) {
+              console.log(`[painel] Reconciliando km_lido com km_lido_raw (sem separador decimal). raw="${raw}" lidoAntes=${result.km_lido} lidoDepois=${onlyDigits}`);
+              result.km_lido = onlyDigits;
+              result.km_decimal_detected = false;
+              result.km_decimal_reason = result.km_decimal_reason || "Sem separador decimal visível — todos os dígitos antes de 'km' fazem parte do hodômetro";
+            }
+          }
+          result.km_digit_count = (result.km_lido || "").length;
+
           const kmOk = result.km_legivel === true && /^\d{5,7}$/.test(result.km_lido || "");
           const kmHasExpectedDigits = !expectedKmDigits || (result.km_lido || "").length === expectedKmDigits;
+          // km_suspeito: histórico de 6+ dígitos mas leitura tem 5- dígitos
+          const kmSuspeito = !!(expectedVehicleKm && expectedVehicleKm >= 100000 && Number(result.km_lido || "0") < 100000);
+          // Auto-update só liberado quando tudo está consistente
+          result.km_suspeito = kmSuspeito;
+          result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
+
           if (!kmOk) {
             console.log(`[painel] Rejeitado por falta de leitura segura do KM. km_legivel=${result.km_legivel} km_lido=${result.km_lido || "-"}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
             result.km_lido = "";
+            result.km_auto_update_allowed = false;
             result.reason = "Hodômetro (KM) não legível com segurança para preenchimento automático. Aproxime-se do painel e enquadre o display do KM.";
-          } else if (!kmHasExpectedDigits) {
-            console.log(`[painel] Rejeitado por quantidade de dígitos incompatível. esperado=${expectedKmDigits} lido=${result.km_lido}`);
+          } else if (!kmHasExpectedDigits || kmSuspeito) {
+            console.log(`[painel] Rejeitado por inconsistência de dígitos. esperado=${expectedKmDigits}(${expectedVehicleKm}) lido=${result.km_lido} suspeito=${kmSuspeito}`);
             result.valid = false;
             result.target_match = false;
             result.critical_visible = false;
-            result.km_lido = "";
-            result.reason = `Leitura rejeitada: o KM cadastrado tem ${expectedKmDigits} dígitos e a IA retornou uma leitura incompleta. Tire outra foto mais próxima do display.`;
+            result.km_auto_update_allowed = false;
+            // mantemos km_lido para auditoria mas bloqueamos auto-update
+            result.reason = `Leitura rejeitada por inconsistência de dígitos: KM cadastrado ~${expectedVehicleKm} (${expectedKmDigits} dígitos) e IA leu "${result.km_lido}" (${result.km_lido.length} dígitos). Verifique se o último dígito antes de "km" foi lido.`;
+          } else if (result.km_ambiguous) {
+            console.log(`[painel] Leitura marcada como ambígua. raw=${result.km_lido_raw || "-"} lido=${result.km_lido}`);
+            result.km_auto_update_allowed = false;
+            // não invalida a foto, apenas bloqueia auto-update — usuário confere manualmente
           } else {
-            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido}`);
+            console.log(`[painel] Hodômetro lido com segurança para autopreenchimento: ${result.km_lido} (raw="${result.km_lido_raw || result.km_lido}")`);
           }
         }
 
