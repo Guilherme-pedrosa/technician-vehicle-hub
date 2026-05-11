@@ -1027,9 +1027,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     }
 
     const compressed = await prepareCapturedImages(files);
-    const startIndex = photos[storageKey]?.length ?? 0;
+    const startIndex = Math.max(photos[storageKey]?.length ?? 0, photoUploads[storageKey]?.length ?? 0);
 
-    setPhotos((prev) => ({ ...prev, [storageKey]: [...(prev[storageKey] ?? []), ...compressed] }));
+    setPhotos((prev) => {
+      const arr = [...(prev[storageKey] ?? [])];
+      compressed.forEach((file, offset) => { arr[startIndex + offset] = file; });
+      return { ...prev, [storageKey]: arr };
+    });
     setPhotoUploads((prev) => ({
       ...prev,
       [storageKey]: [
@@ -1060,7 +1064,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
     })).catch(() => undefined);
 
     return compressed;
-  }, [photos, uploadWithRetry, vehicleId]);
+  }, [photoUploads, photos, uploadWithRetry, vehicleId]);
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     return appendPhotosWithBackgroundUpload(cat, files);
