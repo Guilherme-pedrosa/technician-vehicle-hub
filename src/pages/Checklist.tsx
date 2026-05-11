@@ -863,7 +863,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
   // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
   const [kmPainelManual, setKmPainelManual] = useState("");
-  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
+  const [, setKmPainelEditadoManualmente] = useState(false);
 
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
