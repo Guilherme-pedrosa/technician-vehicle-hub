@@ -442,7 +442,7 @@ async function extractTextFromAttachment(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "openai/gpt-5.4-mini",
         temperature: 0,
         max_tokens: 400,
         messages: [
@@ -502,7 +502,7 @@ async function extractTextFromAttachment(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "openai/gpt-5.4",
           temperature: 0,
           max_tokens: 120,
           messages: [
