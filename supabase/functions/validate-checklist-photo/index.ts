@@ -6,6 +6,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Modelo padrão/baixo custo que já era usado na validação de fotos.
+// Não alterar para modelo Pro/preview/caro sem consentimento explícito do dono do app.
+const PHOTO_VALIDATION_MODEL = "google/gemini-2.5-flash";
+
 // Critérios específicos por categoria
 const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_critical: boolean; has_cleanliness_check?: boolean }> = {
   painel: {
@@ -207,7 +211,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim } = await req.json();
+    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim, expected_vehicle_km } = await req.json();
 
     if (!image_base64 || !category) {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
@@ -248,6 +252,11 @@ Deno.serve(async (req) => {
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
       ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
       : "Não informado";
+
+    const expectedVehicleKm = typeof expected_vehicle_km === "number" && Number.isFinite(expected_vehicle_km) && expected_vehicle_km > 0
+      ? Math.trunc(expected_vehicle_km)
+      : null;
+    const expectedKmDigits = expectedVehicleKm ? String(expectedVehicleKm).length : null;
 
     const shouldCheckVehicle = VEHICLE_CHECK_CATEGORIES.includes(category);
 
