@@ -218,8 +218,8 @@ Deno.serve(async (req) => {
       has_critical: false,
     };
 
-    // Use dynamic prompt if available, otherwise fall back to hardcoded
-    const finalCriterio = dynamicPrompt || catConfig.criterio;
+    // Painel usa o critério versionado no código para não herdar prompts antigos que desativavam o OCR.
+    const finalCriterio = category === "painel" ? catConfig.criterio : (dynamicPrompt || catConfig.criterio);
 
     const vehicleInfo = (vehicle_marca || vehicle_modelo)
       ? `${vehicle_marca || "?"} ${vehicle_modelo || "?"}`
@@ -360,7 +360,7 @@ Critério esperado: ${finalCriterio}`;
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
-    console.log(`OpenAI response for ${category}:`, content);
+    console.log(`AI response for ${category}:`, content);
 
     let result: any;
     try {
