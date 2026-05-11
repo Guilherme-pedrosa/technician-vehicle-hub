@@ -1797,9 +1797,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const digitadoDigits = kmManualNum ? String(kmManualNum).length : 0;
       const kmFaltaDigito = kmManualValido && cadastroDigits > 0 && digitadoDigits < cadastroDigits;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid");
+      const isPainelAceitoKmNaoConfirmado = (v?: PhotoValidation) => v?.result?.valid === true && v?.result?.km_auto_update_allowed === false && v?.result?.km_painel_nao_confirmado === true;
+      const temFotoValida = painelVals.some((v) => v?.status === "valid" || isPainelAceitoKmNaoConfirmado(v));
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
-      const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
+      const temFotoInvalida = painelVals.some((v) => v?.status === "invalid" && !isPainelAceitoKmNaoConfirmado(v));
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
@@ -1819,13 +1820,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           )}
 
           {/* AVISO leve: foto aceita, mas KM não auto-preenchido */}
-          {temFotoValida && painelVals.some((v: any) => v?.status === "valid" && v?.result?.km_painel_nao_confirmado) && (
+          {temFotoValida && painelVals.some((v) => isPainelAceitoKmNaoConfirmado(v) || (v?.status === "valid" && v?.result?.km_painel_nao_confirmado)) && (
             <div className="rounded-xl border-2 border-warning/40 bg-warning/10 p-3 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-sm font-bold">Painel aceito. KM não atualizado automaticamente.</p>
                 <p className="text-xs text-muted-foreground">
-                  A leitura do hodômetro não foi confirmada com segurança. Digite o KM manualmente abaixo ou tire outra foto mais próxima do display.
+                  O KM não foi atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança. Se desejar preenchimento automático do KM, tire uma foto mais próxima do display.
                 </p>
               </div>
             </div>
