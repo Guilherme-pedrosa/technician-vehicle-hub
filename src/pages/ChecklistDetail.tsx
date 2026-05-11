@@ -118,7 +118,7 @@ function isPanelKmNotConfirmedIssue(item: any) {
   const text = [item?.status, item?.reject_code, ...(item?.motivos ?? []), item?.reason]
     .filter(Boolean)
     .join(" ");
-  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/cluster vis[ií]vel.*hod[oô]metro.*legibilidade|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
+  return /km_not_confirmed|Painel aceito|KM n[aã]o atualizado|Painel\/?cluster vis[ií]vel.*hod[oô]metro.*legibilidade|Painel vis[ií]vel.*hod[oô]metro.*pequeno.*nitidez.*leitura leg[ií]vel|hod[oô]metro.*n[aã]o.*confirmad|KM.*n[aã]o.*confirmad/i.test(text);
 }
 
 const DETAIL_SECTIONS = [
