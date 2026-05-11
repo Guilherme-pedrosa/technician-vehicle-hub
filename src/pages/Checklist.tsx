@@ -863,7 +863,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
   // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
   const [kmPainelManual, setKmPainelManual] = useState("");
-  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
+  const kmPainelEditadoManualmenteRef = useRef(false);
 
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
@@ -1087,7 +1087,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     if (cat === "painel" && files.length > 0) {
       setKmPainelManual("");
-      setKmPainelEditadoManualmente(false);
+      kmPainelEditadoManualmenteRef.current = false;
     }
     return appendPhotosWithBackgroundUpload(cat, files);
   }, [appendPhotosWithBackgroundUpload]);
@@ -1097,7 +1097,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     if (cat === "painel") {
       setKmPainelManual("");
-      setKmPainelEditadoManualmente(false);
+      kmPainelEditadoManualmenteRef.current = false;
     }
     setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
     setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
