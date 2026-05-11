@@ -543,12 +543,34 @@ Critério esperado: ${finalCriterio}`;
           result.km_suspeito = kmSuspeito;
           result.km_auto_update_allowed = kmOk && kmHasExpectedDigits && !kmSuspeito && result.km_ambiguous !== true;
 
-          // A foto SÓ é invalidada se a IA já marcou que não é painel (target_match=false ou foco ruim).
+          const reason = String(result.reason || "");
+          const rejectedOnlyByKmOcr =
+            result.valid !== true &&
+            result.vehicle_match !== false &&
+            result.focus_ok !== false &&
+            result.quality !== "ruim" &&
+            /(painel|cluster|hod[oô]metro|od[oô]metro|odo|veloc[ií]metro|display)/i.test(reason) &&
+            /(pequeno|leg[ií]vel|legibilidade|d[ií]gitos|km|confirmar|seguran[çc]a|nitidez)/i.test(reason) &&
+            !/(n[aã]o mostra|sem painel|sem cluster|n[aã]o.*painel|r[aá]dio|ar-?condicionado|banco|interior sem|n[aã]o.*ve[ií]culo|fora do enquadramento|cortad[ao].*painel)/i.test(reason);
+          if (rejectedOnlyByKmOcr) {
+            console.log(`[painel] Convertendo rejeição de OCR em painel aceito. reason="${reason}"`);
+            result.target_match = true;
+            result.vehicle_match = true;
+            result.focus_ok = true;
+            result.critical_visible = true;
+            result.km_legivel = false;
+            result.km_lido = "";
+            result.km_digit_count = 0;
+            result.km_auto_update_allowed = false;
+          }
+
+          // A foto SÓ é invalidada se o problema for a FOTO: não é painel/cluster, ODO ausente, não-veículo ou qualidade impossível.
           // Caso contrário, mantemos valid=true mesmo sem KM legível.
-          const fotoPainelOk = result.target_match === true && result.focus_ok !== false && result.quality !== "ruim";
+          const fotoPainelOk = result.target_match === true && result.vehicle_match !== false && result.focus_ok !== false && result.quality !== "ruim";
           if (!fotoPainelOk) {
             result.valid = false;
             result.reject_code = "panel_not_visible";
+            result.km_auto_update_allowed = false;
             if (!result.reason || result.reason.length < 8) {
               result.reason = "Foto não mostra o painel/cluster com clareza. Reenquadre o display do hodômetro.";
             }
@@ -561,11 +583,7 @@ Critério esperado: ${finalCriterio}`;
               result.km_painel_nao_confirmado = true;
               result.severity = "warning";
               result.audit_required = true;
-              if (kmSuspeito || (expectedKmDigits && !kmHasExpectedDigits && (result.km_lido || "").length > 0)) {
-                result.reason = `Foto do painel aceita. KM não atualizado automaticamente: leitura "${result.km_lido}" tem ${(result.km_lido || "").length} dígitos, cadastro tem ${expectedKmDigits || "?"} (~${expectedVehicleKm || "?"} km).`;
-              } else {
-                result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
-              }
+              result.reason = "Foto do painel aceita. KM não atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança.";
               console.log(`[painel] Foto aceita SEM auto-update do KM. km_lido="${result.km_lido}" km_legivel=${result.km_legivel} ambiguous=${result.km_ambiguous} suspeito=${kmSuspeito}`);
             } else {
               result.reject_code = null;
