@@ -1544,7 +1544,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId }: {
       const kmManualValido = kmManualNum !== null && !isNaN(kmManualNum) && kmManualNum >= 100;
       const kmRegredido = kmManualValido && selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50;
       const painelVals = photoValidations.painel ?? [];
-      const temFotoValida = painelVals.some((v) => v?.status === "valid");
+      const temFotoValida = painelVals.some((v) => v?.status === "valid") || getAvailablePhotoCount(photos, photoUploads, "painel") > 0;
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid");
       return (
