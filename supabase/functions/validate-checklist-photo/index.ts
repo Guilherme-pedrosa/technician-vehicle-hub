@@ -70,22 +70,22 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   calibracao_de: {
     label: "Calibragem — Dianteiro Esquerdo",
-    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu dianteiro esquerdo E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
+    criterio: "Deve mostrar que a MANGUEIRA DE AR faz a ligação entre o PNEU e o CALIBRADOR. ACEITE quando estiver visível o bico/mangueira conectado na válvula do pneu E também estiver visível a outra ponta conectada ao calibrador/aparelho de ar, OU o calibrador/aparelho de ar estiver visível ligado à mesma mangueira. O calibrador pode aparecer parcialmente, de lado, como aparelho de posto/oficina, display, manômetro, pistola ou corpo do inflador — NÃO exija leitura de pressão nem enquadramento perfeito. NÃO rejeite por não aparecer o pneu inteiro. REJEITE somente se não der para ver a mangueira conectada ao pneu, se a mangueira não estiver ligada a nenhum calibrador/aparelho visível, ou se a foto mostrar só o pneu/roda sem evidência de calibração.",
     has_critical: true,
   },
   calibracao_dd: {
     label: "Calibragem — Dianteiro Direito",
-    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu dianteiro direito E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
+    criterio: "Deve mostrar que a MANGUEIRA DE AR faz a ligação entre o PNEU e o CALIBRADOR. ACEITE quando estiver visível o bico/mangueira conectado na válvula do pneu E também estiver visível a outra ponta conectada ao calibrador/aparelho de ar, OU o calibrador/aparelho de ar estiver visível ligado à mesma mangueira. O calibrador pode aparecer parcialmente, de lado, como aparelho de posto/oficina, display, manômetro, pistola ou corpo do inflador — NÃO exija leitura de pressão nem enquadramento perfeito. NÃO rejeite por não aparecer o pneu inteiro. REJEITE somente se não der para ver a mangueira conectada ao pneu, se a mangueira não estiver ligada a nenhum calibrador/aparelho visível, ou se a foto mostrar só o pneu/roda sem evidência de calibração.",
     has_critical: true,
   },
   calibracao_te: {
     label: "Calibragem — Traseiro Esquerdo",
-    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu traseiro esquerdo E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
+    criterio: "Deve mostrar que a MANGUEIRA DE AR faz a ligação entre o PNEU e o CALIBRADOR. ACEITE quando estiver visível o bico/mangueira conectado na válvula do pneu E também estiver visível a outra ponta conectada ao calibrador/aparelho de ar, OU o calibrador/aparelho de ar estiver visível ligado à mesma mangueira. O calibrador pode aparecer parcialmente, de lado, como aparelho de posto/oficina, display, manômetro, pistola ou corpo do inflador — NÃO exija leitura de pressão nem enquadramento perfeito. NÃO rejeite por não aparecer o pneu inteiro. REJEITE somente se não der para ver a mangueira conectada ao pneu, se a mangueira não estiver ligada a nenhum calibrador/aparelho visível, ou se a foto mostrar só o pneu/roda sem evidência de calibração.",
     has_critical: true,
   },
   calibracao_td: {
     label: "Calibragem — Traseiro Direito",
-    criterio: "Deve mostrar SIMULTANEAMENTE: (1) a mangueira/bico do calibrador CONECTADA na válvula do pneu traseiro direito E (2) o corpo da calibradora (manômetro/display/aparelho) visível no mesmo enquadramento. REJEITE se faltar a mangueira conectada OU se a calibradora/manômetro não estiver visível na foto.",
+    criterio: "Deve mostrar que a MANGUEIRA DE AR faz a ligação entre o PNEU e o CALIBRADOR. ACEITE quando estiver visível o bico/mangueira conectado na válvula do pneu E também estiver visível a outra ponta conectada ao calibrador/aparelho de ar, OU o calibrador/aparelho de ar estiver visível ligado à mesma mangueira. O calibrador pode aparecer parcialmente, de lado, como aparelho de posto/oficina, display, manômetro, pistola ou corpo do inflador — NÃO exija leitura de pressão nem enquadramento perfeito. NÃO rejeite por não aparecer o pneu inteiro. REJEITE somente se não der para ver a mangueira conectada ao pneu, se a mangueira não estiver ligada a nenhum calibrador/aparelho visível, ou se a foto mostrar só o pneu/roda sem evidência de calibração.",
     has_critical: true,
   },
   estepe: {
