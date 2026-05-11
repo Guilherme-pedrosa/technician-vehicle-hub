@@ -901,8 +901,8 @@ const STEP_FIELD_CATEGORIES: Record<string, string[]> = {
 };
 
 const STEP_PHOTOS: Record<string, PhotoCategory[]> = {
-  painel: ["painel"],
-  capo: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"],
+  painel: ["painel", "etiqueta_oleo"],
+  capo: ["motor", "nivel_oleo", "reservatorio_agua"],
   calibracao: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"],
   exterior_360: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"],
   interior: ["interior"],
@@ -1854,6 +1854,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               </p>
             )}
           </div>
+
+          {/* Etiqueta de troca de óleo — capturada junto com o painel para agilizar o fluxo */}
+          <div className="space-y-2 pt-1">
+            <p className="text-sm text-muted-foreground font-medium">🏷️ Tire também a foto da etiqueta de troca de óleo (para-brisa ou motor):</p>
+            <CameraCapture
+              category="etiqueta_oleo"
+              photos={photos["etiqueta_oleo"] ?? []}
+              onCapture={handleCapture}
+              onRemove={handleRemovePhoto}
+              required
+              validations={photoValidations["etiqueta_oleo"]}
+              uploadStates={photoUploads["etiqueta_oleo"]}
+              onValidationUpdate={handleValidationUpdate}
+              vehicleMarca={selectedVehicle?.marca}
+              vehicleModelo={selectedVehicle?.modelo}
+              limpezaClaim={answers.limpeza_organizacao}
+            />
+          </div>
         </div>
       );
     }
@@ -2576,8 +2594,8 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
 
 // Detail sections for dialog (matching wizard flow)
 const DIALOG_SECTIONS = [
-  { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel"] as PhotoCategory[], fieldCategories: [] as string[] },
-  { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
+  { id: "painel", title: "Foto do Painel", icon: Gauge, photos: ["painel", "etiqueta_oleo"] as PhotoCategory[], fieldCategories: [] as string[] },
+  { id: "capo", title: "Capô (carro desligado)", icon: Wrench, photos: ["motor", "nivel_oleo", "reservatorio_agua"] as PhotoCategory[], fieldCategories: ["Capô"] },
   { id: "pneus", title: "Pneus e Calibração", icon: CircleDot, photos: ["pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td", "estepe", "itens_seguranca"] as PhotoCategory[], fieldCategories: ["Pneus"] },
   { id: "exterior", title: "360° e Exterior", icon: Car, photos: ["exterior_frente", "exterior_traseira", "exterior_esquerda", "exterior_direita"] as PhotoCategory[], fieldCategories: ["Exterior"] },
   { id: "interior", title: "Interior", icon: Shield, photos: ["interior"] as PhotoCategory[], fieldCategories: ["Interior"] },
