@@ -813,11 +813,12 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
   openTrigger?: number;
+  forceDraftId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -869,14 +870,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger }: {
     if (!open) return;
     (async () => {
       try {
-        const { data } = await supabase
-          .from("vehicle_checklists")
-          .select("*")
-          .eq("created_by", userId)
-          .eq("status", "rascunho" as any)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let query = supabase.from("vehicle_checklists").select("*");
+        if (forceDraftId) {
+          query = query.eq("id", forceDraftId);
+        } else {
+          query = query
+            .eq("created_by", userId)
+            .eq("status", "rascunho" as any)
+            .order("updated_at", { ascending: false })
+            .limit(1);
+        }
+        const { data } = await query.maybeSingle();
         if (!data) return;
         setDraftId(data.id);
         if (data.vehicle_id) setVehicleId(data.vehicle_id);
@@ -2605,6 +2609,16 @@ export default function Checklist() {
   const repairingChecklistIdsRef = useRef<Set<string>>(new Set());
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
   const [formOpenTrigger, setFormOpenTrigger] = useState(0);
+  const [forceDraftId, setForceDraftId] = useState<string | null>(null);
+  const openDraft = (cl: any) => {
+    const isOwn = cl.created_by === user?.id;
+    if (!isOwn && !isAdmin) {
+      toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
+      return;
+    }
+    setForceDraftId(isOwn ? null : cl.id);
+    setFormOpenTrigger((n) => n + 1);
+  };
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -2712,7 +2726,7 @@ export default function Checklist() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
           <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
-        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} />}
+        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
@@ -2850,11 +2864,7 @@ export default function Checklist() {
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
                         onClick={() => {
                           if (isDraft) {
-                            if (cl.created_by === user?.id) {
-                              setFormOpenTrigger((n) => n + 1);
-                            } else {
-                              toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
-                            }
+                            openDraft(cl);
                           } else {
                             navigate(`/checklist/${cl.id}`);
                           }
@@ -3032,8 +3042,8 @@ export default function Checklist() {
                           <td className="p-3 text-center">
                             <div className="inline-flex items-center gap-1">
                               {isDraft ? (
-                                cl.created_by === user?.id ? (
-                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => setFormOpenTrigger((n) => n + 1)}>
+                                (cl.created_by === user?.id || isAdmin) ? (
+                                  <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => openDraft(cl)}>
                                     <Loader2 className="w-3.5 h-3.5" /> Continuar
                                   </Button>
                                 ) : (
