@@ -813,12 +813,13 @@ function getFirstIncompleteStepIndex(params: {
 // FORM DIALOG
 // ═══════════════════════════════════════════
 
-function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId }: {
+function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forceDraftId, onNewChecklist }: {
   vehicles: { id: string; placa: string; marca: string; modelo: string; km_atual: number }[];
   localDrivers: { id: string; full_name: string; user_id: string | null }[];
   userId: string;
   openTrigger?: number;
   forceDraftId?: string | null;
+  onNewChecklist?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
@@ -2101,7 +2102,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   return (
     <Dialog open={open} onOpenChange={handleDialogClose}>
       <DialogTrigger asChild>
-        <Button className="gap-2 h-12 text-base px-6">
+        <Button className="gap-2 h-12 text-base px-6" onClick={onNewChecklist}>
           <Plus className="w-5 h-5" /> Novo Checklist
         </Button>
       </DialogTrigger>
@@ -2614,15 +2615,6 @@ export default function Checklist() {
   const [releaseDialog, setReleaseDialog] = useState<{ open: boolean; checklist: any; vehiclePlaca?: string; mode: "liberar" | "rebloquear" } | null>(null);
   const [formOpenTrigger, setFormOpenTrigger] = useState(0);
   const [forceDraftId, setForceDraftId] = useState<string | null>(null);
-  const openDraft = (cl: any) => {
-    const isOwn = cl.created_by === user?.id;
-    if (!isOwn && !isAdmin) {
-      toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
-      return;
-    }
-    setForceDraftId(isOwn ? null : cl.id);
-    setFormOpenTrigger((n) => n + 1);
-  };
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-list"],
@@ -2641,6 +2633,18 @@ export default function Checklist() {
       return data;
     },
   });
+
+  const currentUserDriverIds = useMemo(() => new Set(localDrivers.filter((d) => d.user_id === user?.id).map((d) => d.id)), [localDrivers, user?.id]);
+  const canCurrentUserContinueDraft = useCallback((cl: any) => cl.created_by === user?.id || currentUserDriverIds.has(cl.driver_id), [currentUserDriverIds, user?.id]);
+  const openDraft = (cl: any) => {
+    const canContinue = canCurrentUserContinueDraft(cl);
+    if (!canContinue && !isAdmin) {
+      toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
+      return;
+    }
+    setForceDraftId(cl.created_by === user?.id ? null : cl.id);
+    setFormOpenTrigger((n) => n + 1);
+  };
 
   const { data: checklists = [], isLoading } = useQuery({
     queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd],
@@ -2730,7 +2734,7 @@ export default function Checklist() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Checklist Pré-Operação</h1>
           <p className="text-sm text-muted-foreground">Inspeção veicular completa — padrão frota</p>
         </div>
-        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} />}
+        {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} onNewChecklist={() => setForceDraftId(null)} />}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
@@ -2868,7 +2872,7 @@ export default function Checklist() {
                         className="w-full text-left flex flex-col gap-2 active:opacity-70"
                         onClick={() => {
                           if (isDraft) {
-                            if (cl.created_by === user?.id) {
+                            if (canCurrentUserContinueDraft(cl)) {
                               openDraft(cl);
                             } else if (!isAdmin) {
                               toast.info("Rascunho de outro usuário");
@@ -3062,7 +3066,7 @@ export default function Checklist() {
                           <td className="p-3 text-center">
                             <div className="inline-flex items-center gap-1">
                               {isDraft ? (
-                                (cl.created_by === user?.id || isAdmin) ? (
+                                (canCurrentUserContinueDraft(cl) || isAdmin) ? (
                                   <>
                                     <Button variant="outline" size="sm" className="gap-1 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning" onClick={() => openDraft(cl)}>
                                       <Loader2 className="w-3.5 h-3.5" /> Continuar
