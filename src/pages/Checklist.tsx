@@ -980,7 +980,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       } as any;
 
       if (draftId) {
-        await supabase.from("vehicle_checklists").update(draftData).eq("id", draftId);
+        // NÃO sobrescrever created_by: preserva o autor original do rascunho
+        // (admin pode estar ajudando, mas o dono continua sendo quem começou)
+        const { created_by: _omit, ...updatePayload } = draftData;
+        await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftId);
       } else {
         const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
         if (data?.id) setDraftId(data.id);
@@ -1272,9 +1275,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
       let savedChecklist: { id: string } | null = null;
       if (draftId) {
-        // Finalize existing draft
+        // Finalize existing draft — preserva created_by original (admin pode estar ajudando)
+        const { created_by: _omit, ...updatePayload } = checklistPayload;
         const { data, error } = await supabase.from("vehicle_checklists")
-          .update(checklistPayload).eq("id", draftId).select("id").single();
+          .update(updatePayload).eq("id", draftId).select("id").single();
         if (error) throw error;
         savedChecklist = data;
       } else {
