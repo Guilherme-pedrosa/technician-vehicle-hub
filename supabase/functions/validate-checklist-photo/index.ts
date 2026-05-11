@@ -487,7 +487,7 @@ Critério esperado: ${finalCriterio}`;
         }
 
         const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
-        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "painel", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
+        const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "painel", "pneu_de", "pneu_dd", "pneu_te", "pneu_td", "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td"]);
         if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
           console.log(`[${category}] Rejeitado por aprovação genérica sem evidência do critério. reason="${result.reason}"`);
           result.valid = false;
