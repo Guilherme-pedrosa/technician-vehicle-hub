@@ -750,6 +750,57 @@ function getFirstIncompleteRequiredPhotoStepIndex(fotos: Record<string, string[]
   return -1;
 }
 
+function getFirstIncompleteStepIndex(params: {
+  savedStep: number;
+  vehicleId: string;
+  selectedDriverId: string;
+  answers: FormData;
+  photos: PhotosMap;
+  photoUploads: PhotoUploadsMap;
+  kmProximaTroca: string;
+  kmPainelManual: string;
+  resultado: string;
+  resultadoMotivo: string;
+  suggestedResult: string;
+}) {
+  const maxStep = Math.min(Math.max(params.savedStep, 0), STEPS.length - 1);
+
+  for (let index = 0; index <= maxStep; index++) {
+    const stepId = STEPS[index].id;
+
+    if (stepId === "info" && (!params.vehicleId || !params.selectedDriverId)) return index;
+
+    const fields = CHECKLIST_FIELDS.filter((field) => (STEP_FIELD_CATEGORIES[stepId] ?? []).includes(field.category));
+    if (fields.some((field) => !params.answers[field.key])) return index;
+    if (fields.some((field) => isNonConforme(field.key, params.answers[field.key]) && !params.answers[`obs_${field.key}`]?.trim())) return index;
+
+    const requiredPhotos = STEP_PHOTOS[stepId] ?? [];
+    if (stepId !== "danos" && requiredPhotos.some((cat) => getAvailablePhotoCount(params.photos, params.photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1))) return index;
+
+    if (stepId === "painel") {
+      const km = params.kmPainelManual ? parseInt(params.kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
+      if (isNaN(km) || km < 100) return index;
+    }
+
+    if (stepId === "capo") {
+      const km = params.kmProximaTroca ? parseInt(params.kmProximaTroca.replace(/[^\d]/g, ""), 10) : NaN;
+      if (isNaN(km) || km <= 0) return index;
+    }
+
+    if (stepId === "danos" && params.answers.danos_veiculo === "sim") {
+      if (!params.answers.obs_danos_veiculo?.trim() || getAvailablePhotoCount(params.photos, params.photoUploads, "avaria") < 1) return index;
+    }
+
+    if (stepId === "resultado") {
+      const finalResult = effectiveResultado(params.resultado || params.suggestedResult, params.suggestedResult);
+      if ((finalResult === "bloqueado" || (finalResult === "liberado_obs" && params.answers.danos_veiculo === "sim")) && !params.resultadoMotivo.trim()) return index;
+      if (getMissingChecklistAnswers(params.answers).length > 0) return index;
+    }
+  }
+
+  return maxStep;
+}
+
 // ═══════════════════════════════════════════
 // FORM DIALOG
 // ═══════════════════════════════════════════
