@@ -863,7 +863,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // KM atual lido do painel — obrigatório p/ não atrapalhar a programação da troca de óleo.
   // Auto-preenchido pela IA quando o hodômetro é legível; o técnico pode corrigir manualmente.
   const [kmPainelManual, setKmPainelManual] = useState("");
-  const [, setKmPainelEditadoManualmente] = useState(false);
+  const [kmPainelEditadoManualmente, setKmPainelEditadoManualmente] = useState(false);
 
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
@@ -1009,7 +1009,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
   }, [saveDraftToDb, open, vehicleId]);
 
-  // O KM do painel é sempre informado pelo técnico; a IA só valida se a foto está legível.
+  // O KM do painel é auto-preenchido pela IA quando a leitura estiver segura; o técnico pode corrigir.
 
   const photoValidationSummary = useMemo(
     () => summarizePhotoValidations(photos, photoValidations),
@@ -1120,6 +1120,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     // no campo "Faróis e lanternas funcionando?"
     const r = validation.result;
     if (!r) return;
+    if (cat === "painel" && validation.status === "valid" && r.km_lido) {
+      const kmLido = r.km_lido.replace(/[^\d]/g, "");
+      if (/^\d{5,7}$/.test(kmLido) && !kmPainelEditadoManualmente) {
+        setKmPainelManual(kmLido);
+        toast.success(`KM do painel preenchido automaticamente: ${Number(kmLido).toLocaleString("pt-BR")} km`, { duration: 5000 });
+      }
+    }
     const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
     const lanternaApagada = cat === "exterior_traseira" && r.lanternas_acesas === false;
     if (farolApagado || lanternaApagada) {
@@ -1134,7 +1141,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         { duration: 7000 },
       );
     }
-  }, []);
+  }, [kmPainelEditadoManualmente]);
   const handleValidationUpdateByStorageKey = useCallback((storageKey: string, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
       const arr = [...(prev[storageKey] ?? [])];
