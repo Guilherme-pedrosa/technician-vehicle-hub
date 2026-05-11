@@ -1426,6 +1426,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_forcadas: photoValidationSummary.forced,
           fotos_invalidas: photoValidationSummary.invalid,
           fotos_erro_validacao: photoValidationSummary.errors,
+          fotos_validacao_pendente: photoValidationSummary.pending,
+          audit_events: auditEvents,
+          km_painel_nao_confirmado: kmPainelNaoConfirmado,
           km_lido_painel: (() => {
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
             return !isNaN(manualNum) && manualNum >= 100 ? manualNum : null;
