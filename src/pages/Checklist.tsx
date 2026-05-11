@@ -1248,17 +1248,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_erro_validacao: photoValidationSummary.errors,
           km_lido_painel: (() => {
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
-            if (!isNaN(manualNum) && manualNum >= 100) return manualNum;
-            const painelValidations = photoValidations.painel ?? [];
-            let lidoNum: number | null = null;
-            for (const v of painelValidations) {
-              const raw = v?.result?.km_lido?.replace(/[^\d]/g, "") ?? "";
-              if (raw.length >= 3 && v?.result?.km_legivel) {
-                const n = parseInt(raw, 10);
-                if (!isNaN(n) && (lidoNum === null || n > lidoNum)) lidoNum = n;
-              }
-            }
-            return lidoNum;
+            return !isNaN(manualNum) && manualNum >= 100 ? manualNum : null;
           })(),
         },
         ...persistedAnswers,
