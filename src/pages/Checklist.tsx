@@ -172,6 +172,18 @@ function getUploadedPhotoUrls(uploadStates?: PhotoUploadState[]) {
   return (uploadStates ?? []).map((item) => item?.uploadedUrl).filter(Boolean) as string[];
 }
 
+function mergePhotoUrlMaps(...maps: Array<Record<string, string[]> | null | undefined>) {
+  const merged: Record<string, string[]> = {};
+  maps.forEach((map) => {
+    Object.entries(map ?? {}).forEach(([category, urls]) => {
+      if (!Array.isArray(urls) || urls.length === 0) return;
+      const current = merged[category] ?? [];
+      merged[category] = Array.from(new Set([...current, ...urls.filter(Boolean)]));
+    });
+  });
+  return merged;
+}
+
 function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
   return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
 }
@@ -1015,6 +1027,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    draftIdRef.current = draftId;
+  }, [draftId]);
 
   useEffect(() => {
     if (openTrigger && openTrigger > 0) setOpen(true);
