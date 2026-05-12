@@ -868,6 +868,20 @@ export default function ChecklistDetail() {
         </div>
       )}
 
+      {/* Draft banner — checklist NÃO finalizado, fotos podem estar incompletas */}
+      {(cl as any).status === "rascunho" && (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 flex items-start gap-2">
+          <Loader2 className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-bold text-warning">Rascunho — checklist NÃO finalizado</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Este checklist ainda está em preenchimento. Fotos e respostas podem estar incompletas (inclusive a foto do painel).
+              O técnico precisa abrir novamente em <strong>Checklist</strong> e concluir o envio para que todos os dados sejam persistidos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Info Card */}
       <Card>
         <CardContent className="p-4 sm:p-6">
