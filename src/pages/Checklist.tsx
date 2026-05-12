@@ -172,6 +172,18 @@ function getUploadedPhotoUrls(uploadStates?: PhotoUploadState[]) {
   return (uploadStates ?? []).map((item) => item?.uploadedUrl).filter(Boolean) as string[];
 }
 
+function mergePhotoUrlMaps(...maps: Array<Record<string, string[]> | null | undefined>) {
+  const merged: Record<string, string[]> = {};
+  maps.forEach((map) => {
+    Object.entries(map ?? {}).forEach(([category, urls]) => {
+      if (!Array.isArray(urls) || urls.length === 0) return;
+      const current = merged[category] ?? [];
+      merged[category] = Array.from(new Set([...current, ...urls.filter(Boolean)]));
+    });
+  });
+  return merged;
+}
+
 function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
   return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
 }
@@ -1015,6 +1027,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const [step, setStep] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    draftIdRef.current = draftId;
+  }, [draftId]);
 
   useEffect(() => {
     if (openTrigger && openTrigger > 0) setOpen(true);
@@ -1140,11 +1157,21 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const draftPersistedAnswers = Object.fromEntries(
         Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
       );
-      const draftFotosUrls: Record<string, string[]> = {};
+      let existingDraftFotos: Record<string, string[]> = {};
+      if (draftIdRef.current) {
+        const { data: existingDraft } = await supabase
+          .from("vehicle_checklists")
+          .select("fotos")
+          .eq("id", draftIdRef.current)
+          .maybeSingle();
+        existingDraftFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
+      }
+      const currentDraftFotosUrls: Record<string, string[]> = {};
       for (const [cat, uploads] of Object.entries(photoUploads)) {
         const urls = (uploads as any[]).map((u: any) => u?.uploadedUrl).filter(Boolean);
-        if (urls.length > 0) draftFotosUrls[cat] = urls;
+        if (urls.length > 0) currentDraftFotosUrls[cat] = urls;
       }
+      const draftFotosUrls = mergePhotoUrlMaps(existingDraftFotos, currentDraftFotosUrls);
 
       const draftData = {
         vehicle_id: vehicleId,
@@ -1169,11 +1196,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         ...draftPersistedAnswers,
       } as any;
 
-      if (draftId) {
+      if (draftIdRef.current) {
         // NÃO sobrescrever created_by: preserva o autor original do rascunho
         // (admin pode estar ajudando, mas o dono continua sendo quem começou)
         const { created_by: _omit, ...updatePayload } = draftData;
-        await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftId);
+        await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftIdRef.current);
       } else {
         const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
         if (data?.id) setDraftId(data.id);
@@ -1256,6 +1283,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           arr[startIndex + offset] = { status: "uploaded", uploadedUrl: url, storagePath: path };
           return { ...prev, [storageKey]: arr };
         });
+        if (draftIdRef.current) {
+          const { data: existingDraft } = await supabase
+            .from("vehicle_checklists")
+            .select("fotos")
+            .eq("id", draftIdRef.current)
+            .maybeSingle();
+          const existingFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
+          const nextFotos = mergePhotoUrlMaps(existingFotos, { [storageKey]: [url] });
+          await supabase.from("vehicle_checklists").update({ fotos: nextFotos } as any).eq("id", draftIdRef.current);
+        }
       } catch (error) {
         console.error("Photo upload error:", error);
         setPhotoUploads((prev) => {
