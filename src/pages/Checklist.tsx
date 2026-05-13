@@ -1255,10 +1255,6 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const saveDraftToDb = useCallback(async () => {
     if (!vehicleId || !open) return;
     try {
-      const date = format(now, "yyyy-MM-dd");
-      const draftPersistedAnswers = Object.fromEntries(
-        Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
-      );
       let existingDraftFotos: Record<string, string[]> = {};
       if (draftIdRef.current) {
         const { data: existingDraft } = await supabase
@@ -1275,28 +1271,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       }
       const draftFotosUrls = mergePhotoUrlMaps(existingDraftFotos, currentDraftFotosUrls);
 
-      const draftData = {
-        vehicle_id: vehicleId,
-        driver_id: selectedDriverId || null,
-        created_by: userId,
-        checklist_date: date,
-        tripulacao: tripulacao || null,
-        destino: destino || null,
-        observacoes: observacoes || null,
-        avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
-        fotos: draftFotosUrls,
-        resultado: resultado || "liberado",
-        resultado_motivo: resultadoMotivo || null,
-        termo_aceito: termoAceito,
-        status: "rascunho",
-        detalhes: {
-          km_proxima_troca: kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) || null : null,
-          km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
-          draft_step: step,
-          draft_answers: answers,
-        },
-        ...draftPersistedAnswers,
-      } as any;
+      const draftData = buildDraftPayload(draftFotosUrls);
 
       if (draftIdRef.current) {
         // NÃO sobrescrever created_by: preserva o autor original do rascunho
@@ -1304,16 +1279,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         const { created_by: _omit, ...updatePayload } = draftData;
         await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftIdRef.current);
       } else {
-        const { data } = await supabase.from("vehicle_checklists").insert(draftData).select("id").maybeSingle();
-        if (data?.id) setDraftId(data.id);
+        await ensureDraftExists();
       }
     } catch (err) {
       console.error("Erro ao salvar rascunho:", err);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, selectedDriverId, tripulacao, destino, observacoes, answers,
-      resultado, resultadoMotivo, kmProximaTroca, kmPainelManual, step, termoAceito,
-      draftId, open, photoUploads, userId]);
+  }, [vehicleId, open, photoUploads, buildDraftPayload, ensureDraftExists]);
 
   // Debounced auto-save: 3 seconds after last change
   useEffect(() => {
