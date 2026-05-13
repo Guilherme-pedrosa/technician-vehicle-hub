@@ -133,11 +133,14 @@ export default function CustosFlota() {
         s.toISOString().slice(0, 10),
         e.toISOString().slice(0, 10),
       );
+      await Promise.all([
+        auvoQuery.refetch({ cancelRefetch: true }),
+        rotaQuery.refetch({ cancelRefetch: true }),
+        overridesQuery.refetch({ cancelRefetch: true }),
+      ]);
       toast.success(
         `Sync Auvo (${label}): ${r.fetched} despesas — ${r.matched} vinculadas, ${r.unmatched} sem placa`,
       );
-      auvoQuery.refetch();
-      rotaQuery.refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha na sincronização");
     } finally {
