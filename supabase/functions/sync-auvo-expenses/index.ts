@@ -478,7 +478,7 @@ async function extractTextFromAttachment(
       body: JSON.stringify({
         model: AI_OCR_MODEL,
         temperature: 0,
-        max_tokens: 400,
+        max_completion_tokens: 400,
         messages: [
           {
             role: "system",
@@ -538,7 +538,7 @@ async function extractTextFromAttachment(
         body: JSON.stringify({
           model: AI_OCR_VERIFY_MODEL,
           temperature: 0,
-          max_tokens: 120,
+          max_completion_tokens: 120,
           messages: [
             {
               role: "system",
