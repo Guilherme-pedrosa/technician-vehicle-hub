@@ -450,9 +450,25 @@ async function processJob(
     };
   });
 
-  // 3) Sessões de KM (1 linha por entry do log_motorista, sem distribuição artificial de telemetria)
-  // A coluna `telemetrias` aqui fica 0; o dashboard conta direto em vehicle_telemetry_events.
-  const sessionRows: Record<string, unknown>[] = entries.map((entry) => {
+  // 3) Sessões de KM (1 linha por entry do log_motorista).
+  //    FILTRO MOTORISTAS ATIVOS: o painel oficial da RotaExata só conta sessões
+  //    de motoristas presentes em `motoristas: [...]`. Sessões "Desconhecido"
+  //    ou de motoristas inativos vêm na resposta da API mas o painel descarta
+  //    — sem esse filtro o KM total fica inflado (caso real OMI5J56 08/05:
+  //    painel = 69,4 km vs nosso = 131,5 km por causa de uma sessão
+  //    "Desconhecido" cruzando a meia-noite).
+  const filteredEntries = job.motoristaIds.length === 0
+    ? entries
+    : entries.filter((entry) => {
+        const m = entry.motorista as Record<string, unknown> | undefined;
+        const idRaw = m?.id ?? entry.motorista_id;
+        if (idRaw == null || idRaw === "") return false; // sem id → fora do oficial
+        const idNum = Number(idRaw);
+        if (!Number.isInteger(idNum)) return false;
+        return activeSet.has(idNum);
+      });
+
+  const sessionRows: Record<string, unknown>[] = filteredEntries.map((entry) => {
     const motorista = entry.motorista as Record<string, unknown> | undefined;
     const nomeRaw = motorista?.nome ? String(motorista.nome) : "";
     const nome = nomeRaw && nomeRaw !== "Desconhecido" ? nomeRaw : "Desconhecido";
