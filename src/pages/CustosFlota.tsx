@@ -572,7 +572,7 @@ export default function CustosFlota() {
           source={editTarget.source}
           externalId={editTarget.external_id}
           currentPlaca={editTarget.placa}
-          description={`Lançamento de ${editTarget.dt_lancamento ? format(new Date(editTarget.dt_lancamento), "dd/MM/yyyy") : "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
+          description={`Lançamento de ${formatDateBR(editTarget.dt_lancamento) || "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
         />
       )}
     </div>
