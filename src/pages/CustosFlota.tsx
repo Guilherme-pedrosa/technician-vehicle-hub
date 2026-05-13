@@ -672,6 +672,17 @@ export default function CustosFlota() {
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
+                          {!custo.matched_with && !custo.manual_reconciliation && !custo.suspected_divergence && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-blue-700 hover:text-blue-800"
+                              onClick={() => setPickerTarget(custo)}
+                              title={`Conciliar manualmente com lançamento ${custo.source === "rotaexata" ? "do Auvo" : "do Ticket Log"}`}
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
