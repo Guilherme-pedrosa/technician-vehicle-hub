@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,10 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
-import { useAuvoExpenses, syncAuvoExpenses, type AuvoCusto } from "@/hooks/useAuvoExpenses";
+import { useCustosFlota } from "@/hooks/useCustosFlota";
+import { useAuvoExpenses, syncAuvoExpenses } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
+import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
+import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
+import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -69,12 +72,15 @@ export default function CustosFlota() {
   const rotaQuery = useCustosFlota(source !== "auvo" ? where : undefined);
   const auvoQuery = useAuvoExpenses(start, end);
 
-  const custos: (CustoRotaExata | AuvoCusto)[] = useMemo(() => {
-    if (source === "auvo") return auvoQuery.data ?? [];
-    if (source === "rotaexata") return rotaQuery.data ?? [];
-    // todos: combina as duas fontes
-    return [...(rotaQuery.data ?? []), ...(auvoQuery.data ?? [])];
-  }, [source, auvoQuery.data, rotaQuery.data]);
+  const overridesQuery = useCostPlacaOverrides();
+
+  // Mescla Rota+Auvo: mesma data+valor = uma transação só (Rota tem litros/hodômetro,
+  // Auvo tem placa/comprovante). Aplica overrides manuais por cima.
+  const merged: MergedCusto[] = useMemo(() => {
+    const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
+    const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
+    return mergeCustos(rota, auvo, overridesQuery.data ?? []);
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data]);
 
   const isLoading =
     source === "auvo"
@@ -85,15 +91,18 @@ export default function CustosFlota() {
 
   // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
-    let list = custos;
-    if (source !== "rotaexata" && tipoCusto !== "todos") {
+    let list = merged;
+    if (tipoCusto !== "todos") {
       list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
     }
     if (placaFilter !== "todos") {
       list = list.filter((c) => c.placa === placaFilter);
     }
     return list;
-  }, [custos, placaFilter, tipoCusto, source]);
+  }, [merged, placaFilter, tipoCusto]);
+
+  // Estado do diálogo de edição manual de placa
+  const [editTarget, setEditTarget] = useState<MergedCusto | null>(null);
 
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
@@ -164,18 +173,21 @@ export default function CustosFlota() {
 
   // Unique cost types for filter
   const tiposCusto = useMemo(() => {
-    const tipos = new Set(custos.map((c) => c.tipo_custo_nome).filter(Boolean));
+    const tipos = new Set<string>();
+    merged.forEach((c) => {
+      if (c.tipo_custo_nome) tipos.add(c.tipo_custo_nome);
+    });
     return Array.from(tipos).sort();
-  }, [custos]);
+  }, [merged]);
 
   // Unique placas for filter (from API data)
   const placas = useMemo(() => {
     const set = new Set<string>();
-    custos.forEach((c) => {
+    merged.forEach((c) => {
       if (c.placa) set.add(c.placa);
     });
     return Array.from(set).sort();
-  }, [custos]);
+  }, [merged]);
 
   // CSV export
   const exportCSV = () => {
@@ -419,47 +431,54 @@ export default function CustosFlota() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data Lançamento</TableHead>
-                    <TableHead>Criado em</TableHead>
+                    <TableHead>Data</TableHead>
                     <TableHead>Placa</TableHead>
                     <TableHead>Descrição</TableHead>
-                    <TableHead>Hodômetro</TableHead>
-                    <TableHead>Tipo de Custo</TableHead>
+                    <TableHead className="text-right">Litros</TableHead>
+                    <TableHead className="text-right">Hodômetro</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Fornecedor</TableHead>
-                    <TableHead>Criado por</TableHead>
                     <TableHead className="text-right">Custo</TableHead>
-                    <TableHead className="text-center">Parcelado</TableHead>
-                    {source === "auvo" && <TableHead className="text-center">Anexo</TableHead>}
+                    <TableHead className="text-center">Anexo</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCustos.map((custo) => (
-                    <TableRow key={custo.id}>
+                    <TableRow key={`${custo.source}:${custo.external_id}`}>
                       <TableCell className="whitespace-nowrap text-sm">
                         {custo.dt_lancamento
                           ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
                           : "—"}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {custo.dt_criacao
-                          ? format(new Date(custo.dt_criacao), "dd/MM/yyyy")
-                          : "—"}
-                      </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {custo.placa ? (
-                          custo.placa
-                        ) : source === "auvo" ? (
-                          <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
-                            <AlertCircle className="h-3 w-3" /> Sem placa
-                          </Badge>
-                        ) : (
-                          `ID ${custo.adesao_id}`
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {custo.placa ? (
+                            <span>{custo.placa}</span>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
+                              <AlertCircle className="h-3 w-3" /> Sem placa
+                            </Badge>
+                          )}
+                          {custo.matched_with && (
+                            <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Rota Exata e Auvo">
+                              <Link2 className="h-3 w-3" /> match
+                            </Badge>
+                          )}
+                          {custo.manual_placa && (
+                            <Badge variant="outline" className="text-[10px]" title="Placa definida manualmente">manual</Badge>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                      <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
                         {custo.descricao ?? custo.veiculo_descricao ?? "—"}
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {custo.litros && custo.litros > 0
+                          ? `${custo.litros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
                         {custo.hodometro ? custo.hodometro.toLocaleString("pt-BR") : "—"}
                       </TableCell>
                       <TableCell>
@@ -468,39 +487,36 @@ export default function CustosFlota() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {custo.fornecedor_nome ?? "Não informado"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {custo.criado_por_nome ?? "—"}
+                        {custo.fornecedor_nome ?? "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium text-sm">
                         {formatCurrency(custo.valor ?? 0)}
                       </TableCell>
-                      <TableCell className="text-center text-sm">
-                        {custo.parcelado ? (
-                          <Badge variant="outline" className="text-xs">
-                            {custo.quantidade_parcelas ? `${custo.quantidade_parcelas}x` : "Sim"}
-                          </Badge>
+                      <TableCell className="text-center">
+                        {custo.attachment_url ? (
+                          <a
+                            href={custo.attachment_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center text-primary hover:underline"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                          </a>
                         ) : (
-                          "Não"
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {source === "auvo" && (
-                        <TableCell className="text-center">
-                          {(custo as AuvoCusto).attachment_url ? (
-                            <a
-                              href={(custo as AuvoCusto).attachment_url ?? "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center text-primary hover:underline"
-                            >
-                              <Paperclip className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => setEditTarget(custo)}
+                          title="Editar placa do custo"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -509,6 +525,17 @@ export default function CustosFlota() {
           )}
         </CardContent>
       </Card>
+
+      {editTarget && (
+        <EditPlacaDialog
+          open={!!editTarget}
+          onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+          source={editTarget.source}
+          externalId={editTarget.external_id}
+          currentPlaca={editTarget.placa}
+          description={`Lançamento de ${editTarget.dt_lancamento ? format(new Date(editTarget.dt_lancamento), "dd/MM/yyyy") : "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
+        />
+      )}
     </div>
   );
 }
