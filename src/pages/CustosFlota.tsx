@@ -17,6 +17,7 @@ import { useManualReconciliations } from "@/hooks/useManualReconciliations";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
 import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
+import { ManualReconcilePickerDialog } from "@/components/custos/ManualReconcilePickerDialog";
 import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -132,6 +133,8 @@ export default function CustosFlota() {
     existingId?: string;
     existingMotivo?: string;
   } | null>(null);
+  // Estado do picker (para conciliar lançamentos não casados)
+  const [pickerTarget, setPickerTarget] = useState<MergedCusto | null>(null);
 
   const openReconcileFromDivergence = (custo: MergedCusto) => {
     const div = custo.suspected_divergence;
@@ -669,6 +672,17 @@ export default function CustosFlota() {
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
+                          {!custo.matched_with && !custo.manual_reconciliation && !custo.suspected_divergence && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-blue-700 hover:text-blue-800"
+                              onClick={() => setPickerTarget(custo)}
+                              title={`Conciliar manualmente com lançamento ${custo.source === "rotaexata" ? "do Auvo" : "do Ticket Log"}`}
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -709,6 +723,14 @@ export default function CustosFlota() {
           auvoInfo={reconcileTarget.auvoInfo}
           existingId={reconcileTarget.existingId}
           existingMotivo={reconcileTarget.existingMotivo}
+        />
+      )}
+      {pickerTarget && (
+        <ManualReconcilePickerDialog
+          open={!!pickerTarget}
+          onOpenChange={(o) => { if (!o) setPickerTarget(null); }}
+          source={pickerTarget}
+          merged={merged}
         />
       )}
     </div>
