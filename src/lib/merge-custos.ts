@@ -104,15 +104,15 @@ export function mergeCustos(
   const rotaById = new Map<string, CustoRotaExata>();
   rota.forEach((r) => rotaById.set(r.id, r));
 
-  const manualByRota = new Map<string, { auvo: AuvoCusto; rec: ManualReconciliation }>();
-  const manualByAuvo = new Map<string, { rota: CustoRotaExata; rec: ManualReconciliation }>();
+  const manualByRota = new Map<string, { auvo: AuvoCusto | null; rec: ManualReconciliation }>();
+  const manualByAuvo = new Map<string, { rota: CustoRotaExata | null; rec: ManualReconciliation }>();
   manualReconciliations.forEach((rec) => {
     const r = rotaById.get(rec.rota_external_id);
     const a = auvoById.get(rec.auvo_external_id);
-    if (r && a) {
-      manualByRota.set(r.id, { auvo: a, rec });
-      manualByAuvo.set(a.id, { rota: r, rec });
-    }
+    // Conciliação manual SEMPRE prevalece — mesmo que o outro lado esteja
+    // fora do intervalo do filtro de data (não desfazer por causa do filtro).
+    if (r) manualByRota.set(r.id, { auvo: a ?? null, rec });
+    if (a) manualByAuvo.set(a.id, { rota: r ?? null, rec });
   });
 
 
@@ -229,19 +229,19 @@ export function mergeCustos(
 
     if (manual) {
       const a = manual.auvo;
-      if (a.placa) placa = a.placa;
-      if (a.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
-      attachment_url = a.attachment_url ?? null;
-      matched_with = { source: "auvo", id: a.id };
+      if (a?.placa) placa = a.placa;
+      if (a?.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
+      attachment_url = a?.attachment_url ?? null;
+      matched_with = a ? { source: "auvo", id: a.id } : { source: "auvo", id: manual.rec.auvo_external_id };
       manual_reconciliation = {
         id: manual.rec.id,
         motivo: manual.rec.motivo,
-        other_valor: Number(a.valor) || 0,
+        other_valor: a ? Number(a.valor) || 0 : 0,
         other_source: "auvo",
-        other_external_id: a.id,
-        other_descricao: a.descricao,
-        other_criado_por: a.criado_por_nome,
-        other_attachment_url: a.attachment_url ?? null,
+        other_external_id: manual.rec.auvo_external_id,
+        other_descricao: a?.descricao ?? "(fora do intervalo do filtro)",
+        other_criado_por: a?.criado_por_nome,
+        other_attachment_url: a?.attachment_url ?? null,
       };
     } else if (auvoMatch) {
       if (auvoMatch.placa) placa = auvoMatch.placa;
@@ -285,24 +285,43 @@ export function mergeCustos(
 
   auvo.forEach((a) => {
     if (consumedAuvoIds.has(a.id)) return;
-    if (manualByAuvo.has(a.id)) return; // já representado na linha do Ticket
+    const manual = manualByAuvo.get(a.id);
+    // Se há conciliação manual E o lado Rota está carregado, ele já representa
+    // a linha (skip). Se Rota está fora do filtro, renderiza a linha do Auvo
+    // marcada como conciliada.
+    if (manual && manual.rota) return;
 
     const override = overrideMap.get(`auvo:${a.id}`);
     const placa = override ? override.placa : a.placa;
     let suspected_divergence: MergedCusto["suspected_divergence"];
-    const sibling = divergenceForAuvo.get(a.id);
-    if (sibling) {
-      const va = Number(a.valor) || 0;
-      const vr = Number(sibling.valor) || 0;
-      suspected_divergence = {
+    let manual_reconciliation: MergedCusto["manual_reconciliation"];
+    let matched_with: MergedCusto["matched_with"];
+
+    if (manual) {
+      matched_with = { source: "rotaexata", id: manual.rec.rota_external_id };
+      manual_reconciliation = {
+        id: manual.rec.id,
+        motivo: manual.rec.motivo,
+        other_valor: 0,
         other_source: "rotaexata",
-        other_external_id: sibling.id,
-        other_valor: vr,
-        diff: va - vr,
-        diff_pct: Math.abs(va - vr) / Math.max(va, vr, 1),
-        other_descricao: sibling.descricao,
-        other_criado_por: sibling.criado_por_nome,
+        other_external_id: manual.rec.rota_external_id,
+        other_descricao: "(fora do intervalo do filtro)",
       };
+    } else {
+      const sibling = divergenceForAuvo.get(a.id);
+      if (sibling) {
+        const va = Number(a.valor) || 0;
+        const vr = Number(sibling.valor) || 0;
+        suspected_divergence = {
+          other_source: "rotaexata",
+          other_external_id: sibling.id,
+          other_valor: vr,
+          diff: va - vr,
+          diff_pct: Math.abs(va - vr) / Math.max(va, vr, 1),
+          other_descricao: sibling.descricao,
+          other_criado_por: sibling.criado_por_nome,
+        };
+      }
     }
     merged.push({
       ...a,
@@ -310,7 +329,9 @@ export function mergeCustos(
       source: "auvo",
       external_id: a.id,
       manual_placa: !!override,
+      matched_with,
       suspected_divergence,
+      manual_reconciliation,
     });
   });
 
