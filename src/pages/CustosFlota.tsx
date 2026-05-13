@@ -431,47 +431,54 @@ export default function CustosFlota() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data Lançamento</TableHead>
-                    <TableHead>Criado em</TableHead>
+                    <TableHead>Data</TableHead>
                     <TableHead>Placa</TableHead>
                     <TableHead>Descrição</TableHead>
-                    <TableHead>Hodômetro</TableHead>
-                    <TableHead>Tipo de Custo</TableHead>
+                    <TableHead className="text-right">Litros</TableHead>
+                    <TableHead className="text-right">Hodômetro</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Fornecedor</TableHead>
-                    <TableHead>Criado por</TableHead>
                     <TableHead className="text-right">Custo</TableHead>
-                    <TableHead className="text-center">Parcelado</TableHead>
-                    {source === "auvo" && <TableHead className="text-center">Anexo</TableHead>}
+                    <TableHead className="text-center">Anexo</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCustos.map((custo) => (
-                    <TableRow key={custo.id}>
+                    <TableRow key={`${custo.source}:${custo.external_id}`}>
                       <TableCell className="whitespace-nowrap text-sm">
                         {custo.dt_lancamento
                           ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
                           : "—"}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {custo.dt_criacao
-                          ? format(new Date(custo.dt_criacao), "dd/MM/yyyy")
-                          : "—"}
-                      </TableCell>
                       <TableCell className="font-medium text-sm">
-                        {custo.placa ? (
-                          custo.placa
-                        ) : source === "auvo" ? (
-                          <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
-                            <AlertCircle className="h-3 w-3" /> Sem placa
-                          </Badge>
-                        ) : (
-                          `ID ${custo.adesao_id}`
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {custo.placa ? (
+                            <span>{custo.placa}</span>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 text-xs text-amber-600 border-amber-300">
+                              <AlertCircle className="h-3 w-3" /> Sem placa
+                            </Badge>
+                          )}
+                          {custo.matched_with && (
+                            <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Rota Exata e Auvo">
+                              <Link2 className="h-3 w-3" /> match
+                            </Badge>
+                          )}
+                          {custo.manual_placa && (
+                            <Badge variant="outline" className="text-[10px]" title="Placa definida manualmente">manual</Badge>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                      <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
                         {custo.descricao ?? custo.veiculo_descricao ?? "—"}
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="text-right text-sm tabular-nums">
+                        {custo.litros && custo.litros > 0
+                          ? `${custo.litros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
                         {custo.hodometro ? custo.hodometro.toLocaleString("pt-BR") : "—"}
                       </TableCell>
                       <TableCell>
@@ -480,39 +487,36 @@ export default function CustosFlota() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {custo.fornecedor_nome ?? "Não informado"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {custo.criado_por_nome ?? "—"}
+                        {custo.fornecedor_nome ?? "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium text-sm">
                         {formatCurrency(custo.valor ?? 0)}
                       </TableCell>
-                      <TableCell className="text-center text-sm">
-                        {custo.parcelado ? (
-                          <Badge variant="outline" className="text-xs">
-                            {custo.quantidade_parcelas ? `${custo.quantidade_parcelas}x` : "Sim"}
-                          </Badge>
+                      <TableCell className="text-center">
+                        {custo.attachment_url ? (
+                          <a
+                            href={custo.attachment_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center text-primary hover:underline"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                          </a>
                         ) : (
-                          "Não"
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {source === "auvo" && (
-                        <TableCell className="text-center">
-                          {(custo as AuvoCusto).attachment_url ? (
-                            <a
-                              href={(custo as AuvoCusto).attachment_url ?? "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center text-primary hover:underline"
-                            >
-                              <Paperclip className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => setEditTarget(custo)}
+                          title="Editar placa do custo"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -521,6 +525,17 @@ export default function CustosFlota() {
           )}
         </CardContent>
       </Card>
+
+      {editTarget && (
+        <EditPlacaDialog
+          open={!!editTarget}
+          onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+          source={editTarget.source}
+          externalId={editTarget.external_id}
+          currentPlaca={editTarget.placa}
+          description={`Lançamento de ${editTarget.dt_lancamento ? format(new Date(editTarget.dt_lancamento), "dd/MM/yyyy") : "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
+        />
+      )}
     </div>
   );
 }
