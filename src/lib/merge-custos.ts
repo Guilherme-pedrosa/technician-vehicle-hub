@@ -2,6 +2,7 @@ import { normalizePlaca } from "@/lib/excluded-vehicles";
 import type { CustoRotaExata } from "@/hooks/useCustosFlota";
 import type { AuvoCusto } from "@/hooks/useAuvoExpenses";
 import type { CostPlacaOverride } from "@/hooks/useCostPlacaOverrides";
+import type { ManualReconciliation } from "@/hooks/useManualReconciliations";
 
 export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   source: "rotaexata" | "auvo";
@@ -10,6 +11,17 @@ export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   manual_placa?: boolean;
   attachment_url?: string | null;
   parse_status?: string;
+  /** Conciliação manual: quando o admin amarra explicitamente os dois lados. */
+  manual_reconciliation?: {
+    id: string;
+    motivo: string;
+    other_valor: number;
+    other_source: "rotaexata" | "auvo";
+    other_external_id: string;
+    other_descricao?: string;
+    other_criado_por?: string;
+    other_attachment_url?: string | null;
+  };
   /**
    * Possível divergência de valor: a transação ficou sem par exato,
    * mas existe um lançamento "irmão" na outra fonte com mesma data
@@ -81,9 +93,28 @@ export function mergeCustos(
   rota: CustoRotaExata[],
   auvo: AuvoCusto[],
   overrides: CostPlacaOverride[] = [],
+  manualReconciliations: ManualReconciliation[] = [],
 ): MergedCusto[] {
   const overrideMap = new Map<string, CostPlacaOverride>();
   overrides.forEach((o) => overrideMap.set(`${o.source}:${o.external_id}`, o));
+
+  // --- 0. CONCILIAÇÕES MANUAIS — sempre prevalecem sobre o algoritmo ---
+  const auvoById = new Map<string, AuvoCusto>();
+  auvo.forEach((a) => auvoById.set(a.id, a));
+  const rotaById = new Map<string, CustoRotaExata>();
+  rota.forEach((r) => rotaById.set(r.id, r));
+
+  const manualByRota = new Map<string, { auvo: AuvoCusto; rec: ManualReconciliation }>();
+  const manualByAuvo = new Map<string, { rota: CustoRotaExata; rec: ManualReconciliation }>();
+  manualReconciliations.forEach((rec) => {
+    const r = rotaById.get(rec.rota_external_id);
+    const a = auvoById.get(rec.auvo_external_id);
+    if (r && a) {
+      manualByRota.set(r.id, { auvo: a, rec });
+      manualByAuvo.set(a.id, { rota: r, rec });
+    }
+  });
+
 
   // --- 1. MATCH EXATO POR VALOR + DATA TOLERANTE ---
   const auvoByValue = new Map<number, AuvoCusto[]>();
@@ -99,8 +130,11 @@ export function mergeCustos(
   const matchedRota = new Map<string, AuvoCusto>(); // rota.id → auvo
 
   rota.forEach((r) => {
+    if (manualByRota.has(r.id)) return;
     const cents = valueCents(r.valor);
-    const candidates = (auvoByValue.get(cents) ?? []).filter((c) => !consumedAuvoIds.has(c.id));
+    const candidates = (auvoByValue.get(cents) ?? []).filter(
+      (c) => !consumedAuvoIds.has(c.id) && !manualByAuvo.has(c.id),
+    );
     if (!candidates.length || !r.dt_lancamento) return;
 
     const pr = normalizePlaca(r.placa);
@@ -133,8 +167,8 @@ export function mergeCustos(
   });
 
   // --- 2. DETECÇÃO DE DIVERGÊNCIA (nas sobras) ---
-  const unmatchedRota = rota.filter((r) => !matchedRota.has(r.id));
-  const unmatchedAuvo = auvo.filter((a) => !consumedAuvoIds.has(a.id));
+  const unmatchedRota = rota.filter((r) => !matchedRota.has(r.id) && !manualByRota.has(r.id));
+  const unmatchedAuvo = auvo.filter((a) => !consumedAuvoIds.has(a.id) && !manualByAuvo.has(a.id));
 
   // mapa rota.id → auvo "irmão" suspeito  e  auvo.id → rota "irmão" suspeito
   const divergenceForRota = new Map<string, AuvoCusto>();
@@ -184,14 +218,32 @@ export function mergeCustos(
 
   rota.forEach((r) => {
     const auvoMatch = matchedRota.get(r.id);
+    const manual = manualByRota.get(r.id);
     const override = overrideMap.get(`rotaexata:${r.id}`);
     let placa = r.placa;
     let veiculo_descricao = r.veiculo_descricao;
     let attachment_url: string | null | undefined;
     let matched_with: MergedCusto["matched_with"];
     let suspected_divergence: MergedCusto["suspected_divergence"];
+    let manual_reconciliation: MergedCusto["manual_reconciliation"];
 
-    if (auvoMatch) {
+    if (manual) {
+      const a = manual.auvo;
+      if (a.placa) placa = a.placa;
+      if (a.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
+      attachment_url = a.attachment_url ?? null;
+      matched_with = { source: "auvo", id: a.id };
+      manual_reconciliation = {
+        id: manual.rec.id,
+        motivo: manual.rec.motivo,
+        other_valor: Number(a.valor) || 0,
+        other_source: "auvo",
+        other_external_id: a.id,
+        other_descricao: a.descricao,
+        other_criado_por: a.criado_por_nome,
+        other_attachment_url: a.attachment_url ?? null,
+      };
+    } else if (auvoMatch) {
       if (auvoMatch.placa) placa = auvoMatch.placa;
       if (auvoMatch.veiculo_descricao) veiculo_descricao = auvoMatch.veiculo_descricao;
       attachment_url = auvoMatch.attachment_url ?? null;
@@ -227,11 +279,14 @@ export function mergeCustos(
       manual_placa: !!override,
       attachment_url,
       suspected_divergence,
+      manual_reconciliation,
     });
   });
 
   auvo.forEach((a) => {
     if (consumedAuvoIds.has(a.id)) return;
+    if (manualByAuvo.has(a.id)) return; // já representado na linha do Ticket
+
     const override = overrideMap.get(`auvo:${a.id}`);
     const placa = override ? override.placa : a.placa;
     let suspected_divergence: MergedCusto["suspected_divergence"];

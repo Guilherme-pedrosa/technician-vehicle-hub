@@ -13,8 +13,10 @@ import { useCustosFlota } from "@/hooks/useCustosFlota";
 import { useAuvoExpenses, syncAuvoExpenses } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
+import { useManualReconciliations } from "@/hooks/useManualReconciliations";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
+import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
 import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -90,14 +92,15 @@ export default function CustosFlota() {
   const auvoQuery = useAuvoExpenses(start, end);
 
   const overridesQuery = useCostPlacaOverrides();
+  const manualReconQuery = useManualReconciliations();
 
-  // Mescla Rota+Auvo: mesma data+valor = uma transação só (Rota tem litros/hodômetro,
-  // Auvo tem placa/comprovante). Aplica overrides manuais por cima.
+  // Mescla Rota+Auvo: mesma data+valor = uma transação só. Aplica overrides
+  // de placa e conciliações manuais por cima.
   const merged: MergedCusto[] = useMemo(() => {
     const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
     const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
-    return mergeCustos(rota, auvo, overridesQuery.data ?? []);
-  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data]);
+    return mergeCustos(rota, auvo, overridesQuery.data ?? [], manualReconQuery.data ?? []);
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data]);
 
   const isLoading =
     source === "auvo"
@@ -120,6 +123,49 @@ export default function CustosFlota() {
 
   // Estado do diálogo de edição manual de placa
   const [editTarget, setEditTarget] = useState<MergedCusto | null>(null);
+  // Estado do diálogo de conciliação manual (Ticket × Auvo)
+  const [reconcileTarget, setReconcileTarget] = useState<{
+    rotaId: string;
+    auvoId: string;
+    rotaInfo: { valor: number; descricao?: string; data?: string; criado_por?: string };
+    auvoInfo: { valor: number; descricao?: string; data?: string; criado_por?: string };
+    existingId?: string;
+    existingMotivo?: string;
+  } | null>(null);
+
+  const openReconcileFromDivergence = (custo: MergedCusto) => {
+    const div = custo.suspected_divergence;
+    if (!div) return;
+    const rotaIsThis = custo.source === "rotaexata";
+    setReconcileTarget({
+      rotaId: rotaIsThis ? custo.external_id : div.other_external_id,
+      auvoId: rotaIsThis ? div.other_external_id : custo.external_id,
+      rotaInfo: rotaIsThis
+        ? { valor: custo.valor ?? 0, descricao: custo.descricao, data: custo.dt_lancamento, criado_por: custo.criado_por_nome }
+        : { valor: div.other_valor, descricao: div.other_descricao, criado_por: div.other_criado_por },
+      auvoInfo: rotaIsThis
+        ? { valor: div.other_valor, descricao: div.other_descricao, criado_por: div.other_criado_por }
+        : { valor: custo.valor ?? 0, descricao: custo.descricao, data: custo.dt_lancamento, criado_por: custo.criado_por_nome },
+    });
+  };
+
+  const openReconcileFromManual = (custo: MergedCusto) => {
+    const m = custo.manual_reconciliation;
+    if (!m) return;
+    const rotaIsThis = custo.source === "rotaexata";
+    setReconcileTarget({
+      rotaId: rotaIsThis ? custo.external_id : m.other_external_id,
+      auvoId: rotaIsThis ? m.other_external_id : custo.external_id,
+      rotaInfo: rotaIsThis
+        ? { valor: custo.valor ?? 0, descricao: custo.descricao, criado_por: custo.criado_por_nome }
+        : { valor: m.other_valor, descricao: m.other_descricao, criado_por: m.other_criado_por },
+      auvoInfo: rotaIsThis
+        ? { valor: m.other_valor, descricao: m.other_descricao, criado_por: m.other_criado_por }
+        : { valor: custo.valor ?? 0, descricao: custo.descricao, criado_por: custo.criado_por_nome },
+      existingId: m.id,
+      existingMotivo: m.motivo,
+    });
+  };
 
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
@@ -503,9 +549,18 @@ export default function CustosFlota() {
                               <AlertCircle className="h-3 w-3" /> Sem placa
                             </Badge>
                           )}
-                          {custo.matched_with && (
+                          {custo.matched_with && !custo.manual_reconciliation && (
                             <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Ticket Log (Rota Exata) e Auvo — mesmo valor">
                               <Link2 className="h-3 w-3" /> match
+                            </Badge>
+                          )}
+                          {custo.manual_reconciliation && (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 text-[10px] border-emerald-400 bg-emerald-50 text-emerald-800"
+                              title={`Conciliado manualmente. Motivo: ${custo.manual_reconciliation.motivo}. Valor consolidado pelo Ticket (R$ ${(custo.valor ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}); Auvo: R$ ${custo.manual_reconciliation.other_valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`}
+                            >
+                              <Link2 className="h-3 w-3" /> conciliado manual
                             </Badge>
                           )}
                           {!custo.matched_with && custo.source === "rotaexata" && (
@@ -591,15 +646,39 @@ export default function CustosFlota() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setEditTarget(custo)}
-                          title="Editar placa do custo"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-center gap-1">
+                          {custo.suspected_divergence && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-emerald-700 hover:text-emerald-800"
+                              onClick={() => openReconcileFromDivergence(custo)}
+                              title="Conciliar manualmente este lançamento com o sugerido"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {custo.manual_reconciliation && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-emerald-700"
+                              onClick={() => openReconcileFromManual(custo)}
+                              title="Editar conciliação manual"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setEditTarget(custo)}
+                            title="Editar placa do custo"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -618,6 +697,18 @@ export default function CustosFlota() {
           externalId={editTarget.external_id}
           currentPlaca={editTarget.placa}
           description={`Lançamento de ${formatDateBR(editTarget.dt_lancamento) || "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
+        />
+      )}
+      {reconcileTarget && (
+        <ManualReconciliationDialog
+          open={!!reconcileTarget}
+          onOpenChange={(o) => { if (!o) setReconcileTarget(null); }}
+          rotaExternalId={reconcileTarget.rotaId}
+          auvoExternalId={reconcileTarget.auvoId}
+          rotaInfo={reconcileTarget.rotaInfo}
+          auvoInfo={reconcileTarget.auvoInfo}
+          existingId={reconcileTarget.existingId}
+          existingMotivo={reconcileTarget.existingMotivo}
         />
       )}
     </div>
