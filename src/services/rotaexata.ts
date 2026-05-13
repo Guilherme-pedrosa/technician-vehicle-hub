@@ -374,34 +374,41 @@ export async function getCustos(where?: string): Promise<unknown> {
     return collected;
   };
 
-  const primary = await fetchPages(where);
-  addItems(primary);
-
   const parsedWhere = parseCostWhere(where);
   const dateRange = getCostDateRange(parsedWhere);
+
+  // Roda primária + fallbacks (created/updated) + recentes em paralelo.
+  // Antes era sequencial, custando ~3-4× mais latência por carregamento.
+  const tasks: Array<Promise<{ items: unknown[]; filter: boolean }>> = [
+    fetchPages(where).then((items) => ({ items, filter: false })),
+  ];
+
   if (parsedWhere && dateRange) {
-    // O painel da RotaExata às vezes mostra lançamentos recém-criados/corrigidos
-    // que não voltam no filtro de dt_lancamento da API. Buscamos também por
-    // created/updated e por uma página recente sem filtro, mas só exibimos itens
-    // cujo dt_lancamento realmente pertence ao período selecionado.
-    const fallbackWheres = [
-      buildCostWhereForDateField(parsedWhere, "created", dateRange),
-      buildCostWhereForDateField(parsedWhere, "updated", dateRange),
-    ];
+    tasks.push(
+      fetchPages(buildCostWhereForDateField(parsedWhere, "created", dateRange))
+        .then((items) => ({ items, filter: true }))
+        .catch((error) => {
+          console.warn("Rota Exata custos fallback created ignorado:", error);
+          return { items: [], filter: true };
+        }),
+      fetchPages(buildCostWhereForDateField(parsedWhere, "updated", dateRange))
+        .then((items) => ({ items, filter: true }))
+        .catch((error) => {
+          console.warn("Rota Exata custos fallback updated ignorado:", error);
+          return { items: [], filter: true };
+        }),
+      fetchPages(undefined, 1)
+        .then((items) => ({ items, filter: true }))
+        .catch((error) => {
+          console.warn("Rota Exata custos recentes ignorado:", error);
+          return { items: [], filter: true };
+        }),
+    );
+  }
 
-    for (const fallbackWhere of fallbackWheres) {
-      try {
-        addItems(await fetchPages(fallbackWhere), true, parsedWhere);
-      } catch (error) {
-        console.warn("Rota Exata custos fallback ignorado:", error);
-      }
-    }
-
-    try {
-      addItems(await fetchPages(undefined, 1), true, parsedWhere);
-    } catch (error) {
-      console.warn("Rota Exata custos recentes ignorado:", error);
-    }
+  const results = await Promise.all(tasks);
+  for (const { items, filter } of results) {
+    addItems(items, filter, parsedWhere);
   }
 
   return Array.from(byId.values());
