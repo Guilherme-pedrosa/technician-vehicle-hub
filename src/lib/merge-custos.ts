@@ -7,7 +7,14 @@ import type { ManualReconciliation } from "@/hooks/useManualReconciliations";
 export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   source: "rotaexata" | "auvo";
   external_id: string;
-  matched_with?: { source: "rotaexata" | "auvo"; id: string };
+  matched_with?: {
+    source: "rotaexata" | "auvo";
+    id: string;
+    dt_lancamento?: string;
+    valor?: number;
+    tipo_custo_nome?: string;
+    placa?: string;
+  };
   manual_placa?: boolean;
   attachment_url?: string | null;
   parse_status?: string;
@@ -51,7 +58,8 @@ function dayDiff(a: string, b: string) {
 }
 
 // Tolerância de data para considerar mesma transação (match exato OU divergência).
-const MAX_DAY_DIFF = 3;
+export const COST_RECONCILIATION_LOOKAROUND_DAYS = 3;
+const MAX_DAY_DIFF = COST_RECONCILIATION_LOOKAROUND_DAYS;
 
 // Faixa para considerar "possível divergência de valor":
 //  - até R$ 50,00 OU até 20% do maior valor.
@@ -80,6 +88,32 @@ function namesLikelyMatch(a?: string, b?: string): boolean {
   if (!ta.size || !tb.size) return false;
   for (const w of ta) if (tb.has(w)) return true;
   return false;
+}
+
+function matchedWithFrom(c: CustoRotaExata | AuvoCusto, source: "rotaexata" | "auvo"): NonNullable<MergedCusto["matched_with"]> {
+  return {
+    source,
+    id: c.id,
+    dt_lancamento: c.dt_lancamento,
+    valor: Number(c.valor) || 0,
+    tipo_custo_nome: c.tipo_custo_nome,
+    placa: c.placa,
+  };
+}
+
+function parseMergedDate(value?: string): number {
+  if (!value) return Number.NaN;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  return new Date(normalized).getTime();
+}
+
+export function isMergedCustoInDateRange(custo: MergedCusto, start: Date, end: Date): boolean {
+  const startTime = start.getTime();
+  const endTime = end.getTime();
+  return [custo.dt_lancamento, custo.matched_with?.dt_lancamento].some((date) => {
+    const time = parseMergedDate(date);
+    return Number.isFinite(time) && time >= startTime && time <= endTime;
+  });
 }
 
 /**
@@ -232,7 +266,7 @@ export function mergeCustos(
       if (a?.placa) placa = a.placa;
       if (a?.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
       attachment_url = a?.attachment_url ?? null;
-      matched_with = a ? { source: "auvo", id: a.id } : { source: "auvo", id: manual.rec.auvo_external_id };
+      matched_with = a ? matchedWithFrom(a, "auvo") : { source: "auvo", id: manual.rec.auvo_external_id };
       manual_reconciliation = {
         id: manual.rec.id,
         motivo: manual.rec.motivo,
@@ -247,7 +281,7 @@ export function mergeCustos(
       if (auvoMatch.placa) placa = auvoMatch.placa;
       if (auvoMatch.veiculo_descricao) veiculo_descricao = auvoMatch.veiculo_descricao;
       attachment_url = auvoMatch.attachment_url ?? null;
-      matched_with = { source: "auvo", id: auvoMatch.id };
+      matched_with = matchedWithFrom(auvoMatch, "auvo");
     } else {
       const sibling = divergenceForRota.get(r.id);
       if (sibling) {
@@ -298,7 +332,9 @@ export function mergeCustos(
     let matched_with: MergedCusto["matched_with"];
 
     if (manual) {
-      matched_with = { source: "rotaexata", id: manual.rec.rota_external_id };
+      matched_with = manual.rota
+        ? matchedWithFrom(manual.rota, "rotaexata")
+        : { source: "rotaexata", id: manual.rec.rota_external_id };
       manual_reconciliation = {
         id: manual.rec.id,
         motivo: manual.rec.motivo,
