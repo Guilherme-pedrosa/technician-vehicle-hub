@@ -141,6 +141,11 @@ export function mergeCustos(
       const diffAbs = Math.abs(vr - va);
       const diffPct = diffAbs / Math.max(vr, va, 1);
       if (diffAbs > DIVERGENCE_MAX_DIFF_BRL && diffPct > DIVERGENCE_MAX_DIFF_PCT) continue;
+      // EXIGIR PLACA IGUAL nos dois lados (quando ambos têm placa).
+      // Evita falsos positivos onde só o nome+data+valor batem.
+      const pr = normalizePlaca(r.placa);
+      const pa = normalizePlaca(a.placa);
+      if (pr && pa && pr !== pa) continue;
       // Se temos nomes nos dois lados, exigir compatibilidade.
       // Se um dos lados não tem nome, deixa passar (não bloqueia).
       if (r.criado_por_nome && a.criado_por_nome && !namesLikelyMatch(r.criado_por_nome, a.criado_por_nome)) {
