@@ -191,6 +191,33 @@ export type Database = {
           },
         ]
       }
+      cost_manual_reconciliations: {
+        Row: {
+          auvo_external_id: string
+          created_at: string
+          created_by: string
+          id: string
+          motivo: string
+          rota_external_id: string
+        }
+        Insert: {
+          auvo_external_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          motivo: string
+          rota_external_id: string
+        }
+        Update: {
+          auvo_external_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          motivo?: string
+          rota_external_id?: string
+        }
+        Relationships: []
+      }
       cost_placa_overrides: {
         Row: {
           created_at: string
