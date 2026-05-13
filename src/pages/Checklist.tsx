@@ -1495,6 +1495,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
       }
 
+      await draftPhotoPersistQueueRef.current.catch(() => undefined);
+
       if (photoUploadSummary.hasErrors) {
         throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
       }
