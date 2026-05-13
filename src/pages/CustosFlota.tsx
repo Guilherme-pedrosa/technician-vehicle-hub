@@ -173,18 +173,21 @@ export default function CustosFlota() {
 
   // Unique cost types for filter
   const tiposCusto = useMemo(() => {
-    const tipos = new Set(custos.map((c) => c.tipo_custo_nome).filter(Boolean));
+    const tipos = new Set<string>();
+    merged.forEach((c) => {
+      if (c.tipo_custo_nome) tipos.add(c.tipo_custo_nome);
+    });
     return Array.from(tipos).sort();
-  }, [custos]);
+  }, [merged]);
 
   // Unique placas for filter (from API data)
   const placas = useMemo(() => {
     const set = new Set<string>();
-    custos.forEach((c) => {
+    merged.forEach((c) => {
       if (c.placa) set.add(c.placa);
     });
     return Array.from(set).sort();
-  }, [custos]);
+  }, [merged]);
 
   // CSV export
   const exportCSV = () => {
