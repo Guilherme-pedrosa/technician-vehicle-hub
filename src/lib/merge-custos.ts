@@ -130,8 +130,11 @@ export function mergeCustos(
   const matchedRota = new Map<string, AuvoCusto>(); // rota.id → auvo
 
   rota.forEach((r) => {
+    if (manualByRota.has(r.id)) return;
     const cents = valueCents(r.valor);
-    const candidates = (auvoByValue.get(cents) ?? []).filter((c) => !consumedAuvoIds.has(c.id));
+    const candidates = (auvoByValue.get(cents) ?? []).filter(
+      (c) => !consumedAuvoIds.has(c.id) && !manualByAuvo.has(c.id),
+    );
     if (!candidates.length || !r.dt_lancamento) return;
 
     const pr = normalizePlaca(r.placa);
