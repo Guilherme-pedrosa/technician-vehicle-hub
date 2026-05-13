@@ -167,8 +167,8 @@ export function mergeCustos(
   });
 
   // --- 2. DETECÇÃO DE DIVERGÊNCIA (nas sobras) ---
-  const unmatchedRota = rota.filter((r) => !matchedRota.has(r.id));
-  const unmatchedAuvo = auvo.filter((a) => !consumedAuvoIds.has(a.id));
+  const unmatchedRota = rota.filter((r) => !matchedRota.has(r.id) && !manualByRota.has(r.id));
+  const unmatchedAuvo = auvo.filter((a) => !consumedAuvoIds.has(a.id) && !manualByAuvo.has(a.id));
 
   // mapa rota.id → auvo "irmão" suspeito  e  auvo.id → rota "irmão" suspeito
   const divergenceForRota = new Map<string, AuvoCusto>();
