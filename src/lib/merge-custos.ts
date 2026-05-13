@@ -10,22 +10,72 @@ export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   manual_placa?: boolean;
   attachment_url?: string | null;
   parse_status?: string;
+  /**
+   * Possível divergência de valor: a transação ficou sem par exato,
+   * mas existe um lançamento "irmão" na outra fonte com mesma data
+   * (±3 dias) e valor parecido. Provável erro humano (digitou valor
+   * diferente no comprovante vs. no cartão).
+   */
+  suspected_divergence?: {
+    other_source: "rotaexata" | "auvo";
+    other_external_id: string;
+    other_valor: number;
+    diff: number; // r.valor - other.valor (sinal preserva quem é maior)
+    diff_pct: number; // 0..1
+    other_descricao?: string;
+    other_criado_por?: string;
+  };
 };
-
-function dateKey(iso?: string) {
-  if (!iso) return "";
-  return iso.slice(0, 10);
-}
 
 function valueCents(v?: number) {
   return Math.round((Number(v) || 0) * 100);
 }
 
+function dayDiff(a: string, b: string) {
+  const da = new Date(a.slice(0, 10) + "T00:00:00Z").getTime();
+  const db = new Date(b.slice(0, 10) + "T00:00:00Z").getTime();
+  if (!Number.isFinite(da) || !Number.isFinite(db)) return Infinity;
+  return Math.abs(da - db) / 86400000;
+}
+
+// Tolerância de data para considerar mesma transação (match exato OU divergência).
+const MAX_DAY_DIFF = 3;
+
+// Faixa para considerar "possível divergência de valor":
+//  - até R$ 50,00 OU até 20% do maior valor.
+// Acima disso são transações distintas.
+const DIVERGENCE_MAX_DIFF_BRL = 50;
+const DIVERGENCE_MAX_DIFF_PCT = 0.20;
+
+function normalizeName(n?: string): string {
+  return (n ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * Retorna true se os nomes têm pelo menos um token de >=4 letras em comum
+ * (ex.: "Denilson Melo de Sousa" vs "Denilson Melo" → match).
+ */
+function namesLikelyMatch(a?: string, b?: string): boolean {
+  const ta = new Set(normalizeName(a).split(" ").filter((w) => w.length >= 4));
+  const tb = new Set(normalizeName(b).split(" ").filter((w) => w.length >= 4));
+  if (!ta.size || !tb.size) return false;
+  for (const w of ta) if (tb.has(w)) return true;
+  return false;
+}
+
 /**
  * Mescla custos do Rota Exata com despesas do Auvo:
- * - Mesma data + mesmo valor (centavos) = mesma transação.
- * - Rota traz litros/hodômetro; Auvo traz placa/comprovante.
- * - Aplica overrides manuais de placa por cima.
+ * - Mesma data (±3 dias) + mesmo valor exato (centavos) = mesma transação.
+ * - Sobras: tenta detectar "possível divergência de valor" entre Rota e Auvo
+ *   quando há um lançamento muito parecido na outra fonte (mesma pessoa,
+ *   mesma data, valores próximos).
  */
 export function mergeCustos(
   rota: CustoRotaExata[],
@@ -35,7 +85,7 @@ export function mergeCustos(
   const overrideMap = new Map<string, CostPlacaOverride>();
   overrides.forEach((o) => overrideMap.set(`${o.source}:${o.external_id}`, o));
 
-  // Index Auvo por VALOR (centavos) — buscamos por valor exato e tolerância de data.
+  // --- 1. MATCH EXATO POR VALOR + DATA TOLERANTE ---
   const auvoByValue = new Map<number, AuvoCusto[]>();
   auvo.forEach((a) => {
     const cents = valueCents(a.valor);
@@ -46,50 +96,104 @@ export function mergeCustos(
   });
 
   const consumedAuvoIds = new Set<string>();
-  const merged: MergedCusto[] = [];
+  const matchedRota = new Map<string, AuvoCusto>(); // rota.id → auvo
 
-  // Tolerância: até 3 dias de diferença entre lançamento Rota e Auvo
-  // (atrasos comuns: comprovante anexado depois, fuso, lançamento manual).
-  const MAX_DAY_DIFF = 3;
-
-  function dayDiff(a: string, b: string) {
-    const da = new Date(a.slice(0, 10) + "T00:00:00Z").getTime();
-    const db = new Date(b.slice(0, 10) + "T00:00:00Z").getTime();
-    if (!Number.isFinite(da) || !Number.isFinite(db)) return Infinity;
-    return Math.abs(da - db) / 86400000;
-  }
-
-  // Percorre Rota Exata, tentando casar com Auvo (mesmo valor, data próxima)
   rota.forEach((r) => {
     const cents = valueCents(r.valor);
     const candidates = (auvoByValue.get(cents) ?? []).filter((c) => !consumedAuvoIds.has(c.id));
-    let auvoMatch: AuvoCusto | undefined;
-    if (candidates.length && r.dt_lancamento) {
-      let bestDiff = Infinity;
-      for (const c of candidates) {
-        const diff = dayDiff(r.dt_lancamento, c.dt_lancamento ?? "");
-        if (diff < bestDiff && diff <= MAX_DAY_DIFF) {
-          bestDiff = diff;
-          auvoMatch = c;
-        }
+    if (!candidates.length || !r.dt_lancamento) return;
+
+    let bestDiff = Infinity;
+    let best: AuvoCusto | undefined;
+    for (const c of candidates) {
+      const diff = dayDiff(r.dt_lancamento, c.dt_lancamento ?? "");
+      if (diff < bestDiff && diff <= MAX_DAY_DIFF) {
+        bestDiff = diff;
+        best = c;
       }
     }
+    if (best) {
+      consumedAuvoIds.add(best.id);
+      matchedRota.set(r.id, best);
+    }
+  });
 
+  // --- 2. DETECÇÃO DE DIVERGÊNCIA (nas sobras) ---
+  const unmatchedRota = rota.filter((r) => !matchedRota.has(r.id));
+  const unmatchedAuvo = auvo.filter((a) => !consumedAuvoIds.has(a.id));
+
+  // mapa rota.id → auvo "irmão" suspeito  e  auvo.id → rota "irmão" suspeito
+  const divergenceForRota = new Map<string, AuvoCusto>();
+  const divergenceForAuvo = new Map<string, CustoRotaExata>();
+  const usedAuvoForDiv = new Set<string>();
+
+  for (const r of unmatchedRota) {
+    if (!r.dt_lancamento) continue;
+    let best: AuvoCusto | undefined;
+    let bestScore = Infinity;
+    for (const a of unmatchedAuvo) {
+      if (usedAuvoForDiv.has(a.id)) continue;
+      if (!a.dt_lancamento) continue;
+      const dDiff = dayDiff(r.dt_lancamento, a.dt_lancamento);
+      if (dDiff > MAX_DAY_DIFF) continue;
+      const vr = Number(r.valor) || 0;
+      const va = Number(a.valor) || 0;
+      const diffAbs = Math.abs(vr - va);
+      const diffPct = diffAbs / Math.max(vr, va, 1);
+      if (diffAbs > DIVERGENCE_MAX_DIFF_BRL && diffPct > DIVERGENCE_MAX_DIFF_PCT) continue;
+      // Se temos nomes nos dois lados, exigir compatibilidade.
+      // Se um dos lados não tem nome, deixa passar (não bloqueia).
+      if (r.criado_por_nome && a.criado_por_nome && !namesLikelyMatch(r.criado_por_nome, a.criado_por_nome)) {
+        continue;
+      }
+      // Score: prioriza menor diferença de valor, depois menor diff de data.
+      const score = diffPct * 1000 + dDiff;
+      if (score < bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    if (best) {
+      divergenceForRota.set(r.id, best);
+      divergenceForAuvo.set(best.id, r);
+      usedAuvoForDiv.add(best.id);
+    }
+  }
+
+  // --- 3. MONTAGEM DO RESULTADO ---
+  const merged: MergedCusto[] = [];
+
+  rota.forEach((r) => {
+    const auvoMatch = matchedRota.get(r.id);
     const override = overrideMap.get(`rotaexata:${r.id}`);
     let placa = r.placa;
     let veiculo_descricao = r.veiculo_descricao;
     let attachment_url: string | null | undefined;
     let matched_with: MergedCusto["matched_with"];
+    let suspected_divergence: MergedCusto["suspected_divergence"];
 
     if (auvoMatch) {
-      consumedAuvoIds.add(auvoMatch.id);
-      // Auvo é fonte de verdade pra PLACA (vem do comprovante).
       if (auvoMatch.placa) placa = auvoMatch.placa;
-      if (auvoMatch.veiculo_descricao) {
-        veiculo_descricao = auvoMatch.veiculo_descricao;
-      }
+      if (auvoMatch.veiculo_descricao) veiculo_descricao = auvoMatch.veiculo_descricao;
       attachment_url = auvoMatch.attachment_url ?? null;
       matched_with = { source: "auvo", id: auvoMatch.id };
+    } else {
+      const sibling = divergenceForRota.get(r.id);
+      if (sibling) {
+        if (sibling.placa && !placa) placa = sibling.placa;
+        attachment_url = sibling.attachment_url ?? null;
+        const vr = Number(r.valor) || 0;
+        const va = Number(sibling.valor) || 0;
+        suspected_divergence = {
+          other_source: "auvo",
+          other_external_id: sibling.id,
+          other_valor: va,
+          diff: vr - va,
+          diff_pct: Math.abs(vr - va) / Math.max(vr, va, 1),
+          other_descricao: sibling.descricao,
+          other_criado_por: sibling.criado_por_nome,
+        };
+      }
     }
 
     if (override) placa = override.placa;
@@ -103,24 +207,39 @@ export function mergeCustos(
       matched_with,
       manual_placa: !!override,
       attachment_url,
+      suspected_divergence,
     });
   });
 
-  // Auvo restantes (sem match no Rota)
   auvo.forEach((a) => {
     if (consumedAuvoIds.has(a.id)) return;
     const override = overrideMap.get(`auvo:${a.id}`);
     const placa = override ? override.placa : a.placa;
+    let suspected_divergence: MergedCusto["suspected_divergence"];
+    const sibling = divergenceForAuvo.get(a.id);
+    if (sibling) {
+      const va = Number(a.valor) || 0;
+      const vr = Number(sibling.valor) || 0;
+      suspected_divergence = {
+        other_source: "rotaexata",
+        other_external_id: sibling.id,
+        other_valor: vr,
+        diff: va - vr,
+        diff_pct: Math.abs(va - vr) / Math.max(va, vr, 1),
+        other_descricao: sibling.descricao,
+        other_criado_por: sibling.criado_por_nome,
+      };
+    }
     merged.push({
       ...a,
       placa,
       source: "auvo",
       external_id: a.id,
       manual_placa: !!override,
+      suspected_divergence,
     });
   });
 
-  // Ordena por data desc
   merged.sort((a, b) => (b.dt_lancamento ?? "").localeCompare(a.dt_lancamento ?? ""));
   return merged;
 }
