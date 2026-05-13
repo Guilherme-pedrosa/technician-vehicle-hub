@@ -1357,16 +1357,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           arr[startIndex + offset] = { status: "uploaded", uploadedUrl: url, storagePath: path };
           return { ...prev, [storageKey]: arr };
         });
-        if (draftIdRef.current) {
-          const { data: existingDraft } = await supabase
-            .from("vehicle_checklists")
-            .select("fotos")
-            .eq("id", draftIdRef.current)
-            .maybeSingle();
-          const existingFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
-          const nextFotos = mergePhotoUrlMaps(existingFotos, { [storageKey]: [url] });
-          await supabase.from("vehicle_checklists").update({ fotos: nextFotos } as any).eq("id", draftIdRef.current);
-        }
+        await persistUploadedPhotoToDraft(storageKey, url);
       } catch (error) {
         console.error("Photo upload error:", error);
         setPhotoUploads((prev) => {
@@ -1378,7 +1369,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     })).catch(() => undefined);
 
     return compressed;
-  }, [photoUploads, photos, uploadWithRetry, vehicleId]);
+  }, [persistUploadedPhotoToDraft, photoUploads, photos, uploadWithRetry, vehicleId]);
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     if (cat === "painel" && files.length > 0) {
