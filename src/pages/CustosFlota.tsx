@@ -44,6 +44,20 @@ function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Formata uma data ISO sem deslocar o dia por fuso horário.
+// `new Date("2026-05-08")` é interpretado como UTC midnight, e em BRT (UTC-3)
+// vira 07/05 21:00 — o que fazia o Rota mostrar a data um dia antes.
+function formatDateBR(iso?: string): string {
+  if (!iso) return "";
+  const datePart = iso.slice(0, 10);
+  const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // Fallback para formatos não-ISO
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(d, "dd/MM/yyyy");
+}
+
 export default function CustosFlota() {
   const [period, setPeriod] = useState<PeriodFilter>("mes");
   const [tipoCusto, setTipoCusto] = useState("todos");
