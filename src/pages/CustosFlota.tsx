@@ -72,12 +72,15 @@ export default function CustosFlota() {
   const rotaQuery = useCustosFlota(source !== "auvo" ? where : undefined);
   const auvoQuery = useAuvoExpenses(start, end);
 
-  const custos: (CustoRotaExata | AuvoCusto)[] = useMemo(() => {
-    if (source === "auvo") return auvoQuery.data ?? [];
-    if (source === "rotaexata") return rotaQuery.data ?? [];
-    // todos: combina as duas fontes
-    return [...(rotaQuery.data ?? []), ...(auvoQuery.data ?? [])];
-  }, [source, auvoQuery.data, rotaQuery.data]);
+  const overridesQuery = useCostPlacaOverrides();
+
+  // Mescla Rota+Auvo: mesma data+valor = uma transação só (Rota tem litros/hodômetro,
+  // Auvo tem placa/comprovante). Aplica overrides manuais por cima.
+  const merged: MergedCusto[] = useMemo(() => {
+    const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
+    const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
+    return mergeCustos(rota, auvo, overridesQuery.data ?? []);
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data]);
 
   const isLoading =
     source === "auvo"
@@ -88,15 +91,18 @@ export default function CustosFlota() {
 
   // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
-    let list = custos;
-    if (source !== "rotaexata" && tipoCusto !== "todos") {
+    let list = merged;
+    if (tipoCusto !== "todos") {
       list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
     }
     if (placaFilter !== "todos") {
       list = list.filter((c) => c.placa === placaFilter);
     }
     return list;
-  }, [custos, placaFilter, tipoCusto, source]);
+  }, [merged, placaFilter, tipoCusto]);
+
+  // Estado do diálogo de edição manual de placa
+  const [editTarget, setEditTarget] = useState<MergedCusto | null>(null);
 
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
