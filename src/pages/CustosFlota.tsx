@@ -9,8 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
-import { useAuvoExpenses, syncAuvoExpenses, type AuvoCusto } from "@/hooks/useAuvoExpenses";
+import { useCustosFlota } from "@/hooks/useCustosFlota";
+import { useAuvoExpenses, syncAuvoExpenses } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
