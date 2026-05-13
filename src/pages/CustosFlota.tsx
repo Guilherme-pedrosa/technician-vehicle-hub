@@ -500,13 +500,33 @@ export default function CustosFlota() {
                             </Badge>
                           )}
                           {custo.matched_with && (
-                            <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Rota Exata e Auvo">
+                            <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Ticket Log (Rota Exata) e Auvo — mesmo valor">
                               <Link2 className="h-3 w-3" /> match
+                            </Badge>
+                          )}
+                          {!custo.matched_with && custo.source === "rotaexata" && (
+                            <Badge variant="outline" className="gap-1 text-[10px] border-blue-300 text-blue-700" title="Esse lançamento existe no Ticket Log mas não foi encontrado comprovante correspondente no Auvo">
+                              só no Ticket
+                            </Badge>
+                          )}
+                          {!custo.matched_with && custo.source === "auvo" && (
+                            <Badge variant="outline" className="gap-1 text-[10px] border-purple-300 text-purple-700" title="Comprovante lançado no Auvo, mas sem transação correspondente no Ticket Log">
+                              só no Auvo
+                            </Badge>
+                          )}
+                          {custo.suspected_divergence && (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 text-[10px] border-amber-400 bg-amber-50 text-amber-800"
+                              title={`Possível divergência de valor: ${custo.source === "rotaexata" ? "Ticket" : "Auvo"} R$ ${(custo.valor ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} vs ${custo.suspected_divergence.other_source === "auvo" ? "Auvo" : "Ticket"} R$ ${custo.suspected_divergence.other_valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (diferença ${custo.suspected_divergence.diff > 0 ? "+" : ""}R$ ${custo.suspected_divergence.diff.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}). Mesma data e mesma pessoa — provável erro de digitação.`}
+                            >
+                              <AlertCircle className="h-3 w-3" /> divergência R$ {Math.abs(custo.suspected_divergence.diff).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                             </Badge>
                           )}
                           {custo.manual_placa && (
                             <Badge variant="outline" className="text-[10px]" title="Placa definida manualmente">manual</Badge>
                           )}
+
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
