@@ -533,6 +533,27 @@ export default function CustosFlota() {
                       <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
                         {custo.descricao ?? custo.veiculo_descricao ?? "—"}
                       </TableCell>
+                      <TableCell className="text-sm">
+                        {(() => {
+                          const nome = custo.criado_por_nome?.trim();
+                          const outro = custo.suspected_divergence?.other_criado_por?.trim();
+                          const fonteAtual = custo.source === "rotaexata" ? "Ticket" : "Auvo";
+                          const fonteOutra = custo.suspected_divergence?.other_source === "rotaexata" ? "Ticket" : "Auvo";
+                          if (!nome && !outro) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-xs">
+                                <span className="text-muted-foreground">{fonteAtual}:</span> {nome ?? "—"}
+                              </span>
+                              {outro && (
+                                <span className="text-xs">
+                                  <span className="text-muted-foreground">{fonteOutra}:</span> {outro}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-right text-sm tabular-nums">
                         {custo.litros && custo.litros > 0
                           ? `${custo.litros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`
