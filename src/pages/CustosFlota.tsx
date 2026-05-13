@@ -699,6 +699,18 @@ export default function CustosFlota() {
           description={`Lançamento de ${formatDateBR(editTarget.dt_lancamento) || "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
         />
       )}
+      {reconcileTarget && (
+        <ManualReconciliationDialog
+          open={!!reconcileTarget}
+          onOpenChange={(o) => { if (!o) setReconcileTarget(null); }}
+          rotaExternalId={reconcileTarget.rotaId}
+          auvoExternalId={reconcileTarget.auvoId}
+          rotaInfo={reconcileTarget.rotaInfo}
+          auvoInfo={reconcileTarget.auvoInfo}
+          existingId={reconcileTarget.existingId}
+          existingMotivo={reconcileTarget.existingMotivo}
+        />
+      )}
     </div>
   );
 }
