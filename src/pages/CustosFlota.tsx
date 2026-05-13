@@ -725,6 +725,14 @@ export default function CustosFlota() {
           existingMotivo={reconcileTarget.existingMotivo}
         />
       )}
+      {pickerTarget && (
+        <ManualReconcilePickerDialog
+          open={!!pickerTarget}
+          onOpenChange={(o) => { if (!o) setPickerTarget(null); }}
+          source={pickerTarget}
+          merged={merged}
+        />
+      )}
     </div>
   );
 }
