@@ -475,6 +475,7 @@ export default function CustosFlota() {
                     <TableHead>Data</TableHead>
                     <TableHead>Placa</TableHead>
                     <TableHead>Descrição</TableHead>
+                    <TableHead>Responsável</TableHead>
                     <TableHead className="text-right">Litros</TableHead>
                     <TableHead className="text-right">Hodômetro</TableHead>
                     <TableHead>Tipo</TableHead>
