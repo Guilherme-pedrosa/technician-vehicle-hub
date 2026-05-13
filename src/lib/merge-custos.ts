@@ -285,6 +285,8 @@ export function mergeCustos(
 
   auvo.forEach((a) => {
     if (consumedAuvoIds.has(a.id)) return;
+    if (manualByAuvo.has(a.id)) return; // já representado na linha do Ticket
+
     const override = overrideMap.get(`auvo:${a.id}`);
     const placa = override ? override.placa : a.placa;
     let suspected_divergence: MergedCusto["suspected_divergence"];
