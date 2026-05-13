@@ -123,6 +123,49 @@ export default function CustosFlota() {
 
   // Estado do diálogo de edição manual de placa
   const [editTarget, setEditTarget] = useState<MergedCusto | null>(null);
+  // Estado do diálogo de conciliação manual (Ticket × Auvo)
+  const [reconcileTarget, setReconcileTarget] = useState<{
+    rotaId: string;
+    auvoId: string;
+    rotaInfo: { valor: number; descricao?: string; data?: string; criado_por?: string };
+    auvoInfo: { valor: number; descricao?: string; data?: string; criado_por?: string };
+    existingId?: string;
+    existingMotivo?: string;
+  } | null>(null);
+
+  const openReconcileFromDivergence = (custo: MergedCusto) => {
+    const div = custo.suspected_divergence;
+    if (!div) return;
+    const rotaIsThis = custo.source === "rotaexata";
+    setReconcileTarget({
+      rotaId: rotaIsThis ? custo.external_id : div.other_external_id,
+      auvoId: rotaIsThis ? div.other_external_id : custo.external_id,
+      rotaInfo: rotaIsThis
+        ? { valor: custo.valor ?? 0, descricao: custo.descricao, data: custo.dt_lancamento, criado_por: custo.criado_por_nome }
+        : { valor: div.other_valor, descricao: div.other_descricao, criado_por: div.other_criado_por },
+      auvoInfo: rotaIsThis
+        ? { valor: div.other_valor, descricao: div.other_descricao, criado_por: div.other_criado_por }
+        : { valor: custo.valor ?? 0, descricao: custo.descricao, data: custo.dt_lancamento, criado_por: custo.criado_por_nome },
+    });
+  };
+
+  const openReconcileFromManual = (custo: MergedCusto) => {
+    const m = custo.manual_reconciliation;
+    if (!m) return;
+    const rotaIsThis = custo.source === "rotaexata";
+    setReconcileTarget({
+      rotaId: rotaIsThis ? custo.external_id : m.other_external_id,
+      auvoId: rotaIsThis ? m.other_external_id : custo.external_id,
+      rotaInfo: rotaIsThis
+        ? { valor: custo.valor ?? 0, descricao: custo.descricao, criado_por: custo.criado_por_nome }
+        : { valor: m.other_valor, descricao: m.other_descricao, criado_por: m.other_criado_por },
+      auvoInfo: rotaIsThis
+        ? { valor: m.other_valor, descricao: m.other_descricao, criado_por: m.other_criado_por }
+        : { valor: custo.valor ?? 0, descricao: custo.descricao, criado_por: custo.criado_por_nome },
+      existingId: m.id,
+      existingMotivo: m.motivo,
+    });
+  };
 
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
