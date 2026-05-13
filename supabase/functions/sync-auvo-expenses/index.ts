@@ -712,7 +712,8 @@ Deno.serve(async (req) => {
       return {
         expense,
         description,
-        date: (expense.expenseDate ?? expense.date ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+        // Always use the user-filled "Data" field (expenseDate) — never the creation date or today.
+        date: (expense.expenseDate ?? expense.date ?? "").slice(0, 10),
         vehicle_id: parsedFromDescription.vehicle_id ?? fallbackVehicleId,
         parsed_keyword: parsedFromDescription.keyword ?? fallbackParsedKeyword,
         parse_status: parsedFromDescription.vehicle_id
