@@ -243,8 +243,23 @@ export default function CustosFlota() {
           <Button
             variant="outline"
             size="sm"
-            disabled={syncing}
-            onClick={() => { rotaQuery.refetch(); auvoQuery.refetch(); overridesQuery.refetch(); toast.success("Dados atualizados"); }}
+            disabled={syncing || rotaQuery.isFetching || auvoQuery.isFetching}
+            onClick={async () => {
+              try {
+                const [rotaRes, auvoRes] = await Promise.all([
+                  rotaQuery.refetch({ cancelRefetch: true }),
+                  auvoQuery.refetch({ cancelRefetch: true }),
+                  overridesQuery.refetch({ cancelRefetch: true }),
+                ]);
+                if (rotaRes.isError) {
+                  toast.error("Falha ao atualizar Rota Exata");
+                } else {
+                  toast.success(`Atualizado · Rota: ${rotaRes.data?.length ?? 0} · Auvo: ${auvoRes.data?.length ?? 0}`);
+                }
+              } catch (e) {
+                toast.error("Erro ao atualizar dados");
+              }
+            }}
             className="gap-2"
           >
             <RefreshCw className={cn("h-4 w-4", (rotaQuery.isFetching || auvoQuery.isFetching) && "animate-spin")} />
