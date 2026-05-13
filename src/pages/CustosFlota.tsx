@@ -646,15 +646,39 @@ export default function CustosFlota() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => setEditTarget(custo)}
-                          title="Editar placa do custo"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-center gap-1">
+                          {custo.suspected_divergence && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-emerald-700 hover:text-emerald-800"
+                              onClick={() => openReconcileFromDivergence(custo)}
+                              title="Conciliar manualmente este lançamento com o sugerido"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {custo.manual_reconciliation && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-emerald-700"
+                              onClick={() => openReconcileFromManual(custo)}
+                              title="Editar conciliação manual"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setEditTarget(custo)}
+                            title="Editar placa do custo"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
