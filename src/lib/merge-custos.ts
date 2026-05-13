@@ -103,11 +103,25 @@ export function mergeCustos(
     const candidates = (auvoByValue.get(cents) ?? []).filter((c) => !consumedAuvoIds.has(c.id));
     if (!candidates.length || !r.dt_lancamento) return;
 
+    const pr = normalizePlaca(r.placa);
+
     let bestDiff = Infinity;
     let best: AuvoCusto | undefined;
+    let bestPlacaMatch = false;
     for (const c of candidates) {
       const diff = dayDiff(r.dt_lancamento, c.dt_lancamento ?? "");
-      if (diff < bestDiff && diff <= MAX_DAY_DIFF) {
+      if (diff > MAX_DAY_DIFF) continue;
+      const pc = normalizePlaca(c.placa);
+      // Se ambos têm placa e são diferentes, NUNCA casa (evita roubar o
+      // registro de outro veículo com mesmo valor/data).
+      if (pr && pc && pr !== pc) continue;
+      const placaMatch = !!(pr && pc && pr === pc);
+      // Prefere candidato com placa igual; entre iguais, o mais próximo em data.
+      if (placaMatch && !bestPlacaMatch) {
+        bestPlacaMatch = true;
+        bestDiff = diff;
+        best = c;
+      } else if (placaMatch === bestPlacaMatch && diff < bestDiff) {
         bestDiff = diff;
         best = c;
       }
