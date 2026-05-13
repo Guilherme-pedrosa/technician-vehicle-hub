@@ -191,6 +191,39 @@ export type Database = {
           },
         ]
       }
+      cost_placa_overrides: {
+        Row: {
+          created_at: string
+          created_by: string
+          external_id: string
+          id: string
+          note: string | null
+          placa: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          external_id: string
+          id?: string
+          note?: string | null
+          placa: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          external_id?: string
+          id?: string
+          note?: string | null
+          placa?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       daily_km_sync_status: {
         Row: {
           data: string
