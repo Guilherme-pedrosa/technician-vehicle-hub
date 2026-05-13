@@ -218,14 +218,32 @@ export function mergeCustos(
 
   rota.forEach((r) => {
     const auvoMatch = matchedRota.get(r.id);
+    const manual = manualByRota.get(r.id);
     const override = overrideMap.get(`rotaexata:${r.id}`);
     let placa = r.placa;
     let veiculo_descricao = r.veiculo_descricao;
     let attachment_url: string | null | undefined;
     let matched_with: MergedCusto["matched_with"];
     let suspected_divergence: MergedCusto["suspected_divergence"];
+    let manual_reconciliation: MergedCusto["manual_reconciliation"];
 
-    if (auvoMatch) {
+    if (manual) {
+      const a = manual.auvo;
+      if (a.placa) placa = a.placa;
+      if (a.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
+      attachment_url = a.attachment_url ?? null;
+      matched_with = { source: "auvo", id: a.id };
+      manual_reconciliation = {
+        id: manual.rec.id,
+        motivo: manual.rec.motivo,
+        other_valor: Number(a.valor) || 0,
+        other_source: "auvo",
+        other_external_id: a.id,
+        other_descricao: a.descricao,
+        other_criado_por: a.criado_por_nome,
+        other_attachment_url: a.attachment_url ?? null,
+      };
+    } else if (auvoMatch) {
       if (auvoMatch.placa) placa = auvoMatch.placa;
       if (auvoMatch.veiculo_descricao) veiculo_descricao = auvoMatch.veiculo_descricao;
       attachment_url = auvoMatch.attachment_url ?? null;
@@ -261,6 +279,7 @@ export function mergeCustos(
       manual_placa: !!override,
       attachment_url,
       suspected_divergence,
+      manual_reconciliation,
     });
   });
 
