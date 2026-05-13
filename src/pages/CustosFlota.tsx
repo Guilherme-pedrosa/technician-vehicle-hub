@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { addDays, format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
 import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
 import { ManualReconcilePickerDialog } from "@/components/custos/ManualReconcilePickerDialog";
-import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
+import { COST_RECONCILIATION_LOOKAROUND_DAYS, isMergedCustoInDateRange, mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -75,22 +75,27 @@ export default function CustosFlota() {
   const today = endOfDay(new Date());
   const end = rawEnd > today ? today : rawEnd;
 
-  // Build where clause for Rota Exata
+  const queryStart = addDays(start, -COST_RECONCILIATION_LOOKAROUND_DAYS);
+  const queryEnd = addDays(end, COST_RECONCILIATION_LOOKAROUND_DAYS);
+
+  // Build where clause for Rota Exata with a small reconciliation window.
+  // The visible date filter is applied after merge so a reconciled transaction
+  // never splits just because the other source is a few days outside the range.
   const where = useMemo(() => {
     const filter: Record<string, unknown> = {
       dt_lancamento: {
-        $gte: start.toISOString(),
-        $lte: end.toISOString(),
+        $gte: queryStart.toISOString(),
+        $lte: queryEnd.toISOString(),
       },
     };
     if (tipoCusto !== "todos") {
       filter.tipo_custo_nome = tipoCusto;
     }
     return JSON.stringify(filter);
-  }, [start, end, tipoCusto]);
+  }, [queryStart, queryEnd, tipoCusto]);
 
   const rotaQuery = useCustosFlota(source !== "auvo" ? where : undefined);
-  const auvoQuery = useAuvoExpenses(start, end);
+  const auvoQuery = useAuvoExpenses(queryStart, queryEnd);
 
   const overridesQuery = useCostPlacaOverrides();
   const manualReconQuery = useManualReconciliations();
@@ -112,7 +117,7 @@ export default function CustosFlota() {
 
   // Filter by placa + tipo client-side (Auvo doesn't filter at API level)
   const filteredCustos = useMemo(() => {
-    let list = merged;
+    let list = merged.filter((c) => isMergedCustoInDateRange(c, start, end));
     if (tipoCusto !== "todos") {
       list = list.filter((c) => c.tipo_custo_nome === tipoCusto);
     }
