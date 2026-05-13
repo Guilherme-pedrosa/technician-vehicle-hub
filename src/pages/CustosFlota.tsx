@@ -133,6 +133,8 @@ export default function CustosFlota() {
     existingId?: string;
     existingMotivo?: string;
   } | null>(null);
+  // Estado do picker (para conciliar lançamentos não casados)
+  const [pickerTarget, setPickerTarget] = useState<MergedCusto | null>(null);
 
   const openReconcileFromDivergence = (custo: MergedCusto) => {
     const div = custo.suspected_divergence;
