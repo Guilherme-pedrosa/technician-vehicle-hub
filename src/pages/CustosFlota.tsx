@@ -17,6 +17,7 @@ import { useManualReconciliations } from "@/hooks/useManualReconciliations";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
 import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
+import { ManualReconcilePickerDialog } from "@/components/custos/ManualReconcilePickerDialog";
 import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
