@@ -93,9 +93,28 @@ export function mergeCustos(
   rota: CustoRotaExata[],
   auvo: AuvoCusto[],
   overrides: CostPlacaOverride[] = [],
+  manualReconciliations: ManualReconciliation[] = [],
 ): MergedCusto[] {
   const overrideMap = new Map<string, CostPlacaOverride>();
   overrides.forEach((o) => overrideMap.set(`${o.source}:${o.external_id}`, o));
+
+  // --- 0. CONCILIAÇÕES MANUAIS — sempre prevalecem sobre o algoritmo ---
+  const auvoById = new Map<string, AuvoCusto>();
+  auvo.forEach((a) => auvoById.set(a.id, a));
+  const rotaById = new Map<string, CustoRotaExata>();
+  rota.forEach((r) => rotaById.set(r.id, r));
+
+  const manualByRota = new Map<string, { auvo: AuvoCusto; rec: ManualReconciliation }>();
+  const manualByAuvo = new Map<string, { rota: CustoRotaExata; rec: ManualReconciliation }>();
+  manualReconciliations.forEach((rec) => {
+    const r = rotaById.get(rec.rota_external_id);
+    const a = auvoById.get(rec.auvo_external_id);
+    if (r && a) {
+      manualByRota.set(r.id, { auvo: a, rec });
+      manualByAuvo.set(a.id, { rota: r, rec });
+    }
+  });
+
 
   // --- 1. MATCH EXATO POR VALOR + DATA TOLERANTE ---
   const auvoByValue = new Map<number, AuvoCusto[]>();
