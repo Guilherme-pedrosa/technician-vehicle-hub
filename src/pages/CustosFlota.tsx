@@ -120,6 +120,7 @@ export default function CustosFlota() {
         `Sync Auvo (${label}): ${r.fetched} despesas — ${r.matched} vinculadas, ${r.unmatched} sem placa`,
       );
       auvoQuery.refetch();
+      rotaQuery.refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha na sincronização");
     } finally {
@@ -236,8 +237,17 @@ export default function CustosFlota() {
               <SelectItem value="rotaexata">Rota Exata</SelectItem>
             </SelectContent>
           </Select>
-          {source === "auvo" && (
-            <Popover open={syncOpen} onOpenChange={setSyncOpen}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={syncing}
+            onClick={() => { rotaQuery.refetch(); auvoQuery.refetch(); overridesQuery.refetch(); toast.success("Dados atualizados"); }}
+            className="gap-2"
+          >
+            <RefreshCw className={cn("h-4 w-4", (rotaQuery.isFetching || auvoQuery.isFetching) && "animate-spin")} />
+            Atualizar
+          </Button>
+          <Popover open={syncOpen} onOpenChange={setSyncOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" disabled={syncing} className="gap-2">
                   <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
