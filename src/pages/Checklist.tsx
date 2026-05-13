@@ -1028,6 +1028,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftIdRef = useRef<string | null>(null);
+  const draftCreationPromiseRef = useRef<Promise<string | null> | null>(null);
+  const draftPhotoPersistQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     draftIdRef.current = draftId;
@@ -1070,6 +1072,106 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // ═══════════════════════════════════════════
   // AUTO-SAVE DRAFT — salva rascunho no banco de dados (debounced 3s)
   // ═══════════════════════════════════════════
+
+  const buildDraftPayload = useCallback((fotosUrls?: Record<string, string[]>) => {
+    const date = format(new Date(), "yyyy-MM-dd");
+    const draftPersistedAnswers = Object.fromEntries(
+      Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
+    );
+
+    return {
+      vehicle_id: vehicleId,
+      driver_id: selectedDriverId || null,
+      created_by: userId,
+      checklist_date: date,
+      tripulacao: tripulacao || null,
+      destino: destino || null,
+      observacoes: observacoes || null,
+      avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
+      ...(fotosUrls ? { fotos: fotosUrls } : {}),
+      resultado: resultado || "liberado",
+      resultado_motivo: resultadoMotivo || null,
+      termo_aceito: termoAceito,
+      status: "rascunho",
+      detalhes: {
+        km_proxima_troca: kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) || null : null,
+        km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
+        draft_step: step,
+        draft_answers: answers,
+      },
+      ...draftPersistedAnswers,
+    } as any;
+  }, [answers, destino, kmPainelManual, kmProximaTroca, observacoes, resultado, resultadoMotivo, selectedDriverId, step, termoAceito, tripulacao, userId, vehicleId]);
+
+  const ensureDraftExists = useCallback(async () => {
+    if (draftIdRef.current) return draftIdRef.current;
+    if (!vehicleId) return null;
+    if (draftCreationPromiseRef.current) return draftCreationPromiseRef.current;
+
+    const creationPromise = (async () => {
+      const { data, error } = await supabase
+        .from("vehicle_checklists")
+        .insert(buildDraftPayload({}))
+        .select("id")
+        .maybeSingle();
+
+      if (error) {
+        const { data: existingDraft } = await supabase
+          .from("vehicle_checklists")
+          .select("id")
+          .eq("created_by", userId)
+          .eq("vehicle_id", vehicleId)
+          .eq("status", "rascunho" as any)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!existingDraft?.id) throw error;
+        setDraftId(existingDraft.id);
+        draftIdRef.current = existingDraft.id;
+        return existingDraft.id;
+      }
+
+      if (data?.id) {
+        setDraftId(data.id);
+        draftIdRef.current = data.id;
+        return data.id;
+      }
+
+      return null;
+    })().finally(() => {
+      draftCreationPromiseRef.current = null;
+    });
+
+    draftCreationPromiseRef.current = creationPromise;
+    return creationPromise;
+  }, [buildDraftPayload, userId, vehicleId]);
+
+  const persistUploadedPhotoToDraft = useCallback(async (storageKey: string, url: string) => {
+    draftPhotoPersistQueueRef.current = draftPhotoPersistQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const activeDraftId = await ensureDraftExists();
+        if (!activeDraftId) throw new Error("Rascunho não encontrado para vincular a foto");
+
+        const { data: existingDraft, error: fetchError } = await supabase
+          .from("vehicle_checklists")
+          .select("fotos")
+          .eq("id", activeDraftId)
+          .maybeSingle();
+        if (fetchError) throw fetchError;
+
+        const existingFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
+        const nextFotos = mergePhotoUrlMaps(existingFotos, { [storageKey]: [url] });
+        const { error: updateError } = await supabase
+          .from("vehicle_checklists")
+          .update({ fotos: nextFotos } as any)
+          .eq("id", activeDraftId);
+        if (updateError) throw updateError;
+      });
+
+    await draftPhotoPersistQueueRef.current;
+  }, [ensureDraftExists]);
 
   // Load existing draft when dialog opens
   useEffect(() => {
