@@ -61,9 +61,11 @@ export function mergeCustos(
 
     if (auvoMatch) {
       consumedAuvoIds.add(auvoMatch.id);
-      // Auvo complementa: placa + anexo
-      if (!placa && auvoMatch.placa) placa = auvoMatch.placa;
-      if (!veiculo_descricao && auvoMatch.veiculo_descricao) {
+      // Auvo é fonte de verdade pra PLACA (vem do comprovante).
+      // O Rota Exata pode ter placa errada cadastrada (ex: Strada, Cobalt),
+      // por isso quando há match com Auvo, a placa do Auvo prevalece.
+      if (auvoMatch.placa) placa = auvoMatch.placa;
+      if (auvoMatch.veiculo_descricao) {
         veiculo_descricao = auvoMatch.veiculo_descricao;
       }
       attachment_url = auvoMatch.attachment_url ?? null;
