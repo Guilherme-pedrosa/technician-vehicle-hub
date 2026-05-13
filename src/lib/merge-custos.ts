@@ -229,19 +229,19 @@ export function mergeCustos(
 
     if (manual) {
       const a = manual.auvo;
-      if (a.placa) placa = a.placa;
-      if (a.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
-      attachment_url = a.attachment_url ?? null;
-      matched_with = { source: "auvo", id: a.id };
+      if (a?.placa) placa = a.placa;
+      if (a?.veiculo_descricao) veiculo_descricao = a.veiculo_descricao;
+      attachment_url = a?.attachment_url ?? null;
+      matched_with = a ? { source: "auvo", id: a.id } : { source: "auvo", id: manual.rec.auvo_external_id };
       manual_reconciliation = {
         id: manual.rec.id,
         motivo: manual.rec.motivo,
-        other_valor: Number(a.valor) || 0,
+        other_valor: a ? Number(a.valor) || 0 : 0,
         other_source: "auvo",
-        other_external_id: a.id,
-        other_descricao: a.descricao,
-        other_criado_por: a.criado_por_nome,
-        other_attachment_url: a.attachment_url ?? null,
+        other_external_id: manual.rec.auvo_external_id,
+        other_descricao: a?.descricao ?? "(fora do intervalo do filtro)",
+        other_criado_por: a?.criado_por_nome,
+        other_attachment_url: a?.attachment_url ?? null,
       };
     } else if (auvoMatch) {
       if (auvoMatch.placa) placa = auvoMatch.placa;
