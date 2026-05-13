@@ -39,7 +39,17 @@ type RawCusto = {
   [key: string]: unknown;
 };
 
+function extractMotoristaFromDescricao(descricao?: string): string | undefined {
+  if (!descricao) return undefined;
+  // Ex: "...realizado pelo motorista FRED JORGE DANTAS DE BESSA SILVA no estabelecimento ..."
+  const m = descricao.match(/motorista\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç'.\- ]+?)\s+no\s+estabelecimento/i);
+  if (m) return m[1].trim().replace(/\s+/g, " ");
+  return undefined;
+}
+
 function normalizeCusto(raw: RawCusto): CustoRotaExata {
+  const descricao = raw.descricao ? String(raw.descricao) : undefined;
+  const motoristaNome = extractMotoristaFromDescricao(descricao);
   return {
     id: String(raw._id ?? ""),
     adesao_id: raw.adesao?.id ?? 0,
@@ -52,10 +62,10 @@ function normalizeCusto(raw: RawCusto): CustoRotaExata {
     parcelado: Boolean(raw.parcelado),
     mensalidade: Boolean(raw.mensalidade),
     quantidade_parcelas: raw.quantidade_parcelas ? Number(raw.quantidade_parcelas) : undefined,
-    descricao: raw.descricao ? String(raw.descricao) : undefined,
+    descricao,
     hodometro: raw.km_veiculo ? Number(raw.km_veiculo) : (raw.km_rastreador ? Number(raw.km_rastreador) : undefined),
     fornecedor_nome: undefined,
-    criado_por_nome: raw.usuario_responsavel?.nome ?? undefined,
+    criado_por_nome: motoristaNome ?? raw.usuario_responsavel?.nome ?? undefined,
     litros: raw.litros ? Number(raw.litros) : undefined,
   };
 }
