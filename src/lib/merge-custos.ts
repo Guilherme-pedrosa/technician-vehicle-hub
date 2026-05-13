@@ -2,6 +2,7 @@ import { normalizePlaca } from "@/lib/excluded-vehicles";
 import type { CustoRotaExata } from "@/hooks/useCustosFlota";
 import type { AuvoCusto } from "@/hooks/useAuvoExpenses";
 import type { CostPlacaOverride } from "@/hooks/useCostPlacaOverrides";
+import type { ManualReconciliation } from "@/hooks/useManualReconciliations";
 
 export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   source: "rotaexata" | "auvo";
@@ -10,6 +11,17 @@ export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   manual_placa?: boolean;
   attachment_url?: string | null;
   parse_status?: string;
+  /** Conciliação manual: quando o admin amarra explicitamente os dois lados. */
+  manual_reconciliation?: {
+    id: string;
+    motivo: string;
+    other_valor: number;
+    other_source: "rotaexata" | "auvo";
+    other_external_id: string;
+    other_descricao?: string;
+    other_criado_por?: string;
+    other_attachment_url?: string | null;
+  };
   /**
    * Possível divergência de valor: a transação ficou sem par exato,
    * mas existe um lançamento "irmão" na outra fonte com mesma data
