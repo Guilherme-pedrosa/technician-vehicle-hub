@@ -44,6 +44,20 @@ function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Formata uma data ISO sem deslocar o dia por fuso horário.
+// `new Date("2026-05-08")` é interpretado como UTC midnight, e em BRT (UTC-3)
+// vira 07/05 21:00 — o que fazia o Rota mostrar a data um dia antes.
+function formatDateBR(iso?: string): string {
+  if (!iso) return "";
+  const datePart = iso.slice(0, 10);
+  const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // Fallback para formatos não-ISO
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return format(d, "dd/MM/yyyy");
+}
+
 export default function CustosFlota() {
   const [period, setPeriod] = useState<PeriodFilter>("mes");
   const [tipoCusto, setTipoCusto] = useState("todos");
@@ -197,8 +211,8 @@ export default function CustosFlota() {
   const exportCSV = () => {
     const headers = ["Data", "Criado em", "Placa", "Descrição", "Hodômetro", "Tipo", "Fornecedor", "Criado por", "Valor", "Parcelado"];
     const rows = filteredCustos.map((c) => [
-      c.dt_lancamento ? format(new Date(c.dt_lancamento), "dd/MM/yyyy") : "",
-      c.dt_criacao ? format(new Date(c.dt_criacao), "dd/MM/yyyy") : "",
+      formatDateBR(c.dt_lancamento),
+      formatDateBR(c.dt_criacao),
       c.placa ?? `ID ${c.adesao_id}`,
       c.descricao ?? c.veiculo_descricao ?? "",
       String(c.hodometro ?? ""),
@@ -474,9 +488,7 @@ export default function CustosFlota() {
                   {filteredCustos.map((custo) => (
                     <TableRow key={`${custo.source}:${custo.external_id}`}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {custo.dt_lancamento
-                          ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
-                          : "—"}
+                        {formatDateBR(custo.dt_lancamento) || "—"}
                       </TableCell>
                       <TableCell className="font-medium text-sm">
                         <div className="flex items-center gap-1.5">
@@ -560,7 +572,7 @@ export default function CustosFlota() {
           source={editTarget.source}
           externalId={editTarget.external_id}
           currentPlaca={editTarget.placa}
-          description={`Lançamento de ${editTarget.dt_lancamento ? format(new Date(editTarget.dt_lancamento), "dd/MM/yyyy") : "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
+          description={`Lançamento de ${formatDateBR(editTarget.dt_lancamento) || "—"} · ${formatCurrency(editTarget.valor ?? 0)}`}
         />
       )}
     </div>
