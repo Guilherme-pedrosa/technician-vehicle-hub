@@ -296,7 +296,6 @@ export default function CustosFlota() {
                 </div>
               </PopoverContent>
             </Popover>
-          </Popover>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
             <Download className="h-4 w-4" />
             Exportar CSV
