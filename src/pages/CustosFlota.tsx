@@ -488,9 +488,7 @@ export default function CustosFlota() {
                   {filteredCustos.map((custo) => (
                     <TableRow key={`${custo.source}:${custo.external_id}`}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {custo.dt_lancamento
-                          ? format(new Date(custo.dt_lancamento), "dd/MM/yyyy")
-                          : "—"}
+                        {formatDateBR(custo.dt_lancamento) || "—"}
                       </TableCell>
                       <TableCell className="font-medium text-sm">
                         <div className="flex items-center gap-1.5">
