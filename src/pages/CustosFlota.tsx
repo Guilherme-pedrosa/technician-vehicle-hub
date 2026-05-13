@@ -92,14 +92,15 @@ export default function CustosFlota() {
   const auvoQuery = useAuvoExpenses(start, end);
 
   const overridesQuery = useCostPlacaOverrides();
+  const manualReconQuery = useManualReconciliations();
 
-  // Mescla Rota+Auvo: mesma data+valor = uma transação só (Rota tem litros/hodômetro,
-  // Auvo tem placa/comprovante). Aplica overrides manuais por cima.
+  // Mescla Rota+Auvo: mesma data+valor = uma transação só. Aplica overrides
+  // de placa e conciliações manuais por cima.
   const merged: MergedCusto[] = useMemo(() => {
     const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
     const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
-    return mergeCustos(rota, auvo, overridesQuery.data ?? []);
-  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data]);
+    return mergeCustos(rota, auvo, overridesQuery.data ?? [], manualReconQuery.data ?? []);
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data]);
 
   const isLoading =
     source === "auvo"
