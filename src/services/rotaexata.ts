@@ -69,6 +69,53 @@ function unwrapRotaExataResponse<T>(payload: RotaExataEnvelope<T>): T {
   return payload as T;
 }
 
+function parseCostWhere(where?: string): Record<string, unknown> | null {
+  if (!where) return null;
+  try {
+    const parsed = JSON.parse(where);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCostDateRange(whereObj: Record<string, unknown> | null) {
+  const raw = whereObj?.dt_lancamento;
+  if (!raw || typeof raw !== "object") return null;
+  const range = raw as Record<string, unknown>;
+  const gte = typeof range.$gte === "string" ? range.$gte : undefined;
+  const lte = typeof range.$lte === "string" ? range.$lte : undefined;
+  return gte || lte ? { $gte: gte, $lte: lte } : null;
+}
+
+function buildCostWhereForDateField(base: Record<string, unknown>, field: string, range: { $gte?: string; $lte?: string }) {
+  const next = { ...base };
+  delete next.dt_lancamento;
+  next[field] = range;
+  return JSON.stringify(next);
+}
+
+function costMatchesOriginalWhere(item: Record<string, unknown>, whereObj: Record<string, unknown> | null) {
+  if (!whereObj) return true;
+  const range = getCostDateRange(whereObj);
+  if (range) {
+    const dateValue = typeof item.dt_lancamento === "string" ? item.dt_lancamento : "";
+    const time = Date.parse(dateValue);
+    if (!Number.isFinite(time)) return false;
+    if (range.$gte && time < Date.parse(range.$gte)) return false;
+    if (range.$lte && time > Date.parse(range.$lte)) return false;
+  }
+
+  if (typeof whereObj.tipo_custo_nome === "string") {
+    const tipo = item.tipo_custo && typeof item.tipo_custo === "object"
+      ? String((item.tipo_custo as Record<string, unknown>).nome ?? "")
+      : String(item.tipo_custo_nome ?? "");
+    if (tipo !== whereObj.tipo_custo_nome) return false;
+  }
+
+  return true;
+}
+
 function normalizePosicao(item: RawRotaExataPosicao): RotaExataPosicaoResponse {
   const posicao = ((item.posicao as Record<string, unknown> | undefined) ?? item) as RawRotaExataPosicao;
   const ignicao = posicao.ignicao;
@@ -299,21 +346,65 @@ export async function getCustos(where?: string): Promise<unknown> {
   // Períodos longos (>3 meses) ou alta movimentação ultrapassam isso e
   // perdíamos abastecimentos silenciosamente, fazendo o total divergir do painel.
   const PAGE_SIZE = 500;
-  const all: unknown[] = [];
-  for (let page = 1; page <= 50; page++) {
-    const params: Record<string, string> = {
-      limit: String(PAGE_SIZE),
-      page: String(page),
-      fields: '["*"]',
-    };
-    if (where) params.where = where;
-    const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
-    const data = unwrapRotaExataResponse(response);
-    const items = Array.isArray(data) ? data : [];
-    all.push(...items);
-    if (items.length < PAGE_SIZE) break;
+  const byId = new Map<string, unknown>();
+  const addItems = (items: unknown[], shouldFilter = false, whereObj: Record<string, unknown> | null = null) => {
+    items.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      if (shouldFilter && !costMatchesOriginalWhere(item as Record<string, unknown>, whereObj)) return;
+      const id = String((item as Record<string, unknown>)._id ?? `fallback-${byId.size}-${index}`);
+      byId.set(id, item);
+    });
+  };
+
+  const fetchPages = async (queryWhere?: string, maxPages = 50) => {
+    const collected: unknown[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const params: Record<string, string> = {
+        limit: String(PAGE_SIZE),
+        page: String(page),
+        fields: '["*"]',
+      };
+      if (queryWhere) params.where = queryWhere;
+      const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
+      const data = unwrapRotaExataResponse(response);
+      const items = Array.isArray(data) ? data : [];
+      collected.push(...items);
+      if (items.length < PAGE_SIZE) break;
+    }
+    return collected;
+  };
+
+  const primary = await fetchPages(where);
+  addItems(primary);
+
+  const parsedWhere = parseCostWhere(where);
+  const dateRange = getCostDateRange(parsedWhere);
+  if (parsedWhere && dateRange) {
+    // O painel da RotaExata às vezes mostra lançamentos recém-criados/corrigidos
+    // que não voltam no filtro de dt_lancamento da API. Buscamos também por
+    // created/updated e por uma página recente sem filtro, mas só exibimos itens
+    // cujo dt_lancamento realmente pertence ao período selecionado.
+    const fallbackWheres = [
+      buildCostWhereForDateField(parsedWhere, "created", dateRange),
+      buildCostWhereForDateField(parsedWhere, "updated", dateRange),
+    ];
+
+    for (const fallbackWhere of fallbackWheres) {
+      try {
+        addItems(await fetchPages(fallbackWhere), true, parsedWhere);
+      } catch (error) {
+        console.warn("Rota Exata custos fallback ignorado:", error);
+      }
+    }
+
+    try {
+      addItems(await fetchPages(undefined, 1), true, parsedWhere);
+    } catch (error) {
+      console.warn("Rota Exata custos recentes ignorado:", error);
+    }
   }
-  return all;
+
+  return Array.from(byId.values());
 }
 
 export async function getMultas(where?: string): Promise<unknown> {
