@@ -144,7 +144,15 @@ async function proxyRequest(
         ? String((parsed as { message?: unknown }).message ?? "")
         : "";
 
-    if (message === "Nenhuma posição encontrada.") {
+    // Normalize various "no records found" 404s to empty success
+    const bodyStr = (responseBody || "").toLowerCase();
+    const isNoRecords =
+      message === "Nenhuma posição encontrada." ||
+      /não foi possível encontrar registros/i.test(message) ||
+      /não foi possível encontrar registros/i.test(bodyStr) ||
+      /nenhum registro/i.test(message);
+
+    if (isNoRecords) {
       return new Response(JSON.stringify([]), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
