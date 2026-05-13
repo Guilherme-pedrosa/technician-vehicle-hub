@@ -35,23 +35,45 @@ export function mergeCustos(
   const overrideMap = new Map<string, CostPlacaOverride>();
   overrides.forEach((o) => overrideMap.set(`${o.source}:${o.external_id}`, o));
 
-  // Index Auvo por (data, valor) para casamento rápido.
-  const auvoByKey = new Map<string, AuvoCusto[]>();
+  // Index Auvo por VALOR (centavos) — buscamos por valor exato e tolerância de data.
+  const auvoByValue = new Map<number, AuvoCusto[]>();
   auvo.forEach((a) => {
-    const key = `${dateKey(a.dt_lancamento)}|${valueCents(a.valor)}`;
-    const arr = auvoByKey.get(key) ?? [];
+    const cents = valueCents(a.valor);
+    if (!cents) return;
+    const arr = auvoByValue.get(cents) ?? [];
     arr.push(a);
-    auvoByKey.set(key, arr);
+    auvoByValue.set(cents, arr);
   });
 
   const consumedAuvoIds = new Set<string>();
   const merged: MergedCusto[] = [];
 
-  // Percorre Rota Exata, tentando casar com Auvo
+  // Tolerância: até 3 dias de diferença entre lançamento Rota e Auvo
+  // (atrasos comuns: comprovante anexado depois, fuso, lançamento manual).
+  const MAX_DAY_DIFF = 3;
+
+  function dayDiff(a: string, b: string) {
+    const da = new Date(a.slice(0, 10) + "T00:00:00Z").getTime();
+    const db = new Date(b.slice(0, 10) + "T00:00:00Z").getTime();
+    if (!Number.isFinite(da) || !Number.isFinite(db)) return Infinity;
+    return Math.abs(da - db) / 86400000;
+  }
+
+  // Percorre Rota Exata, tentando casar com Auvo (mesmo valor, data próxima)
   rota.forEach((r) => {
-    const key = `${dateKey(r.dt_lancamento)}|${valueCents(r.valor)}`;
-    const candidates = auvoByKey.get(key) ?? [];
-    const auvoMatch = candidates.find((c) => !consumedAuvoIds.has(c.id));
+    const cents = valueCents(r.valor);
+    const candidates = (auvoByValue.get(cents) ?? []).filter((c) => !consumedAuvoIds.has(c.id));
+    let auvoMatch: AuvoCusto | undefined;
+    if (candidates.length && r.dt_lancamento) {
+      let bestDiff = Infinity;
+      for (const c of candidates) {
+        const diff = dayDiff(r.dt_lancamento, c.dt_lancamento ?? "");
+        if (diff < bestDiff && diff <= MAX_DAY_DIFF) {
+          bestDiff = diff;
+          auvoMatch = c;
+        }
+      }
+    }
 
     const override = overrideMap.get(`rotaexata:${r.id}`);
     let placa = r.placa;
@@ -62,8 +84,6 @@ export function mergeCustos(
     if (auvoMatch) {
       consumedAuvoIds.add(auvoMatch.id);
       // Auvo é fonte de verdade pra PLACA (vem do comprovante).
-      // O Rota Exata pode ter placa errada cadastrada (ex: Strada, Cobalt),
-      // por isso quando há match com Auvo, a placa do Auvo prevalece.
       if (auvoMatch.placa) placa = auvoMatch.placa;
       if (auvoMatch.veiculo_descricao) {
         veiculo_descricao = auvoMatch.veiculo_descricao;
