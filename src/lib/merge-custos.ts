@@ -104,15 +104,15 @@ export function mergeCustos(
   const rotaById = new Map<string, CustoRotaExata>();
   rota.forEach((r) => rotaById.set(r.id, r));
 
-  const manualByRota = new Map<string, { auvo: AuvoCusto; rec: ManualReconciliation }>();
-  const manualByAuvo = new Map<string, { rota: CustoRotaExata; rec: ManualReconciliation }>();
+  const manualByRota = new Map<string, { auvo: AuvoCusto | null; rec: ManualReconciliation }>();
+  const manualByAuvo = new Map<string, { rota: CustoRotaExata | null; rec: ManualReconciliation }>();
   manualReconciliations.forEach((rec) => {
     const r = rotaById.get(rec.rota_external_id);
     const a = auvoById.get(rec.auvo_external_id);
-    if (r && a) {
-      manualByRota.set(r.id, { auvo: a, rec });
-      manualByAuvo.set(a.id, { rota: r, rec });
-    }
+    // Conciliação manual SEMPRE prevalece — mesmo que o outro lado esteja
+    // fora do intervalo do filtro de data (não desfazer por causa do filtro).
+    if (r) manualByRota.set(r.id, { auvo: a ?? null, rec });
+    if (a) manualByAuvo.set(a.id, { rota: r ?? null, rec });
   });
 
 
