@@ -794,22 +794,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    const rows = baseRows.map((row) => ({
-      auvo_id: row.expense.id,
-      description: row.description,
-      amount: Number(row.expense.amount ?? 0),
-      expense_date: row.date,
-      type_id: row.expense.typeId ?? null,
-      type_name: row.expense.typeName ?? null,
-      user_to_id: row.expense.userToId ?? null,
-      user_to_name: row.expense.userToName ?? null,
-      attachment_url: row.expense.attachmentUrl || null,
-      vehicle_id: row.vehicle_id,
-      parse_status: row.parse_status,
-      parsed_keyword: row.parsed_keyword,
-      raw_payload: row.raw_payload,
-      synced_at: new Date().toISOString(),
-    }));
+    const rows = baseRows
+      .filter((row) => !!row.date) // require user-filled "Data"
+      .map((row) => ({
+        auvo_id: row.expense.id,
+        description: row.description,
+        amount: Number(row.expense.amount ?? 0),
+        expense_date: row.date,
+        type_id: row.expense.typeId ?? null,
+        type_name: row.expense.typeName ?? null,
+        user_to_id: row.expense.userToId ?? null,
+        user_to_name: row.expense.userToName ?? null,
+        attachment_url: row.expense.attachmentUrl || null,
+        vehicle_id: row.vehicle_id,
+        parse_status: row.parse_status,
+        parsed_keyword: row.parsed_keyword,
+        raw_payload: row.raw_payload,
+        synced_at: new Date().toISOString(),
+      }));
 
     let upserted = 0;
     if (!dryRun && rows.length) {
