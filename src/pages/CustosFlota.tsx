@@ -53,7 +53,10 @@ export default function CustosFlota() {
   const [source, setSource] = useState<DataSource>("todos");
   const [syncing, setSyncing] = useState(false);
 
-  const { start, end } = getDateRange(period, customStart, customEnd);
+  const { start, end: rawEnd } = getDateRange(period, customStart, customEnd);
+  // Nunca consultar datas no futuro — clampa end ao fim do dia de hoje.
+  const today = endOfDay(new Date());
+  const end = rawEnd > today ? today : rawEnd;
 
   // Build where clause for Rota Exata
   const where = useMemo(() => {
