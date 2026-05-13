@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,7 +12,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { useCustosFlota, type CustoRotaExata } from "@/hooks/useCustosFlota";
 import { useAuvoExpenses, syncAuvoExpenses, type AuvoCusto } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
+import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
+import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
+import { mergeCustos, type MergedCusto } from "@/lib/merge-custos";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
