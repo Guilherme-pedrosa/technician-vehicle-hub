@@ -295,11 +295,25 @@ export async function getRelatorioRuaPorRua(params: {
 // ===========================
 
 export async function getCustos(where?: string): Promise<unknown> {
-  const params: Record<string, string> = { limit: "500" };
-  if (where) params.where = where;
-  params.fields = '["*"]';
-  const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
-  return unwrapRotaExataResponse(response);
+  // Pagina sem limite efetivo — Rota Exata corta em 500 por chamada por padrão.
+  // Períodos longos (>3 meses) ou alta movimentação ultrapassam isso e
+  // perdíamos abastecimentos silenciosamente, fazendo o total divergir do painel.
+  const PAGE_SIZE = 500;
+  const all: unknown[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const params: Record<string, string> = {
+      limit: String(PAGE_SIZE),
+      page: String(page),
+      fields: '["*"]',
+    };
+    if (where) params.where = where;
+    const response = await rotaExataFetch<RotaExataEnvelope<unknown>>("/custos", "GET", params);
+    const data = unwrapRotaExataResponse(response);
+    const items = Array.isArray(data) ? data : [];
+    all.push(...items);
+    if (items.length < PAGE_SIZE) break;
+  }
+  return all;
 }
 
 export async function getMultas(where?: string): Promise<unknown> {
