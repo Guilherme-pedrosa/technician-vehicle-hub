@@ -549,9 +549,18 @@ export default function CustosFlota() {
                               <AlertCircle className="h-3 w-3" /> Sem placa
                             </Badge>
                           )}
-                          {custo.matched_with && (
+                          {custo.matched_with && !custo.manual_reconciliation && (
                             <Badge variant="secondary" className="gap-1 text-[10px]" title="Casado entre Ticket Log (Rota Exata) e Auvo — mesmo valor">
                               <Link2 className="h-3 w-3" /> match
+                            </Badge>
+                          )}
+                          {custo.manual_reconciliation && (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 text-[10px] border-emerald-400 bg-emerald-50 text-emerald-800"
+                              title={`Conciliado manualmente. Motivo: ${custo.manual_reconciliation.motivo}. Valor consolidado pelo Ticket (R$ ${(custo.valor ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}); Auvo: R$ ${custo.manual_reconciliation.other_valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`}
+                            >
+                              <Link2 className="h-3 w-3" /> conciliado manual
                             </Badge>
                           )}
                           {!custo.matched_with && custo.source === "rotaexata" && (
