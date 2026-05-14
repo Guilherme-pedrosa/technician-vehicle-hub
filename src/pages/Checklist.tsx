@@ -1165,7 +1165,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         const nextFotos = mergePhotoUrlMaps(existingFotos, { [storageKey]: [url] });
         const { error: updateError } = await supabase
           .from("vehicle_checklists")
-          .update({ fotos: nextFotos } as any)
+          .update({ fotos: nextFotos, checklist_date: format(new Date(), "yyyy-MM-dd") } as any)
           .eq("id", activeDraftId);
         if (updateError) throw updateError;
       });
@@ -1191,6 +1191,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         const { data } = await query.maybeSingle();
         if (!data) return;
         setDraftId(data.id);
+        // Bump checklist_date para HOJE ao retomar rascunho — a data do checklist
+        // deve refletir o dia do PREENCHIMENTO, não o dia em que o rascunho foi iniciado.
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (data.checklist_date !== todayStr) {
+          void supabase
+            .from("vehicle_checklists")
+            .update({ checklist_date: todayStr } as any)
+            .eq("id", data.id);
+        }
         if (data.vehicle_id) setVehicleId(data.vehicle_id);
         if (data.driver_id) setSelectedDriverId(data.driver_id);
         if (data.tripulacao) setTripulacao(data.tripulacao);
