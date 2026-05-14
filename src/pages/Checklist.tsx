@@ -2231,11 +2231,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           {/* Summary */}
           <div className="rounded-xl border border-border p-4 space-y-2">
             <h4 className="text-sm font-bold">Resumo da Inspeção</h4>
-            {(nonConformeFields.length > 0 || trocaOleoVencida) ? (
+            {(nonConformeFields.length > 0 || trocaOleoVencida || kmPainelMenorQueCadastro) ? (
               <div className="space-y-1">
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0)) > 1 ? "s" : ""}
+                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0) + (kmPainelMenorQueCadastro ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0) + (kmPainelMenorQueCadastro ? 1 : 0)) > 1 ? "s" : ""}
                 </Badge>
                 <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
                   {nonConformeFields.map((f) => (
@@ -2250,6 +2250,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
                       {kmRestanteOleo !== null && kmRestanteOleo <= 0
                         ? `Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km)`
                         : `Troca de óleo próxima (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`}
+                    </li>
+                  )}
+                  {kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle && (
+                    <li className="flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 text-warning shrink-0" />
+                      KM do painel menor que o cadastro: {kmPainelNum.toLocaleString("pt-BR")} km vs. {selectedVehicle.km_atual.toLocaleString("pt-BR")} km
                     </li>
                   )}
                 </ul>
