@@ -1825,14 +1825,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         // danos photos only required if danos_veiculo === "sim"
         return true;
       }
-      if (missing.length > 0) return false;
+      if (missing.length > 0 || missing.some((cat) => (photoUploads[cat] ?? []).some((upload) => upload?.status === "uploading" || upload?.status === "error"))) return false;
     }
     // PAINEL: foto aprovada (verde) + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
     if (currentStep.id === "painel") {
       const painelVals = photoValidations.painel ?? [];
       // Precisa ter PELO MENOS UMA foto aprovada (verde). O KM pode ser digitado manualmente.
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
-      const temFotoValida = painelVals.some(
+      const painelUploadSalvo = getUploadedPhotoUrls(photoUploads.painel).length >= (PHOTO_META.painel?.min ?? 1);
+      const temFotoValida = painelUploadSalvo && painelVals.some(
         (v) => v?.status === "valid"
       );
       if (!temFotoValida) return false;
