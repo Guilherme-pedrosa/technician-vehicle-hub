@@ -185,7 +185,7 @@ function mergePhotoUrlMaps(...maps: Array<Record<string, string[]> | null | unde
 }
 
 function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
-  return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
+  return getUploadedPhotoUrls(photoUploads[category]).length;
 }
 
 function getBlankChecklistAnswers(): FormData {
@@ -983,7 +983,7 @@ function getFirstIncompleteStepIndex(params: {
     if (fields.some((field) => isNonConforme(field.key, params.answers[field.key]) && !params.answers[`obs_${field.key}`]?.trim())) return index;
 
     const requiredPhotos = STEP_PHOTOS[stepId] ?? [];
-    if (stepId !== "danos" && requiredPhotos.some((cat) => getAvailablePhotoCount(params.photos, params.photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1))) return index;
+      if (stepId !== "danos" && requiredPhotos.some((cat) => getUploadedPhotoUrls(params.photoUploads[cat]).length < (PHOTO_META[cat]?.min ?? 1))) return index;
 
     if (stepId === "painel") {
       const km = params.kmPainelManual ? parseInt(params.kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
@@ -996,7 +996,7 @@ function getFirstIncompleteStepIndex(params: {
     }
 
     if (stepId === "danos" && params.answers.danos_veiculo === "sim") {
-      if (!params.answers.obs_danos_veiculo?.trim() || getAvailablePhotoCount(params.photos, params.photoUploads, "avaria") < 1) return index;
+      if (!params.answers.obs_danos_veiculo?.trim() || getUploadedPhotoUrls(params.photoUploads.avaria).length < 1) return index;
     }
 
     if (stepId === "resultado") {
@@ -1264,23 +1264,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const saveDraftToDb = useCallback(async () => {
     if (!vehicleId || !open) return;
     try {
-      let existingDraftFotos: Record<string, string[]> = {};
-      if (draftIdRef.current) {
-        const { data: existingDraft } = await supabase
-          .from("vehicle_checklists")
-          .select("fotos")
-          .eq("id", draftIdRef.current)
-          .maybeSingle();
-        existingDraftFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
-      }
-      const currentDraftFotosUrls: Record<string, string[]> = {};
-      for (const [cat, uploads] of Object.entries(photoUploads)) {
-        const urls = (uploads as any[]).map((u: any) => u?.uploadedUrl).filter(Boolean);
-        if (urls.length > 0) currentDraftFotosUrls[cat] = urls;
-      }
-      const draftFotosUrls = mergePhotoUrlMaps(existingDraftFotos, currentDraftFotosUrls);
-
-      const draftData = buildDraftPayload(draftFotosUrls);
+      // Fotos são persistidas imediatamente por `persistUploadedPhotoToDraft` ao terminar cada upload.
+      // O auto-save NÃO deve regravar `fotos`, porque um save antigo pode apagar uma foto recém-enviada.
+      const draftData = buildDraftPayload();
 
       if (draftIdRef.current) {
         // NÃO sobrescrever created_by: preserva o autor original do rascunho
@@ -1825,14 +1811,15 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         // danos photos only required if danos_veiculo === "sim"
         return true;
       }
-      if (missing.length > 0) return false;
+      if (missing.length > 0 || missing.some((cat) => (photoUploads[cat] ?? []).some((upload) => upload?.status === "uploading" || upload?.status === "error"))) return false;
     }
     // PAINEL: foto aprovada (verde) + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
     if (currentStep.id === "painel") {
       const painelVals = photoValidations.painel ?? [];
       // Precisa ter PELO MENOS UMA foto aprovada (verde). O KM pode ser digitado manualmente.
       // Status "forced" NÃO conta — não permitimos forçar foto do painel.
-      const temFotoValida = painelVals.some(
+      const painelUploadSalvo = getUploadedPhotoUrls(photoUploads.painel).length >= (PHOTO_META.painel?.min ?? 1);
+      const temFotoValida = painelUploadSalvo && painelVals.some(
         (v) => v?.status === "valid"
       );
       if (!temFotoValida) return false;
