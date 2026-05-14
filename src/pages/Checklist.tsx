@@ -1478,6 +1478,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const trocaOleoQuaseVencida = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_QUASE_VENCIDA : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
+  const kmPainelNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
+  const kmPainelValido = kmPainelNum !== null && !isNaN(kmPainelNum) && kmPainelNum >= 100;
+  const kmPainelDiferenca = kmPainelValido && selectedVehicle ? kmPainelNum - selectedVehicle.km_atual : null;
+  const kmPainelMenorQueCadastro = kmPainelDiferenca !== null ? kmPainelDiferenca < -50 : false;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
   const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
@@ -1491,7 +1495,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // Óleo quase vencido (≤50km) ou vencido NÃO bloqueia — força liberado_obs
   const hasCritical = criticalCount > 0;
   const hasAvaria = answers.danos_veiculo === "sim";
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria || kmPainelMenorQueCadastro;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
