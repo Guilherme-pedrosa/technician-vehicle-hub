@@ -1264,23 +1264,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const saveDraftToDb = useCallback(async () => {
     if (!vehicleId || !open) return;
     try {
-      let existingDraftFotos: Record<string, string[]> = {};
-      if (draftIdRef.current) {
-        const { data: existingDraft } = await supabase
-          .from("vehicle_checklists")
-          .select("fotos")
-          .eq("id", draftIdRef.current)
-          .maybeSingle();
-        existingDraftFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
-      }
-      const currentDraftFotosUrls: Record<string, string[]> = {};
-      for (const [cat, uploads] of Object.entries(photoUploads)) {
-        const urls = (uploads as any[]).map((u: any) => u?.uploadedUrl).filter(Boolean);
-        if (urls.length > 0) currentDraftFotosUrls[cat] = urls;
-      }
-      const draftFotosUrls = mergePhotoUrlMaps(existingDraftFotos, currentDraftFotosUrls);
-
-      const draftData = buildDraftPayload(draftFotosUrls);
+      // Fotos são persistidas imediatamente por `persistUploadedPhotoToDraft` ao terminar cada upload.
+      // O auto-save NÃO deve regravar `fotos`, porque um save antigo pode apagar uma foto recém-enviada.
+      const draftData = buildDraftPayload();
 
       if (draftIdRef.current) {
         // NÃO sobrescrever created_by: preserva o autor original do rascunho
