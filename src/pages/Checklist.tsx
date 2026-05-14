@@ -185,7 +185,7 @@ function mergePhotoUrlMaps(...maps: Array<Record<string, string[]> | null | unde
 }
 
 function getAvailablePhotoCount(photos: PhotosMap, photoUploads: PhotoUploadsMap, category: string) {
-  return Math.max(photos[category]?.length ?? 0, getUploadedPhotoUrls(photoUploads[category]).length);
+  return getUploadedPhotoUrls(photoUploads[category]).length;
 }
 
 function getBlankChecklistAnswers(): FormData {
