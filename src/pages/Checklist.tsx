@@ -3065,31 +3065,17 @@ export default function Checklist() {
   const { data: checklists = [], isLoading } = useQuery({
     queryKey: ["vehicle-checklists", effectiveStart, effectiveEnd],
     queryFn: async () => {
-      const [datedResult, draftResult] = await Promise.all([
-        supabase
-          .from("vehicle_checklists").select("*")
-          .gte("checklist_date", effectiveStart)
-          .lte("checklist_date", effectiveEnd)
-          .order("checklist_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("vehicle_checklists").select("*")
-          .eq("status", "rascunho")
-          .order("updated_at", { ascending: false }),
-      ]);
+      const { data, error } = await supabase
+        .from("vehicle_checklists").select("*")
+        .gte("checklist_date", effectiveStart)
+        .lte("checklist_date", effectiveEnd)
+        .order("checklist_date", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
 
-      if (datedResult.error) throw datedResult.error;
-      if (draftResult.error) throw draftResult.error;
-
-      type ChecklistRow = NonNullable<typeof datedResult.data>[number];
-      const byId = new Map<string, ChecklistRow>();
-      [...(datedResult.data ?? []), ...(draftResult.data ?? [])].forEach((cl) => byId.set(cl.id, cl));
-
-      return Array.from(byId.values()).sort((a, b) => {
+      return (data ?? []).sort((a, b) => {
         const draftRank = Number(b.status === "rascunho") - Number(a.status === "rascunho");
         if (draftRank !== 0) return draftRank;
-        const dateRank = String(b.checklist_date ?? "").localeCompare(String(a.checklist_date ?? ""));
-        if (dateRank !== 0) return dateRank;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     },
