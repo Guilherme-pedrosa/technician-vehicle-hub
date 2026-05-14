@@ -1478,6 +1478,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const trocaOleoQuaseVencida = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_QUASE_VENCIDA : false;
   const trocaOleoProxima = kmRestanteOleo !== null ? kmRestanteOleo > 0 && kmRestanteOleo <= KM_OLEO_ALERTA_MARGEM : false;
   const trocaOleoAlerta = trocaOleoVencida || trocaOleoProxima;
+  const kmPainelNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
+  const kmPainelValido = kmPainelNum !== null && !isNaN(kmPainelNum) && kmPainelNum >= 100;
+  const kmPainelDiferenca = kmPainelValido && selectedVehicle ? kmPainelNum - selectedVehicle.km_atual : null;
+  const kmPainelMenorQueCadastro = kmPainelDiferenca !== null ? kmPainelDiferenca < -50 : false;
 
   // Discrepância de odômetro: se a próxima troca for muito maior que o KM atual, o odômetro pode estar errado
   const odoDiscrepancy = kmTrocaNum !== null && selectedVehicle
@@ -1491,7 +1495,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   // Óleo quase vencido (≤50km) ou vencido NÃO bloqueia — força liberado_obs
   const hasCritical = criticalCount > 0;
   const hasAvaria = answers.danos_veiculo === "sim";
-  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria;
+  const hasAnyProblem = nonConformeFields.length > 0 || trocaOleoAlerta || trocaOleoQuaseVencida || hasAvaria || kmPainelMenorQueCadastro;
   const suggestedResult = hasCritical ? "bloqueado" : hasAnyProblem ? "liberado_obs" : "liberado";
 
   const mutation = useMutation({
@@ -1579,6 +1583,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_validacao_pendente: photoValidationSummary.pending,
           audit_events: auditEvents,
           km_painel_nao_confirmado: kmPainelNaoConfirmado,
+          km_painel_menor_que_cadastro: kmPainelMenorQueCadastro,
+          km_painel_diferenca: kmPainelDiferenca,
           km_lido_painel: (() => {
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
             return !isNaN(manualNum) && manualNum >= 100 ? manualNum : null;
@@ -1615,6 +1621,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
         }).join("\n");
+        const kmPainelLine = kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle
+          ? `\n• KM do painel menor que o cadastro: painel ${kmPainelNum.toLocaleString("pt-BR")} km, cadastro ${selectedVehicle.km_atual.toLocaleString("pt-BR")} km, diferença ${kmPainelDiferenca?.toLocaleString("pt-BR")} km`
+          : "";
         const oleoStatusLabel = trocaOleoVencida ? "vencida" : trocaOleoQuaseVencida ? `quase vencida — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km` : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
         const oilLine = (trocaOleoAlerta || trocaOleoQuaseVencida) ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
         
@@ -1630,7 +1639,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         }
         const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
 
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${kmPainelLine}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
 
         const ticketPrioridade = hasCritical ? "alta" : (hasPhotoIssues && !hasAnyProblem) ? "media" : hasAnyProblem ? "media" : "baixa";
 
@@ -1830,8 +1839,6 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
-      // Bloqueia retrocesso de odômetro além da margem de 50 km
-      if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
       // Bloqueia leitura com menos dígitos que o cadastro (ex.: esqueceu o "1" inicial)
       if (selectedVehicle) {
         const cadDigits = String(selectedVehicle.km_atual).length;
@@ -1997,8 +2004,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               </p>
             )}
             {kmRegredido && !kmFaltaDigito && (
-              <p className="text-[11px] text-destructive font-bold">
-                ⚠ KM informado é MENOR que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira o painel — odômetros não retrocedem.
+              <p className="text-[11px] text-warning font-bold">
+                ⚠ KM informado é menor que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). O checklist pode seguir; isso ficará registrado para conferência do gestor.
               </p>
             )}
           </div>
@@ -2224,11 +2231,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           {/* Summary */}
           <div className="rounded-xl border border-border p-4 space-y-2">
             <h4 className="text-sm font-bold">Resumo da Inspeção</h4>
-            {(nonConformeFields.length > 0 || trocaOleoVencida) ? (
+            {(nonConformeFields.length > 0 || trocaOleoVencida || kmPainelMenorQueCadastro) ? (
               <div className="space-y-1">
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0)) > 1 ? "s" : ""}
+                  {nonConformeFields.length + (trocaOleoVencida ? 1 : 0) + (kmPainelMenorQueCadastro ? 1 : 0)} não conformidade{(nonConformeFields.length + (trocaOleoVencida ? 1 : 0) + (kmPainelMenorQueCadastro ? 1 : 0)) > 1 ? "s" : ""}
                 </Badge>
                 <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
                   {nonConformeFields.map((f) => (
@@ -2243,6 +2250,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
                       {kmRestanteOleo !== null && kmRestanteOleo <= 0
                         ? `Troca de óleo vencida (próxima: ${kmTrocaNum?.toLocaleString("pt-BR")} km)`
                         : `Troca de óleo próxima (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`}
+                    </li>
+                  )}
+                  {kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle && (
+                    <li className="flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 text-warning shrink-0" />
+                      KM do painel menor que o cadastro: {kmPainelNum.toLocaleString("pt-BR")} km vs. {selectedVehicle.km_atual.toLocaleString("pt-BR")} km
                     </li>
                   )}
                 </ul>
