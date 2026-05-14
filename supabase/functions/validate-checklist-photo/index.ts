@@ -373,9 +373,10 @@ Regras:
 - Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
 - Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
-- Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 leve com corte.
+ - Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 com corte.
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
-- Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, mostrando só frente/traseira, ou sem cobertura suficiente da lateral devem ser rejeitadas.
+ - NÃO rejeite foto lateral por estar diagonal, inclinada, em perspectiva, sem ficar horizontal, ou sem ser um perfil perfeitamente reto. Isso é normal em foto de celular e deve ser aceito se a lateral está visível.
+ - Fotos laterais só devem ser rejeitadas por ângulo quando forem vista aérea/de cima, rotação extrema que impeça inspecionar o veículo, mostrarem só frente/traseira, ou sem cobertura suficiente da lateral.
 ${category === "nivel_oleo" ? `
 REGRA OBRIGATÓRIA PARA NÍVEL DE ÓLEO — NÃO EXIGIR MIN/MAX:
 - A maioria das varetas NÃO mostra letras MIN/MAX. NÃO reprove por ausência de MIN/MAX, números, furos, entalhes ou zona pontilhada perfeitamente nítida.
