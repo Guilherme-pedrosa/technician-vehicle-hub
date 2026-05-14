@@ -1839,8 +1839,6 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
-      // Bloqueia retrocesso de odômetro além da margem de 50 km
-      if (selectedVehicle && kmManualNum < selectedVehicle.km_atual - 50) return false;
       // Bloqueia leitura com menos dígitos que o cadastro (ex.: esqueceu o "1" inicial)
       if (selectedVehicle) {
         const cadDigits = String(selectedVehicle.km_atual).length;
@@ -2006,8 +2004,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               </p>
             )}
             {kmRegredido && !kmFaltaDigito && (
-              <p className="text-[11px] text-destructive font-bold">
-                ⚠ KM informado é MENOR que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira o painel — odômetros não retrocedem.
+              <p className="text-[11px] text-warning font-bold">
+                ⚠ KM informado é menor que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). O checklist pode seguir; isso ficará registrado para conferência do gestor.
               </p>
             )}
           </div>
