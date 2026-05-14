@@ -1583,6 +1583,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_validacao_pendente: photoValidationSummary.pending,
           audit_events: auditEvents,
           km_painel_nao_confirmado: kmPainelNaoConfirmado,
+          km_painel_menor_que_cadastro: kmPainelMenorQueCadastro,
+          km_painel_diferenca: kmPainelDiferenca,
           km_lido_painel: (() => {
             const manualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
             return !isNaN(manualNum) && manualNum >= 100 ? manualNum : null;
@@ -1619,6 +1621,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           const obs = (answers[`obs_${f.key}`] || "").trim();
           return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
         }).join("\n");
+        const kmPainelLine = kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle
+          ? `\n• KM do painel menor que o cadastro: painel ${kmPainelNum.toLocaleString("pt-BR")} km, cadastro ${selectedVehicle.km_atual.toLocaleString("pt-BR")} km, diferença ${kmPainelDiferenca?.toLocaleString("pt-BR")} km`
+          : "";
         const oleoStatusLabel = trocaOleoVencida ? "vencida" : trocaOleoQuaseVencida ? `quase vencida — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km` : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
         const oilLine = (trocaOleoAlerta || trocaOleoQuaseVencida) ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
         
@@ -1634,7 +1639,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         }
         const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
 
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${kmPainelLine}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
 
         const ticketPrioridade = hasCritical ? "alta" : (hasPhotoIssues && !hasAnyProblem) ? "media" : hasAnyProblem ? "media" : "baixa";
 
