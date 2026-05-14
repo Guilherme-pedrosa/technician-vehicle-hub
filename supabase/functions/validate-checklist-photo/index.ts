@@ -640,6 +640,32 @@ Critério esperado: ${finalCriterio}`;
           }
         }
 
+        if (category === "exterior_esquerda" || category === "exterior_direita") {
+          const reason = String(result.reason || "");
+          const rejectedOnlyByPerspective =
+            result.valid !== true &&
+            result.vehicle_match !== false &&
+            result.focus_ok !== false &&
+            result.quality !== "ruim" &&
+            /(lateral|perfil|lado|porta|cabine|ve[ií]culo)/i.test(reason) &&
+            /(diagonal|horizont|perspectiva|[aâ]ngulo|reto|rotacionad|perfil.*completo)/i.test(reason) &&
+            !/(direita.*inv[eé]s.*esquerda|esquerda.*inv[eé]s.*direita|lado errado|passageiro.*inv[eé]s.*motorista|motorista.*inv[eé]s.*passageiro|obstru[ií]d|tampad|fora do enquadramento|sem cobertura|s[oó].*frente|s[oó].*traseira|detalhe isolado|vista a[eé]rea|de cima|desfocad|borrad|tremid)/i.test(reason);
+
+          if (rejectedOnlyByPerspective) {
+            console.log(`[${category}] Aceito por regra server-side: lateral visível em perspectiva/diagonal normal. reason="${reason}"`);
+            result.valid = true;
+            result.target_match = true;
+            result.vehicle_match = true;
+            result.critical_visible = true;
+            result.reject_code = null;
+            result.audit_required = false;
+            result.severity = "warning";
+            result.reason = category === "exterior_esquerda"
+              ? "Lateral esquerda visível em perspectiva normal de celular. Foto aceita para inspeção."
+              : "Lateral direita visível em perspectiva normal de celular. Foto aceita para inspeção.";
+          }
+        }
+
         const genericApprovalReason = /^(foto|imagem)\s+(n[ií]tida|clara|boa|adequada|v[aá]lida)|mostra\s+(o\s+)?(item|ve[ií]culo|[aá]rea)\s+(solicitado|esperado)|conforme\s+(o\s+)?crit[eé]rio|atende\s+(ao\s+)?crit[eé]rio/i.test(String(result.reason || "").trim());
         const strictCategories = new Set(["itens_seguranca", "nivel_oleo", "etiqueta_oleo", "reservatorio_agua", "pneu_de", "pneu_dd", "pneu_te", "pneu_td"]);
         if (result.valid === true && strictCategories.has(category) && genericApprovalReason) {
