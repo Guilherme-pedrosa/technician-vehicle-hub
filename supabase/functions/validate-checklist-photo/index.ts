@@ -295,6 +295,8 @@ Deno.serve(async (req) => {
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de KM legível, close-up perfeito ou OCR): ${catConfig.criterio}`
         : category === "nivel_oleo"
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de MIN/MAX, zona exata ou medição perfeita): ${catConfig.criterio}`
+        : category === "exterior_esquerda" || category === "exterior_direita"
+        ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre exigência de foto reta/horizontal/perfil perfeito): ${catConfig.criterio}`
         : `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
       : catConfig.criterio;
 
