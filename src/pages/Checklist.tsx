@@ -983,7 +983,7 @@ function getFirstIncompleteStepIndex(params: {
     if (fields.some((field) => isNonConforme(field.key, params.answers[field.key]) && !params.answers[`obs_${field.key}`]?.trim())) return index;
 
     const requiredPhotos = STEP_PHOTOS[stepId] ?? [];
-    if (stepId !== "danos" && requiredPhotos.some((cat) => getAvailablePhotoCount(params.photos, params.photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1))) return index;
+      if (stepId !== "danos" && requiredPhotos.some((cat) => getUploadedPhotoUrls(params.photoUploads[cat]).length < (PHOTO_META[cat]?.min ?? 1))) return index;
 
     if (stepId === "painel") {
       const km = params.kmPainelManual ? parseInt(params.kmPainelManual.replace(/[^\d]/g, ""), 10) : NaN;
@@ -996,7 +996,7 @@ function getFirstIncompleteStepIndex(params: {
     }
 
     if (stepId === "danos" && params.answers.danos_veiculo === "sim") {
-      if (!params.answers.obs_danos_veiculo?.trim() || getAvailablePhotoCount(params.photos, params.photoUploads, "avaria") < 1) return index;
+      if (!params.answers.obs_danos_veiculo?.trim() || getUploadedPhotoUrls(params.photoUploads.avaria).length < 1) return index;
     }
 
     if (stepId === "resultado") {
