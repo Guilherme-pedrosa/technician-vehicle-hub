@@ -73,12 +73,12 @@ const CATEGORY_CRITERIA: Record<string, { label: string; criterio: string; has_c
   },
   exterior_esquerda: {
     label: "Lateral esquerda do veículo",
-    criterio: "A foto deve mostrar o PERFIL LATERAL ESQUERDO do veículo (lado do MOTORISTA em veículos brasileiros). ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. OBSTRUÇÃO: REJEITE (target_match=false) se uma porção SIGNIFICATIVA da lateral estiver OBSTRUÍDA/TAMPADA por outro veículo, parede, objeto grande ou qualquer obstáculo que impeça a inspeção visual do estado da carroceria. A lateral precisa estar suficientemente livre para verificar amassados, riscos e danos. Na 'reason', descreva o que está obstruindo. VERIFICAÇÃO DE LADO: Identifique se a foto mostra o lado esquerdo (motorista) ou direito (passageiro). Se a foto CLARAMENTE mostra a lateral DIREITA ao invés da esquerda, REJEITE com target_match=false. Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado.",
+    criterio: "A foto deve mostrar a LATERAL ESQUERDA do veículo, ou seja, o lado do MOTORISTA em veículos brasileiros. ACEITE fotos em perspectiva/ângulo 3/4 quando a lateral esquerda estiver majoritariamente visível e der para avaliar paralama dianteiro, porta/coluna lateral/cabine e paralama ou parte traseira. NÃO exija foto perfeitamente reta, horizontal ou ortogonal; foto diagonal normal de celular é válida. Se o lado do motorista, porta do motorista, retrovisor do motorista, volante visível pela janela ou cabine do motorista aparecem, trate como lateral esquerda. OBSTRUÇÃO: rejeite apenas se uma porção significativa da lateral estiver tampada por outro veículo, parede, objeto grande ou obstáculo que impeça inspecionar a carroceria. VERIFICAÇÃO DE LADO: só rejeite por lado errado se houver certeza alta de que é a lateral direita/passagem; se houver dúvida entre esquerda e direita, ACEITE e descreva a incerteza na razão. Só rejeite por corte se uma extremidade real do veículo estiver claramente fora do enquadramento. NÃO rejeite por 'a lateral não está na horizontal', 'ângulo diagonal', 'perfil não perfeitamente reto' ou 'foto em perspectiva' quando a lateral está visível.",
     has_critical: false,
   },
   exterior_direita: {
     label: "Lateral direita do veículo",
-    criterio: "A foto deve mostrar o PERFIL LATERAL DIREITO do veículo (lado do PASSAGEIRO em veículos brasileiros). ACEITE quando a lateral estiver majoritariamente visível e der para avaliar paralama dianteiro, portas/coluna lateral e paralama traseiro. OBSTRUÇÃO: REJEITE (target_match=false) se uma porção SIGNIFICATIVA da lateral estiver OBSTRUÍDA/TAMPADA por outro veículo, parede, objeto grande ou qualquer obstáculo que impeça a inspeção visual do estado da carroceria. A lateral precisa estar suficientemente livre para verificar amassados, riscos e danos. Na 'reason', descreva o que está obstruindo. VERIFICAÇÃO DE LADO: Identifique se a foto mostra o lado direito (passageiro) ou esquerdo (motorista). Se a foto CLARAMENTE mostra a lateral ESQUERDA ao invés da direita, REJEITE com target_match=false. Só REJEITE por corte se uma extremidade real do veículo estiver claramente fora do enquadramento. REJEITE também se a foto for aérea/de cima, muito diagonal/rotacionada, mostrar só frente/traseira, ou mostrar apenas um detalhe isolado.",
+    criterio: "A foto deve mostrar a LATERAL DIREITA do veículo, ou seja, o lado do PASSAGEIRO em veículos brasileiros. ACEITE fotos em perspectiva/ângulo 3/4 quando a lateral direita estiver majoritariamente visível e der para avaliar paralama dianteiro, porta/coluna lateral/cabine e paralama ou parte traseira. NÃO exija foto perfeitamente reta, horizontal ou ortogonal; foto diagonal normal de celular é válida. OBSTRUÇÃO: rejeite apenas se uma porção significativa da lateral estiver tampada por outro veículo, parede, objeto grande ou obstáculo que impeça inspecionar a carroceria. VERIFICAÇÃO DE LADO: só rejeite por lado errado se houver certeza alta de que é a lateral esquerda/motorista; se houver dúvida entre esquerda e direita, ACEITE e descreva a incerteza na razão. Só rejeite por corte se uma extremidade real do veículo estiver claramente fora do enquadramento. NÃO rejeite por 'a lateral não está na horizontal', 'ângulo diagonal', 'perfil não perfeitamente reto' ou 'foto em perspectiva' quando a lateral está visível.",
     has_critical: false,
   },
   nivel_oleo: {
@@ -295,6 +295,8 @@ Deno.serve(async (req) => {
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de KM legível, close-up perfeito ou OCR): ${catConfig.criterio}`
         : category === "nivel_oleo"
         ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre qualquer exigência de MIN/MAX, zona exata ou medição perfeita): ${catConfig.criterio}`
+        : category === "exterior_esquerda" || category === "exterior_direita"
+        ? `CRITÉRIO CONFIGURADO NO CAMPO (contexto operacional): ${dynamicPrompt}\n\nREGRA FINAL OBRIGATÓRIA DO SISTEMA (prevalece sobre exigência de foto reta/horizontal/perfil perfeito): ${catConfig.criterio}`
         : `CRITÉRIO CONFIGURADO NO CAMPO (OBRIGATÓRIO): ${dynamicPrompt}\n\nTRAVAS TÉCNICAS DO SISTEMA (também obrigatórias; em conflito, use a regra mais rigorosa): ${catConfig.criterio}`
       : catConfig.criterio;
 
@@ -371,9 +373,10 @@ Regras:
 - Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
 - Antes de aprovar, a "reason" deve citar objetivamente quais elementos/condições exigidas pelo critério foram vistos. Se a reason for genérica, a resposta será tratada como inválida.
 - Para faróis/lanternas: qualquer foto que mostre a frente ou traseira de um veículo CONTÉM faróis ou lanternas — valide como target_match=true.
-- Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 leve com corte.
+ - Para laterais: aceite quando a lateral estiver majoritariamente visível e der para inspecionar paralama dianteiro, portas/coluna lateral e paralama traseiro. Não confunda perspectiva normal do celular ou ângulo 3/4 com corte.
 - Só rejeite laterais por corte quando uma extremidade real estiver claramente FORA do enquadramento, escondida por obstáculo, escura demais ou impossível de avaliar. Se a dianteira/traseira aparece menor por perspectiva, mas ainda está dentro da foto, isso NÃO é corte.
-- Fotos laterais tiradas de cima (vista aérea), com rotação forte, diagonal forte, mostrando só frente/traseira, ou sem cobertura suficiente da lateral devem ser rejeitadas.
+ - NÃO rejeite foto lateral por estar diagonal, inclinada, em perspectiva, sem ficar horizontal, ou sem ser um perfil perfeitamente reto. Isso é normal em foto de celular e deve ser aceito se a lateral está visível.
+ - Fotos laterais só devem ser rejeitadas por ângulo quando forem vista aérea/de cima, rotação extrema que impeça inspecionar o veículo, mostrarem só frente/traseira, ou sem cobertura suficiente da lateral.
 ${category === "nivel_oleo" ? `
 REGRA OBRIGATÓRIA PARA NÍVEL DE ÓLEO — NÃO EXIGIR MIN/MAX:
 - A maioria das varetas NÃO mostra letras MIN/MAX. NÃO reprove por ausência de MIN/MAX, números, furos, entalhes ou zona pontilhada perfeitamente nítida.
@@ -634,6 +637,32 @@ Critério esperado: ${finalCriterio}`;
             result.audit_required = false;
             result.severity = "warning";
             result.reason = "Vareta retirada com a ponta visível e óleo aparente na ponta. Foto aceita sem exigir marcações MIN/MAX.";
+          }
+        }
+
+        if (category === "exterior_esquerda" || category === "exterior_direita") {
+          const reason = String(result.reason || "");
+          const rejectedOnlyByPerspective =
+            result.valid !== true &&
+            result.vehicle_match !== false &&
+            result.focus_ok !== false &&
+            result.quality !== "ruim" &&
+            /(lateral|perfil|lado|porta|cabine|ve[ií]culo)/i.test(reason) &&
+            /(diagonal|horizont|perspectiva|[aâ]ngulo|reto|rotacionad|perfil.*completo)/i.test(reason) &&
+            !/(direita.*inv[eé]s.*esquerda|esquerda.*inv[eé]s.*direita|lado errado|passageiro.*inv[eé]s.*motorista|motorista.*inv[eé]s.*passageiro|obstru[ií]d|tampad|fora do enquadramento|sem cobertura|s[oó].*frente|s[oó].*traseira|detalhe isolado|vista a[eé]rea|de cima|desfocad|borrad|tremid)/i.test(reason);
+
+          if (rejectedOnlyByPerspective) {
+            console.log(`[${category}] Aceito por regra server-side: lateral visível em perspectiva/diagonal normal. reason="${reason}"`);
+            result.valid = true;
+            result.target_match = true;
+            result.vehicle_match = true;
+            result.critical_visible = true;
+            result.reject_code = null;
+            result.audit_required = false;
+            result.severity = "warning";
+            result.reason = category === "exterior_esquerda"
+              ? "Lateral esquerda visível em perspectiva normal de celular. Foto aceita para inspeção."
+              : "Lateral direita visível em perspectiva normal de celular. Foto aceita para inspeção.";
           }
         }
 
