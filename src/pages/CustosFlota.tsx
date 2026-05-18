@@ -748,6 +748,8 @@ export default function CustosFlota() {
         open={logOpen}
         onOpenChange={setLogOpen}
         custos={filteredCustos}
+        rotaAll={rotaQuery.data ?? []}
+        auvoAll={auvoQuery.data ?? []}
       />
     </div>
   );
