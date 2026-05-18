@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { addDays, format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2 } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2, ListChecks } from "lucide-react";
+import { ConciliacoesLogDialog } from "@/components/custos/ConciliacoesLogDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -140,6 +141,7 @@ export default function CustosFlota() {
   } | null>(null);
   // Estado do picker (para conciliar lançamentos não casados)
   const [pickerTarget, setPickerTarget] = useState<MergedCusto | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
 
   const openReconcileFromDivergence = (custo: MergedCusto) => {
     const div = custo.suspected_divergence;
@@ -385,6 +387,10 @@ export default function CustosFlota() {
                 </div>
               </PopoverContent>
             </Popover>
+          <Button variant="outline" size="sm" onClick={() => setLogOpen(true)} className="gap-2">
+            <ListChecks className="h-4 w-4" />
+            Log conciliações
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-2">
             <Download className="h-4 w-4" />
             Exportar CSV
@@ -738,6 +744,11 @@ export default function CustosFlota() {
           merged={merged}
         />
       )}
+      <ConciliacoesLogDialog
+        open={logOpen}
+        onOpenChange={setLogOpen}
+        custos={filteredCustos}
+      />
     </div>
   );
 }
