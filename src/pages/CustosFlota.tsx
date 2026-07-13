@@ -720,6 +720,18 @@ export default function CustosFlota() {
                               <Link2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
+                          {(custo.manual_reconciliation || (custo.matched_with && custo.source === "rotaexata")) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-rose-700 hover:text-rose-800"
+                              onClick={() => undoReconciliation(custo)}
+                              disabled={createUnmatchBlock.isPending}
+                              title={custo.manual_reconciliation ? "Desfazer conciliação manual (bloqueia o par)" : "Desfazer conciliação automática (bloqueia o par)"}
+                            >
+                              <Unlink className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {!custo.matched_with && !custo.manual_reconciliation && !custo.suspected_divergence && (
                             <Button
                               variant="ghost"
