@@ -3,6 +3,7 @@ import type { CustoRotaExata } from "@/hooks/useCustosFlota";
 import type { AuvoCusto } from "@/hooks/useAuvoExpenses";
 import type { CostPlacaOverride } from "@/hooks/useCostPlacaOverrides";
 import type { ManualReconciliation } from "@/hooks/useManualReconciliations";
+import type { UnmatchBlock } from "@/hooks/useUnmatchBlocks";
 
 export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   source: "rotaexata" | "auvo";
@@ -128,9 +129,15 @@ export function mergeCustos(
   auvo: AuvoCusto[],
   overrides: CostPlacaOverride[] = [],
   manualReconciliations: ManualReconciliation[] = [],
+  unmatchBlocks: UnmatchBlock[] = [],
 ): MergedCusto[] {
   const overrideMap = new Map<string, CostPlacaOverride>();
   overrides.forEach((o) => overrideMap.set(`${o.source}:${o.external_id}`, o));
+
+  // Pares bloqueados (nunca reconciliar automaticamente).
+  const blockedPairs = new Set<string>();
+  unmatchBlocks.forEach((b) => blockedPairs.add(`${b.rota_external_id}::${b.auvo_external_id}`));
+  const isBlocked = (rotaId: string, auvoId: string) => blockedPairs.has(`${rotaId}::${auvoId}`);
 
   // --- 0. CONCILIAÇÕES MANUAIS — sempre prevalecem sobre o algoritmo ---
   const auvoById = new Map<string, AuvoCusto>();
@@ -141,10 +148,10 @@ export function mergeCustos(
   const manualByRota = new Map<string, { auvo: AuvoCusto | null; rec: ManualReconciliation }>();
   const manualByAuvo = new Map<string, { rota: CustoRotaExata | null; rec: ManualReconciliation }>();
   manualReconciliations.forEach((rec) => {
+    // Se esse par manual está bloqueado, ignora.
+    if (isBlocked(rec.rota_external_id, rec.auvo_external_id)) return;
     const r = rotaById.get(rec.rota_external_id);
     const a = auvoById.get(rec.auvo_external_id);
-    // Conciliação manual SEMPRE prevalece — mesmo que o outro lado esteja
-    // fora do intervalo do filtro de data (não desfazer por causa do filtro).
     if (r) manualByRota.set(r.id, { auvo: a ?? null, rec });
     if (a) manualByAuvo.set(a.id, { rota: r ?? null, rec });
   });
@@ -167,7 +174,10 @@ export function mergeCustos(
     if (manualByRota.has(r.id)) return;
     const cents = valueCents(r.valor);
     const candidates = (auvoByValue.get(cents) ?? []).filter(
-      (c) => !consumedAuvoIds.has(c.id) && !manualByAuvo.has(c.id),
+      (c) =>
+        !consumedAuvoIds.has(c.id) &&
+        !manualByAuvo.has(c.id) &&
+        !isBlocked(r.id, c.id),
     );
     if (!candidates.length || !r.dt_lancamento) return;
 
@@ -215,6 +225,7 @@ export function mergeCustos(
     let bestScore = Infinity;
     for (const a of unmatchedAuvo) {
       if (usedAuvoForDiv.has(a.id)) continue;
+      if (isBlocked(r.id, a.id)) continue;
       if (!a.dt_lancamento) continue;
       const dDiff = dayDiff(r.dt_lancamento, a.dt_lancamento);
       if (dDiff > MAX_DAY_DIFF) continue;

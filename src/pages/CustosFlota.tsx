@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { addDays, format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2, ListChecks } from "lucide-react";
+import { DollarSign, Fuel, Car, FileText, Download, CalendarIcon, RefreshCw, Paperclip, AlertCircle, Pencil, Link2, ListChecks, Unlink } from "lucide-react";
 import { ConciliacoesLogDialog } from "@/components/custos/ConciliacoesLogDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { useAuvoExpenses, syncAuvoExpenses } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
 import { useManualReconciliations } from "@/hooks/useManualReconciliations";
+import { useUnmatchBlocks, useCreateUnmatchBlock } from "@/hooks/useUnmatchBlocks";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
 import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
@@ -100,14 +101,22 @@ export default function CustosFlota() {
 
   const overridesQuery = useCostPlacaOverrides();
   const manualReconQuery = useManualReconciliations();
+  const unmatchBlocksQuery = useUnmatchBlocks();
+  const createUnmatchBlock = useCreateUnmatchBlock();
 
   // Mescla Rota+Auvo: mesma data+valor = uma transação só. Aplica overrides
-  // de placa e conciliações manuais por cima.
+  // de placa, conciliações manuais e bloqueios (desfazer conciliação) por cima.
   const merged: MergedCusto[] = useMemo(() => {
     const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
     const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
-    return mergeCustos(rota, auvo, overridesQuery.data ?? [], manualReconQuery.data ?? []);
-  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data]);
+    return mergeCustos(
+      rota,
+      auvo,
+      overridesQuery.data ?? [],
+      manualReconQuery.data ?? [],
+      unmatchBlocksQuery.data ?? [],
+    );
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data, unmatchBlocksQuery.data]);
 
   const isLoading =
     source === "auvo"
@@ -176,6 +185,34 @@ export default function CustosFlota() {
       existingMotivo: m.motivo,
     });
   };
+
+  const undoReconciliation = async (custo: MergedCusto) => {
+    let rotaId: string | undefined;
+    let auvoId: string | undefined;
+    if (custo.manual_reconciliation) {
+      rotaId = custo.source === "rotaexata" ? custo.external_id : custo.manual_reconciliation.other_external_id;
+      auvoId = custo.source === "auvo" ? custo.external_id : custo.manual_reconciliation.other_external_id;
+    } else if (custo.matched_with) {
+      rotaId = custo.source === "rotaexata" ? custo.external_id : custo.matched_with.id;
+      auvoId = custo.source === "auvo" ? custo.external_id : custo.matched_with.id;
+    }
+    if (!rotaId || !auvoId) return;
+    const confirmMsg = custo.manual_reconciliation
+      ? "Desfazer esta conciliação manual? Os dois lançamentos voltarão a aparecer separadamente e o par ficará bloqueado contra reconciliação automática."
+      : "Desfazer esta conciliação automática? O par ficará bloqueado — Ticket Log e Auvo aparecerão como lançamentos separados.";
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      await createUnmatchBlock.mutateAsync({
+        rota_external_id: rotaId,
+        auvo_external_id: auvoId,
+        motivo: "Desfeito pelo usuário na tela de custos",
+      });
+      toast.success("Conciliação desfeita. Os lançamentos agora aparecem separados.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao desfazer conciliação");
+    }
+  };
+
 
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
@@ -681,6 +718,18 @@ export default function CustosFlota() {
                               title="Editar conciliação manual"
                             >
                               <Link2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {(custo.manual_reconciliation || (custo.matched_with && custo.source === "rotaexata")) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-rose-700 hover:text-rose-800"
+                              onClick={() => undoReconciliation(custo)}
+                              disabled={createUnmatchBlock.isPending}
+                              title={custo.manual_reconciliation ? "Desfazer conciliação manual (bloqueia o par)" : "Desfazer conciliação automática (bloqueia o par)"}
+                            >
+                              <Unlink className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {!custo.matched_with && !custo.manual_reconciliation && !custo.suspected_divergence && (
