@@ -15,6 +15,7 @@ import { useAuvoExpenses, syncAuvoExpenses } from "@/hooks/useAuvoExpenses";
 import { useCustosPorVeiculo } from "@/hooks/useCustosPorVeiculo";
 import { useCostPlacaOverrides } from "@/hooks/useCostPlacaOverrides";
 import { useManualReconciliations } from "@/hooks/useManualReconciliations";
+import { useUnmatchBlocks, useCreateUnmatchBlock } from "@/hooks/useUnmatchBlocks";
 import { CustosPorVeiculoTable } from "@/components/custos/CustosPorVeiculoTable";
 import { EditPlacaDialog } from "@/components/custos/EditPlacaDialog";
 import { ManualReconciliationDialog } from "@/components/custos/ManualReconciliationDialog";
