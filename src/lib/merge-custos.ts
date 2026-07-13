@@ -174,7 +174,10 @@ export function mergeCustos(
     if (manualByRota.has(r.id)) return;
     const cents = valueCents(r.valor);
     const candidates = (auvoByValue.get(cents) ?? []).filter(
-      (c) => !consumedAuvoIds.has(c.id) && !manualByAuvo.has(c.id),
+      (c) =>
+        !consumedAuvoIds.has(c.id) &&
+        !manualByAuvo.has(c.id) &&
+        !isBlocked(r.id, c.id),
     );
     if (!candidates.length || !r.dt_lancamento) return;
 
