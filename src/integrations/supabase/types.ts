@@ -251,6 +251,33 @@ export type Database = {
         }
         Relationships: []
       }
+      cost_unmatch_blocks: {
+        Row: {
+          auvo_external_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          motivo: string | null
+          rota_external_id: string
+        }
+        Insert: {
+          auvo_external_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          motivo?: string | null
+          rota_external_id: string
+        }
+        Update: {
+          auvo_external_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          motivo?: string | null
+          rota_external_id?: string
+        }
+        Relationships: []
+      }
       daily_km_sync_status: {
         Row: {
           data: string
