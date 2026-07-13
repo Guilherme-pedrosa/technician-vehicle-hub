@@ -186,6 +186,34 @@ export default function CustosFlota() {
     });
   };
 
+  const undoReconciliation = async (custo: MergedCusto) => {
+    let rotaId: string | undefined;
+    let auvoId: string | undefined;
+    if (custo.manual_reconciliation) {
+      rotaId = custo.source === "rotaexata" ? custo.external_id : custo.manual_reconciliation.other_external_id;
+      auvoId = custo.source === "auvo" ? custo.external_id : custo.manual_reconciliation.other_external_id;
+    } else if (custo.matched_with) {
+      rotaId = custo.source === "rotaexata" ? custo.external_id : custo.matched_with.id;
+      auvoId = custo.source === "auvo" ? custo.external_id : custo.matched_with.id;
+    }
+    if (!rotaId || !auvoId) return;
+    const confirmMsg = custo.manual_reconciliation
+      ? "Desfazer esta conciliação manual? Os dois lançamentos voltarão a aparecer separadamente e o par ficará bloqueado contra reconciliação automática."
+      : "Desfazer esta conciliação automática? O par ficará bloqueado — Ticket Log e Auvo aparecerão como lançamentos separados.";
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      await createUnmatchBlock.mutateAsync({
+        rota_external_id: rotaId,
+        auvo_external_id: auvoId,
+        motivo: "Desfeito pelo usuário na tela de custos",
+      });
+      toast.success("Conciliação desfeita. Os lançamentos agora aparecem separados.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao desfazer conciliação");
+    }
+  };
+
+
   const [syncStart, setSyncStart] = useState<Date>();
   const [syncEnd, setSyncEnd] = useState<Date>();
   const [syncOpen, setSyncOpen] = useState(false);
