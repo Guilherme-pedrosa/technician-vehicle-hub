@@ -101,14 +101,22 @@ export default function CustosFlota() {
 
   const overridesQuery = useCostPlacaOverrides();
   const manualReconQuery = useManualReconciliations();
+  const unmatchBlocksQuery = useUnmatchBlocks();
+  const createUnmatchBlock = useCreateUnmatchBlock();
 
   // Mescla Rota+Auvo: mesma data+valor = uma transação só. Aplica overrides
-  // de placa e conciliações manuais por cima.
+  // de placa, conciliações manuais e bloqueios (desfazer conciliação) por cima.
   const merged: MergedCusto[] = useMemo(() => {
     const rota = source === "auvo" ? [] : (rotaQuery.data ?? []);
     const auvo = source === "rotaexata" ? [] : (auvoQuery.data ?? []);
-    return mergeCustos(rota, auvo, overridesQuery.data ?? [], manualReconQuery.data ?? []);
-  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data]);
+    return mergeCustos(
+      rota,
+      auvo,
+      overridesQuery.data ?? [],
+      manualReconQuery.data ?? [],
+      unmatchBlocksQuery.data ?? [],
+    );
+  }, [source, rotaQuery.data, auvoQuery.data, overridesQuery.data, manualReconQuery.data, unmatchBlocksQuery.data]);
 
   const isLoading =
     source === "auvo"
