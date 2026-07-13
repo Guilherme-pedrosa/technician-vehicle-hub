@@ -225,6 +225,7 @@ export function mergeCustos(
     let bestScore = Infinity;
     for (const a of unmatchedAuvo) {
       if (usedAuvoForDiv.has(a.id)) continue;
+      if (isBlocked(r.id, a.id)) continue;
       if (!a.dt_lancamento) continue;
       const dDiff = dayDiff(r.dt_lancamento, a.dt_lancamento);
       if (dDiff > MAX_DAY_DIFF) continue;
