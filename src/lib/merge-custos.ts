@@ -3,6 +3,7 @@ import type { CustoRotaExata } from "@/hooks/useCustosFlota";
 import type { AuvoCusto } from "@/hooks/useAuvoExpenses";
 import type { CostPlacaOverride } from "@/hooks/useCostPlacaOverrides";
 import type { ManualReconciliation } from "@/hooks/useManualReconciliations";
+import type { UnmatchBlock } from "@/hooks/useUnmatchBlocks";
 
 export type MergedCusto = (CustoRotaExata | AuvoCusto) & {
   source: "rotaexata" | "auvo";
