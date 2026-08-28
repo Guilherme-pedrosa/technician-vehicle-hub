@@ -29,7 +29,16 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
+import {
+  auditSeverityFor as auditSeverityForShared,
+  buildAuditEventKey,
+  dedupeAuditEvents,
+  restoredPhotoStatus,
+  type AuditStatus,
+} from "@/lib/checklist-audit";
+import { classifyKmDivergence, normalizeOdometerReading } from "@/lib/checklist-km";
 import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
+
 
 // ═══════════════════════════════════════════
 // PHOTO CATEGORIES — Baseado em benchmark Localiza/Sigefro
@@ -281,7 +290,9 @@ type ValidationResult = {
 // AUDIT EVENTS — trilha de auditoria IA
 // ═══════════════════════════════════════════
 // Categorias onde forçar/erro IA gera severity "critical".
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CRITICAL_AUDIT_CATEGORIES = new Set<string>([
+
   "painel",
   "pneu_de", "pneu_dd", "pneu_te", "pneu_td", "estepe",
   "calibracao_de", "calibracao_dd", "calibracao_te", "calibracao_td",
@@ -289,15 +300,11 @@ const CRITICAL_AUDIT_CATEGORIES = new Set<string>([
 ]);
 
 function auditSeverityFor(category: string, status: string): "critical" | "warning" {
-  if (status === "km_not_confirmed") return "critical";
-  if (status === "ai_error" || status === "pending_at_submit" || status === "interior_incomplete") {
-    return CRITICAL_AUDIT_CATEGORIES.has(category) ? "critical" : "warning";
-  }
-  if (status === "forced" || status === "invalid") {
-    return CRITICAL_AUDIT_CATEGORIES.has(category) ? "critical" : "warning";
-  }
-  return "warning";
+  // Fonte única de verdade: src/lib/checklist-audit.ts
+  const sev = auditSeverityForShared(category, status as AuditStatus);
+  return sev === "info" ? "warning" : sev;
 }
+
 
 type AuditEvent = {
   categoria: string;
@@ -507,7 +514,10 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string, expectedVehicleKm?: number | null): Promise<ValidationResult> {
+// Categorias cuja cobertura depende do CONJUNTO de fotos (contrato).
+const SET_ANALYSIS_CATEGORIES = new Set(["interior", "reservatorio_agua", "exterior_esquerda", "exterior_direita"]);
+
+async function validatePhoto(file: File, category: string, vehicleMarca?: string, vehicleModelo?: string, limpezaClaim?: string, expectedVehicleKm?: number | null, relatedFiles?: File[]): Promise<ValidationResult> {
   try {
     // Comprimir mais agressivamente APENAS pra validação IA (upload final mantém qualidade).
     // Reduz payload em ~80%, encurta drasticamente o tempo em 4G ruim.
@@ -532,6 +542,16 @@ async function validatePhoto(file: File, category: string, vehicleMarca?: string
     };
     if (category === "interior" && limpezaClaim) {
       body.limpeza_claim = limpezaClaim;
+    }
+    // Análise em conjunto: manda as fotos anteriores da mesma categoria (compactadas)
+    if (SET_ANALYSIS_CATEGORIES.has(category) && relatedFiles && relatedFiles.length > 0) {
+      const related = await Promise.all(
+        relatedFiles.slice(-3).map(async (f) => {
+          const compact = await compressImage(f, 640, 0.5).catch(() => f);
+          return fileToBase64(compact);
+        }),
+      );
+      body.related_images = related;
     }
 
     const response = await fetch(
@@ -736,7 +756,7 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
   uploadStates?: PhotoUploadState[];
 }) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+
   const meta = PHOTO_META[category];
   const uploadedUrls = getUploadedPhotoUrls(uploadStates);
   const displayCount = Math.max(photos.length, uploadedUrls.length);
@@ -750,7 +770,8 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
     await Promise.all(preparedFiles.map(async (file, offset) => {
       const newIdx = displayCount + offset;
       onValidationUpdate(category, newIdx, { status: "validating" });
-      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim, vehicleKmAtual);
+      const relatedFiles = SET_ANALYSIS_CATEGORIES.has(category) ? photos.slice(0, displayCount) : undefined;
+      const result = await validatePhoto(file, category, vehicleMarca, vehicleModelo, limpezaClaim, vehicleKmAtual, relatedFiles);
       const isAcceptedPanelWithoutKm = category === "painel"
         && result.valid === true
         && result.km_auto_update_allowed === false
@@ -761,18 +782,21 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
       });
 
       if (result.ai_error) {
-        toast.info("ℹ️ Validação IA indisponível. Foto aceita automaticamente.", { duration: 4000 });
+        // Erro de IA NUNCA vira "valid": fica registrado como pendência de auditoria
+        // e o técnico segue normalmente.
+        toast.info("ℹ️ Validação IA indisponível — foto mantida e enviada para auditoria. Você pode continuar.", { duration: 5000 });
       } else if (!result.valid) {
         const details: string[] = [];
         if (result.vehicle_match === false) details.push("veículo errado");
         if (result.target_match === false) details.push("item incorreto");
         if (result.focus_ok === false) details.push("sem foco");
-        if (result.critical_visible === false) details.push("dado ilegível");
+        if (result.critical_visible === false) details.push("dado não confirmado");
         const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
-        toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason}`, { duration: 6000 });
+        toast.warning(`⚠️ Foto reprovada${detailStr}: ${result.reason} — tire outra ou use mesmo assim.`, { duration: 7000 });
       } else if (isAcceptedPanelWithoutKm) {
         toast.warning("Painel aceito. KM não atualizado automaticamente.", { duration: 6000 });
       }
+
 
       if (category === "interior" && result.valid && result.detected_elements) {
         const allValidations = validations ? [...validations] : [];
@@ -848,17 +872,24 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
                     <X className="w-3 h-3" />
                   </button>
                 </div>
-                {v?.status === "invalid" && v.result && (
+                {(v?.status === "invalid" || v?.result?.ai_error) && v.result && (
                   <div className="w-16">
                     <p className="text-[9px] text-destructive leading-tight">{v.result.reason}</p>
-                    {/* PAINEL: NÃO permite forçar — sem hodômetro legível, veículo não sai */}
-                    {category !== "painel" && (
-                      <button type="button"
-                        className="text-[9px] text-warning font-bold underline mt-0.5"
-                        onClick={() => onValidationUpdate?.(category, i, { status: "forced", result: v.result })}>
-                        Forçar
-                      </button>
-                    )}
+                    {/* Contrato: a IA NUNCA bloqueia. Sempre oferecer as duas saídas,
+                        inclusive no painel — forçar gera evento de auditoria crítico. */}
+                    <button type="button"
+                      className="text-[9px] text-primary font-bold underline mt-0.5 block"
+                      onClick={() => onRemove(category, i)}>
+                      Tirar outra
+                    </button>
+                    <button type="button"
+                      className="text-[9px] text-warning font-bold underline mt-0.5 block"
+                      onClick={() => {
+                        onValidationUpdate?.(category, i, { status: "forced", result: v.result });
+                        toast.warning("Foto usada mesmo assim — registrada na auditoria.", { duration: 4000 });
+                      }}>
+                      Usar mesmo assim
+                    </button>
                   </div>
                 )}
               </div>
@@ -867,28 +898,18 @@ function CameraCapture({ category, photos, onCapture, onRemove, required, valida
         </div>
       )}
 
+      {/* Contrato: captura no momento — sem galeria. */}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => {
           const selectedFiles = Array.from(e.target.files ?? []);
           e.target.value = "";
           if (selectedFiles.length > 0) void handleCapture(selectedFiles);
         }} />
-      <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
-        onChange={(e) => {
-          const selectedFiles = Array.from(e.target.files ?? []);
-          e.target.value = "";
-          if (selectedFiles.length > 0) void handleCapture(selectedFiles);
-        }} />
-      <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant={hasEnough ? "outline" : "default"} className="gap-2 h-12 text-base active:scale-[0.97]"
-          onClick={() => cameraInputRef.current?.click()}>
-          <Camera className="w-5 h-5" /> Câmera
-        </Button>
-        <Button type="button" variant="outline" className="gap-2 h-12 text-base active:scale-[0.97]"
-          onClick={() => galleryInputRef.current?.click()}>
-          <ImageIcon className="w-5 h-5" /> Galeria
-        </Button>
-      </div>
+      <Button type="button" variant={hasEnough ? "outline" : "default"} className="w-full gap-2 h-12 text-base active:scale-[0.97]"
+        onClick={() => cameraInputRef.current?.click()}>
+        <Camera className="w-5 h-5" /> Tirar foto
+      </Button>
+
     </div>
   );
 }
@@ -1060,6 +1081,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const [photoUploads, setPhotoUploads] = useState<PhotoUploadsMap>({});
   const [photoValidations, setPhotoValidations] = useState<Record<string, PhotoValidation[]>>({});
   const [uploading, setUploading] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+  // Ações pós-salvamento (chamado/e-mail) que ficaram pendentes — sem sucesso falso.
+  const [pendingActions, setPendingActions] = useState<string[]>([]);
+  const pendingActionsRef = useRef<string[]>([]);
+
   const [resultado, setResultado] = useState("");
   const [resultadoMotivo, setResultadoMotivo] = useState("");
   const [termoAceito, setTermoAceito] = useState(false);
@@ -1098,10 +1125,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
         draft_step: step,
         draft_answers: answers,
+        // Metadado REAL de validação por foto — permite retomar o rascunho sem
+        // inventar aprovação (contrato: foto restaurada nunca vira "valid" sozinha).
+        draft_validations: Object.fromEntries(
+          Object.entries(photoValidations).map(([cat, list]) => [
+            cat,
+            (list ?? []).map((v) => (v ? { status: v.status, result: v.result ?? null } : null)),
+          ]),
+        ),
       },
       ...draftPersistedAnswers,
     } as any;
-  }, [answers, destino, kmPainelManual, kmProximaTroca, observacoes, resultado, resultadoMotivo, selectedDriverId, step, termoAceito, tripulacao, userId, vehicleId]);
+  }, [answers, destino, kmPainelManual, kmProximaTroca, observacoes, photoValidations, resultado, resultadoMotivo, selectedDriverId, step, termoAceito, tripulacao, userId, vehicleId]);
+
 
   const ensureDraftExists = useCallback(async () => {
     if (draftIdRef.current) return draftIdRef.current;
@@ -1218,18 +1254,31 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         const draftHasLegacyPhotos = hasLegacyDraftPhotos(fotos);
         const savedStep = typeof det.draft_step === "number" && det.draft_step > 0 ? det.draft_step : 0;
         if (data.termo_aceito) setTermoAceito(data.termo_aceito);
-        // Fotos já salvas no draft — restaurar URLs
+        // Fotos já salvas no draft — restaurar URLs.
+        // Restauração HONESTA: só reaproveita o parecer da IA realmente persistido.
+        // Sem metadado, a foto volta como "idle" (nunca "valid" forjado).
+        const persistedValidations = (det.draft_validations ?? {}) as Record<string, Array<{ status?: string; result?: ValidationResult | null } | null>>;
         const restoredUploads: PhotoUploadsMap = {};
         const restoredValidations: Record<string, PhotoValidation[]> = {};
+        let restoredSemParecer = 0;
         if (Object.keys(fotos).length > 0) {
           for (const [cat, urls] of Object.entries(fotos)) {
             if (!isRestorableDraftPhotoKey(cat)) continue;
             restoredUploads[cat] = urls.map((url) => ({ status: "uploaded", uploadedUrl: url }));
-            restoredValidations[cat] = urls.map(() => ({ status: "valid", result: { valid: true, quality: "aceitavel", reason: "Foto restaurada do rascunho" } }));
+            restoredValidations[cat] = urls.map((_url, idx) => {
+              const persisted = persistedValidations[cat]?.[idx] ?? null;
+              const status = restoredPhotoStatus(persisted);
+              if (status === "idle") restoredSemParecer += 1;
+              return {
+                status: status === "validating" ? "idle" : status,
+                result: persisted?.result ?? undefined,
+              } as PhotoValidation;
+            });
           }
           setPhotoUploads(restoredUploads);
           setPhotoValidations(restoredValidations);
         }
+
         const resumeStep = getFirstIncompleteStepIndex({
           savedStep,
           vehicleId: data.vehicle_id ?? "",
@@ -1247,8 +1296,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         toast.info(
           draftHasLegacyPhotos
             ? "Rascunho antigo restaurado. Voltei para a etapa de calibração para pedir as novas fotos."
-            : "Rascunho anterior restaurado. Fotos já salvas foram mantidas.",
-          { duration: 5000 },
+            : restoredSemParecer > 0
+              ? `Rascunho restaurado. ${restoredSemParecer} foto(s) sem parecer de IA salvo — ficam sem selo de aprovação e podem ser revalidadas.`
+              : "Rascunho anterior restaurado. Fotos e pareceres da IA foram mantidos.",
+          { duration: 6000 },
+
         );
       } catch (err) {
         console.error("Erro ao carregar rascunho:", err);
@@ -1258,9 +1310,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   }, [open, forceDraftId]);
 
 
-  // Save draft to DB (debounced)
+  // Save draft to DB (debounced) — com estado visível para o técnico
   const saveDraftToDb = useCallback(async () => {
     if (!vehicleId || !open) return;
+    setDraftSaveState("saving");
     try {
       // Fotos são persistidas imediatamente por `persistUploadedPhotoToDraft` ao terminar cada upload.
       // O auto-save NÃO deve regravar `fotos`, porque um save antigo pode apagar uma foto recém-enviada.
@@ -1270,15 +1323,21 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         // NÃO sobrescrever created_by: preserva o autor original do rascunho
         // (admin pode estar ajudando, mas o dono continua sendo quem começou)
         const { created_by: _omit, ...updatePayload } = draftData;
-        await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftIdRef.current);
+        const { error } = await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftIdRef.current);
+        if (error) throw error;
       } else {
         await ensureDraftExists();
       }
-    } catch (err) {
+      setDraftSaveState("saved");
+      setDraftSaveError(null);
+    } catch (err: any) {
       console.error("Erro ao salvar rascunho:", err);
+      setDraftSaveState("error");
+      setDraftSaveError(err?.message ?? "Falha ao salvar rascunho");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicleId, open, photoUploads, buildDraftPayload, ensureDraftExists]);
+
 
   // Debounced auto-save: 3 seconds after last change
   useEffect(() => {
@@ -1300,6 +1359,12 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   );
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+  // Ref para o KM cadastrado — usada em callbacks estáveis (auto-preenchimento do painel).
+  const vehicleKmAtualRef = useRef<number | null>(null);
+  useEffect(() => {
+    vehicleKmAtualRef.current = selectedVehicle?.km_atual ?? null;
+  }, [selectedVehicle?.km_atual]);
+
   const selectedDriver = localDrivers.find((d) => d.id === selectedDriverId);
   const now = new Date();
 
@@ -1374,20 +1439,58 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const handleCaptureForStorageKey = useCallback(async (storageKey: string, files: File[]) => {
     return appendPhotosWithBackgroundUpload(storageKey, files);
   }, [appendPhotosWithBackgroundUpload]);
+  // Remoção de foto precisa sincronizar estado + rascunho no banco + storage,
+  // senão a foto "removida" volta na próxima retomada do rascunho.
+  const removePhotoEverywhere = useCallback(async (storageKey: string, idx: number) => {
+    const removedUrl = getUploadedPhotoUrls(photoUploads[storageKey])[idx]
+      ?? (photoUploads[storageKey] ?? [])[idx]?.uploadedUrl;
+
+    setPhotos((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoUploads((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
+    setPhotoValidations((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
+
+    if (!removedUrl) return;
+    draftPhotoPersistQueueRef.current = draftPhotoPersistQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const activeDraftId = draftIdRef.current;
+        if (activeDraftId) {
+          const { data: existingDraft } = await supabase
+            .from("vehicle_checklists")
+            .select("fotos")
+            .eq("id", activeDraftId)
+            .maybeSingle();
+          const existingFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object"
+            ? existingDraft.fotos
+            : {}) as Record<string, string[]>;
+          const nextList = (existingFotos[storageKey] ?? []).filter((u) => u !== removedUrl);
+          const nextFotos = { ...existingFotos };
+          if (nextList.length > 0) nextFotos[storageKey] = nextList;
+          else delete nextFotos[storageKey];
+          await supabase.from("vehicle_checklists").update({ fotos: nextFotos } as any).eq("id", activeDraftId);
+        }
+        // Storage: remove o objeto órfão (best-effort, não bloqueia o técnico)
+        const path = removedUrl.split("/checklist-photos/")[1];
+        if (path) await supabase.storage.from("checklist-photos").remove([decodeURIComponent(path)]);
+      })
+      .catch((err) => {
+        console.error("Falha ao sincronizar remoção de foto:", err);
+        toast.warning("Foto removida da tela, mas a limpeza no servidor falhou. Ela será revista na auditoria.");
+      });
+    await draftPhotoPersistQueueRef.current;
+  }, [photoUploads]);
+
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     if (cat === "painel") {
       setKmPainelManual("");
       kmPainelEditadoManualmenteRef.current = false;
     }
-    setPhotos((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
-    setPhotoUploads((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
-    setPhotoValidations((prev) => ({ ...prev, [cat]: (prev[cat] ?? []).filter((_, i) => i !== idx) }));
-  }, []);
+    void removePhotoEverywhere(cat, idx);
+  }, [removePhotoEverywhere]);
   const handleRemovePhotoByStorageKey = useCallback((storageKey: string, idx: number) => {
-    setPhotos((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
-    setPhotoUploads((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
-    setPhotoValidations((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
-  }, []);
+    void removePhotoEverywhere(storageKey, idx);
+  }, [removePhotoEverywhere]);
+
   const handleValidationUpdate = useCallback((cat: PhotoCategory, idx: number, validation: PhotoValidation) => {
     setPhotoValidations((prev) => {
       const arr = [...(prev[cat] ?? [])];
@@ -1400,20 +1503,30 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     // no campo "Faróis e lanternas funcionando?"
     const r = validation.result;
     if (!r) return;
-    if (cat === "painel" && validation.status === "valid" && r.km_lido) {
-      const kmLido = r.km_lido.replace(/[^\d]/g, "");
-      // Só auto-preenche se o backend confirmar que é seguro: leitura legível,
-      // sem ambiguidade, sem suspeita de dígitos faltando e auto-update permitido.
-      const autoUpdateAllowed = (r as any).km_auto_update_allowed === true;
-      const ambiguous = (r as any).km_ambiguous === true;
-      const suspeito = (r as any).km_suspeito === true;
-      if (/^\d{5,7}$/.test(kmLido) && autoUpdateAllowed && !ambiguous && !suspeito && r.km_legivel === true && !kmPainelEditadoManualmenteRef.current) {
-        setKmPainelManual(kmLido);
-        toast.success(`KM do painel preenchido automaticamente: ${Number(kmLido).toLocaleString("pt-BR")} km`, { duration: 5000 });
-      } else if ((ambiguous || suspeito) && !kmPainelEditadoManualmenteRef.current) {
-        toast.warning(`Leitura do hodômetro inconsistente — confira manualmente. IA leu: "${(r as any).km_lido_raw || kmLido}"`, { duration: 7000 });
+    if (cat === "painel" && (r.km_lido || (r as any).km_lido_raw)) {
+      // Normalização determinística compartilhada (src/lib/checklist-km.ts):
+      // "27754 1" = 277541; "27754.1" = 27754. Leitura insegura NUNCA auto-preenche.
+      const reading = normalizeOdometerReading({
+        raw: (r as any).km_lido_raw || r.km_lido,
+        km_lido: r.km_lido,
+        decimal_detected: (r as any).km_decimal_detected,
+        ambiguous: (r as any).km_ambiguous || (r as any).km_suspeito,
+        legivel: r.km_legivel,
+        expectedKm: vehicleKmAtualRef.current,
+      });
+      const backendAllows = (r as any).km_auto_update_allowed === true && r.km_legivel === true;
+      if (reading.autoUpdateAllowed && backendAllows && reading.normalized !== null && !kmPainelEditadoManualmenteRef.current) {
+        setKmPainelManual(String(reading.normalized));
+        const div = classifyKmDivergence(reading, vehicleKmAtualRef.current);
+        toast.success(`KM do painel preenchido automaticamente: ${reading.normalized.toLocaleString("pt-BR")} km`, { duration: 5000 });
+        if (div.suggestCorrection && div.level !== "none") {
+          toast.info(`Leitura confiável diverge do cadastro em ${div.difference?.toLocaleString("pt-BR")} km — sugestão de correção registrada. Você pode continuar.`, { duration: 7000 });
+        }
+      } else if (!kmPainelEditadoManualmenteRef.current) {
+        toast.warning(`Leitura do hodômetro não confirmada — digite o KM manualmente. IA leu: "${reading.raw || "—"}"`, { duration: 7000 });
       }
     }
+
     const farolApagado = cat === "exterior_frente" && r.farois_acesos === false;
     const lanternaApagada = cat === "exterior_traseira" && r.lanternas_acesas === false;
     if (farolApagado || lanternaApagada) {
@@ -1486,17 +1599,16 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     mutationFn: async () => {
       setUploading(true);
 
-      // Photo validation is advisory — never block saving
+      // Validação por IA é consultiva — NUNCA bloqueia o salvamento.
+      setPendingActions([]);
+      pendingActionsRef.current = [];
+      const uploadPendencias: string[] = [];
 
       if (photoUploadSummary.hasPending) {
         throw new Error("Aguarde o upload das fotos terminar antes de salvar.");
       }
 
       await draftPhotoPersistQueueRef.current.catch(() => undefined);
-
-      if (photoUploadSummary.hasErrors) {
-        throw new Error("Algumas fotos falharam no upload. Remova e tire novamente antes de salvar.");
-      }
 
       const missingAnswers = getMissingChecklistAnswers(answers);
       if (missingAnswers.length > 0) {
@@ -1513,11 +1625,21 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const photoKeys = new Set([...Object.keys(photos), ...Object.keys(photoUploads)]);
       for (const cat of photoKeys) {
         const urls = getUploadedPhotoUrls(photoUploads[cat]);
-        if ((photos[cat]?.length ?? 0) > urls.length) {
-          throw new Error(`Upload pendente ou ausente em ${PHOTO_META[cat as PhotoCategory]?.label ?? cat}.`);
+        const label = PHOTO_META[cat as PhotoCategory]?.label ?? cat;
+        const tiradas = photos[cat]?.length ?? 0;
+        const minimo = PHOTO_META[cat as PhotoCategory]?.min ?? 0;
+        if (urls.length === 0 && minimo > 0 && tiradas > 0) {
+          // Nenhuma foto chegou ao storage nessa categoria obrigatória — aí sim é
+          // perda de dado, não uma opinião da IA.
+          throw new Error(`Falha no envio das fotos de ${label}. Tente novamente ou tire outra foto.`);
+        }
+        if (tiradas > urls.length) {
+          // Parte das fotos falhou: salvamos as que existem e registramos pendência.
+          uploadPendencias.push(`${label}: ${tiradas - urls.length} foto(s) não enviada(s)`);
         }
         if (urls.length > 0) fotosUrls[cat] = urls;
       }
+
 
       const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
 
@@ -1566,7 +1688,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           fotos_erro_validacao: photoValidationSummary.errors,
           fotos_validacao_pendente: photoValidationSummary.pending,
           audit_events: auditEvents,
+          // Alias mantido durante a transição para a tabela checklist_ai_audit_events
+          ai_audit: auditEvents,
           km_painel_nao_confirmado: kmPainelNaoConfirmado,
+
           km_painel_menor_que_cadastro: kmPainelMenorQueCadastro,
           km_painel_diferenca: kmPainelDiferenca,
           km_lido_painel: (() => {
@@ -1593,114 +1718,172 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       }
       if (!savedChecklist) throw new Error("Falha ao salvar checklist");
 
-      // AUTO-TICKET: criar chamado de não conformidade se houver problemas
+      // ═══════════════════════════════════════════════════════════
+      // PÓS-SALVAMENTO — sequencial, idempotente e sem sucesso falso.
+      // O checklist JÁ está salvo; cada etapa abaixo pode falhar
+      // isoladamente e vira "ação pendente" visível ao usuário.
+      // ═══════════════════════════════════════════════════════════
+      const pendencias: string[] = [...uploadPendencias];
+      const checklistId = savedChecklist.id;
+
+      // 1) Trilha de auditoria na tabela (event_key gerada no servidor)
+      if (auditEvents.length > 0) {
+        try {
+          const rows = dedupeAuditEvents(
+            auditEvents.map((e) => ({
+              event_key: buildAuditEventKey({
+                checklistId,
+                categoria: e.categoria,
+                photoIndex: e.photo_index ?? null,
+                status: e.status,
+              }),
+              checklist_id: checklistId,
+              vehicle_id: vehicleId,
+              driver_id: selectedDriverId || null,
+              user_id: userId,
+              categoria: e.categoria,
+              label: e.label,
+              status: e.status,
+              severity: e.severity,
+              motivo: e.motivo,
+              reason_original: e.reason ?? null,
+              reject_code: e.reject_code ?? null,
+              confidence: typeof e.confidence === "number" ? e.confidence : null,
+              model_used: e.model_used ?? null,
+              prompt_version: e.prompt_version ?? null,
+              duration_ms: e.validation_duration_ms ?? null,
+              photo_url: e.photo_url ?? null,
+              photo_index: e.photo_index ?? null,
+              forced_by: e.forced_by ?? userId,
+              forced_at: e.forced_at ?? new Date().toISOString(),
+              audit_required: true,
+            })),
+          );
+          const { error } = await supabase
+            .from("checklist_ai_audit_events" as any)
+            .upsert(rows as any, { onConflict: "event_key", ignoreDuplicates: true });
+          if (error) throw error;
+        } catch (auditErr: any) {
+          console.error("[checklist:audit] falha ao persistir eventos:", auditErr);
+          pendencias.push("trilha de auditoria de IA não gravada");
+        }
+      }
+
+      // 2) Chamado de não conformidade — 1 por checklist (idempotente)
       const hasPhotoIssues = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
       const shouldCreateTicket = hasAnyProblem || hasPhotoIssues;
 
-      // ⚡ Fire-and-forget: não bloqueia o save. Ticket + e-mail rodam em background
-      // para o técnico não esperar a Edge Function `notify-checklist-nc` (Resend pode levar 5-15s).
-      const runBackgroundTasks = async () => {
-        if (!shouldCreateTicket || !savedChecklist) return;
-        const problemItems = nonConformeFields.map((f) => {
-          const obs = (answers[`obs_${f.key}`] || "").trim();
-          return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
-        }).join("\n");
-        const kmPainelLine = kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle
-          ? `\n• KM do painel menor que o cadastro: painel ${kmPainelNum.toLocaleString("pt-BR")} km, cadastro ${selectedVehicle.km_atual.toLocaleString("pt-BR")} km, diferença ${kmPainelDiferenca?.toLocaleString("pt-BR")} km`
-          : "";
-        const oleoStatusLabel = trocaOleoVencida ? "vencida" : trocaOleoQuaseVencida ? `quase vencida — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km` : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
-        const oilLine = (trocaOleoAlerta || trocaOleoQuaseVencida) ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
-        
-        // Include photo validation issues
-        const photoIssueLines: string[] = [];
-        for (const inv of photoValidationSummary.invalid) {
-          const meta = PHOTO_META[inv.categoria as PhotoCategory];
-          photoIssueLines.push(`• 📷 ${meta?.label ?? inv.categoria}: Foto reprovada pela IA — ${inv.motivos?.[0] ?? "Fora do padrão"}`);
-        }
-        for (const forced of photoValidationSummary.forced) {
-          const meta = PHOTO_META[forced.categoria as PhotoCategory];
-          photoIssueLines.push(`• ⚠️ ${meta?.label ?? forced.categoria}: Foto forçada pelo técnico (reprovada pela IA)`);
-        }
-        const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
-
-        const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${kmPainelLine}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
-
-        const ticketPrioridade = hasCritical ? "alta" : (hasPhotoIssues && !hasAnyProblem) ? "media" : hasAnyProblem ? "media" : "baixa";
-
-        const { data: ticketData } = await supabase.from("maintenance_tickets").insert({
-          vehicle_id: vehicleId,
-          driver_id: selectedDriverId || null,
-          created_by: userId,
-          tipo: "nao_conformidade" as any,
-          prioridade: ticketPrioridade as any,
-          status: "aberto",
-          titulo: `Checklist NC — ${selectedVehicle?.placa} — ${format(now, "dd/MM")}`,
-          descricao: ticketDesc,
-          fotos: Object.values(fotosUrls).flat().slice(0, 5),
-        } as any).select("id").single();
-
-        // Criar ações automáticas no chamado para cada item com problema
-        if (ticketData?.id) {
-          const actions: Array<{ ticket_id: string; descricao: string; created_by: string; sort_order: number }> = [];
-          let sortOrder = 0;
-
-          // Itens de inspeção não conformes
-          for (const f of nonConformeFields) {
+      if (shouldCreateTicket) {
+        try {
+          const problemItems = nonConformeFields.map((f) => {
             const obs = (answers[`obs_${f.key}`] || "").trim();
-            const descParts = [`Verificar/corrigir: ${f.label}`];
-            if (obs) descParts.push(`Obs técnico: ${obs}`);
-            actions.push({
-              ticket_id: ticketData.id,
-              descricao: descParts.join(" — "),
-              created_by: userId,
-              sort_order: sortOrder++,
-            });
-          }
+            return `• ${f.label}: ${answers[f.key]}${obs ? ` — "${obs}"` : ""}`;
+          }).join("\n");
+          const kmPainelLine = kmPainelMenorQueCadastro && kmPainelNum !== null && selectedVehicle
+            ? `\n• KM do painel menor que o cadastro: painel ${kmPainelNum.toLocaleString("pt-BR")} km, cadastro ${selectedVehicle.km_atual.toLocaleString("pt-BR")} km, diferença ${kmPainelDiferenca?.toLocaleString("pt-BR")} km`
+            : "";
+          const oleoStatusLabel = trocaOleoVencida ? "vencida" : trocaOleoQuaseVencida ? `quase vencida — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km` : `próxima — faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km`;
+          const oilLine = (trocaOleoAlerta || trocaOleoQuaseVencida) ? `\n• Troca de óleo (${oleoStatusLabel}): próxima ${kmTrocaNum?.toLocaleString("pt-BR")} km, atual ${selectedVehicle?.km_atual.toLocaleString("pt-BR")} km` : "";
 
-          // Troca de óleo (vencida ou próxima)
-          if (trocaOleoAlerta || trocaOleoQuaseVencida) {
-            actions.push({
-              ticket_id: ticketData.id,
-              descricao: (trocaOleoVencida || trocaOleoQuaseVencida)
-                ? `Realizar troca de óleo URGENTE (faltam ${kmRestanteOleo !== null && kmRestanteOleo <= 0 ? "0" : kmRestanteOleo?.toLocaleString("pt-BR")} km)`
-                : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`,
-              created_by: userId,
-              sort_order: sortOrder++,
-            });
-          }
-
-          // Fotos reprovadas pela IA
+          const photoIssueLines: string[] = [];
           for (const inv of photoValidationSummary.invalid) {
             const meta = PHOTO_META[inv.categoria as PhotoCategory];
-            actions.push({
-              ticket_id: ticketData.id,
-              descricao: `Foto reprovada: ${meta?.label ?? inv.categoria} — ${inv.motivos?.[0] ?? "Fora do padrão"}`,
-              created_by: userId,
-              sort_order: sortOrder++,
-            });
+            photoIssueLines.push(`• 📷 ${meta?.label ?? inv.categoria}: Foto reprovada pela IA — ${inv.motivos?.[0] ?? "Fora do padrão"}`);
           }
-
-          // Fotos forçadas pelo técnico
           for (const forced of photoValidationSummary.forced) {
             const meta = PHOTO_META[forced.categoria as PhotoCategory];
-            actions.push({
-              ticket_id: ticketData.id,
-              descricao: `Foto forçada pelo técnico: ${meta?.label ?? forced.categoria}`,
+            photoIssueLines.push(`• ⚠️ ${meta?.label ?? forced.categoria}: Foto forçada pelo técnico (reprovada pela IA)`);
+          }
+          const photoSection = photoIssueLines.length > 0 ? `\n\nFotos com problemas:\n${photoIssueLines.join("\n")}` : "";
+
+          const ticketDesc = `Não conformidade detectada no checklist pré-operação.\n\nVeículo: ${selectedVehicle?.placa} — ${selectedVehicle?.modelo}\nTécnico: ${selectedDriver?.full_name ?? "—"}\nData: ${format(now, "dd/MM/yyyy HH:mm")}\nResultado: ${RESULTADO_LABELS[finalResultado]?.label ?? finalResultado}${problemItems ? `\n\nItens com problema:\n${problemItems}` : ""}${kmPainelLine}${oilLine}${photoSection}${observacoes ? `\n\nObservações: ${observacoes}` : ""}`;
+
+          const ticketPrioridade = hasCritical ? "alta" : "media";
+
+          // Idempotência: 1 chamado por checklist (índice único em source_checklist_id)
+          const ticketsTable = () => (supabase.from("maintenance_tickets") as any);
+          const { data: existingTicket } = await ticketsTable()
+            .select("id")
+            .eq("source_checklist_id", checklistId)
+            .maybeSingle();
+
+
+          let ticketId = existingTicket?.id ?? null;
+          if (!ticketId) {
+            const { data: ticketData, error: ticketError } = await ticketsTable().insert({
+              vehicle_id: vehicleId,
+              driver_id: selectedDriverId || null,
               created_by: userId,
-              sort_order: sortOrder++,
-            });
+              source_checklist_id: checklistId,
+              tipo: "nao_conformidade",
+              prioridade: ticketPrioridade,
+              status: "aberto",
+              titulo: `Checklist NC — ${selectedVehicle?.placa} — ${format(now, "dd/MM")}`,
+              descricao: ticketDesc,
+              fotos: Object.values(fotosUrls).flat().slice(0, 5),
+            }).select("id").single();
+            if (ticketError) {
+              // Corrida: outro envio criou o chamado primeiro
+              const { data: raced } = await ticketsTable()
+                .select("id")
+                .eq("source_checklist_id", checklistId).maybeSingle();
+              if (!raced?.id) throw ticketError;
+              ticketId = raced.id;
+
+            } else {
+              ticketId = ticketData?.id ?? null;
+            }
           }
 
-          if (actions.length > 0) {
-            await supabase.from("ticket_actions").insert(actions);
+          // Subtarefa por item de NC (idempotente por ticket + descrição)
+          if (ticketId) {
+            const actions: Array<{ ticket_id: string; descricao: string; created_by: string; sort_order: number }> = [];
+            let sortOrder = 0;
+            const pushAction = (descricao: string) => {
+              actions.push({ ticket_id: ticketId!, descricao, created_by: userId, sort_order: sortOrder++ });
+            };
+
+            for (const f of nonConformeFields) {
+              const obs = (answers[`obs_${f.key}`] || "").trim();
+              pushAction(obs ? `Verificar/corrigir: ${f.label} — Obs técnico: ${obs}` : `Verificar/corrigir: ${f.label}`);
+            }
+            if (trocaOleoAlerta || trocaOleoQuaseVencida) {
+              pushAction((trocaOleoVencida || trocaOleoQuaseVencida)
+                ? `Realizar troca de óleo URGENTE (faltam ${kmRestanteOleo !== null && kmRestanteOleo <= 0 ? "0" : kmRestanteOleo?.toLocaleString("pt-BR")} km)`
+                : `Programar troca de óleo (faltam ${kmRestanteOleo?.toLocaleString("pt-BR")} km)`);
+            }
+            for (const inv of photoValidationSummary.invalid) {
+              const meta = PHOTO_META[inv.categoria as PhotoCategory];
+              pushAction(`Foto reprovada: ${meta?.label ?? inv.categoria} — ${inv.motivos?.[0] ?? "Fora do padrão"}`);
+            }
+            for (const forced of photoValidationSummary.forced) {
+              const meta = PHOTO_META[forced.categoria as PhotoCategory];
+              pushAction(`Foto forçada pelo técnico: ${meta?.label ?? forced.categoria}`);
+            }
+
+            if (actions.length > 0) {
+              const { error: actionsError } = await supabase
+                .from("ticket_actions")
+                .upsert(actions as any, { onConflict: "ticket_id,descricao", ignoreDuplicates: true });
+              // Índice único usa md5(descricao); em caso de conflito não mapeável,
+              // tentamos inserir ignorando duplicatas já existentes.
+              if (actionsError && actionsError.code !== "23505" && !/duplicate|conflict|constraint/i.test(actionsError.message ?? "")) {
+                throw actionsError;
+              }
+            }
           }
+        } catch (ticketErr: any) {
+          console.error("[checklist] falha ao criar chamado de NC:", ticketErr);
+          pendencias.push("chamado de não conformidade não criado");
         }
 
-        // Send email notification to all users
+        // 3) E-mail de NC (dedupe no servidor por checklist + tipo)
         try {
-          await supabase.functions.invoke("notify-checklist-nc", {
+          const { error } = await supabase.functions.invoke("notify-checklist-nc", {
             body: {
-              checklist_id: savedChecklist.id,
+              event_type: "nc",
+              checklist_id: checklistId,
+              dedupe_key: `nc|${checklistId}`,
               placa: selectedVehicle?.placa,
               modelo: selectedVehicle?.modelo,
               tecnico: selectedDriver?.full_name ?? "—",
@@ -1716,66 +1899,76 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               observacoes: observacoes || null,
             },
           });
+          if (error) throw error;
         } catch (emailErr) {
-          console.error("Erro ao enviar notificação por e-mail:", emailErr);
+          console.error("Erro ao enviar notificação de NC por e-mail:", emailErr);
+          pendencias.push("e-mail de não conformidade não enviado");
         }
-      };
+      }
 
-      // dispara em background — não bloqueia o usuário
-      runBackgroundTasks().catch((err) =>
-        console.error("Erro nas tarefas pós-save (ticket/e-mail):", err)
-      );
+      // 4) E-mail de auditoria de IA (independente, também deduplicado)
+      if (auditEvents.length > 0) {
+        try {
+          const checklistUrl = typeof window !== "undefined"
+            ? `${window.location.origin}/checklist/${checklistId}`
+            : undefined;
+          const { error } = await supabase.functions.invoke("notify-checklist-nc", {
+            body: {
+              event_type: "audit_alert" as const,
+              checklist_id: checklistId,
+              dedupe_key: `audit|${checklistId}|${auditEvents.length}`,
+              checklist_url: checklistUrl,
+              veiculo_id: vehicleId,
+              placa: selectedVehicle?.placa,
+              modelo: selectedVehicle?.modelo,
+              condutor: selectedDriver?.full_name ?? null,
+              tecnico: selectedDriver?.full_name ?? "—",
+              data: format(now, "dd/MM/yyyy HH:mm"),
+              resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
+              observacoes: observacoes || null,
+              km_painel_nao_confirmado: kmPainelNaoConfirmado,
+              audit_events: auditEvents,
+            },
+          });
+          if (error) throw error;
+        } catch (err) {
+          console.error("[checklist:audit] falha ao enviar audit_alert:", err);
+          pendencias.push("e-mail de auditoria de IA não enviado");
+        }
+      }
 
-      // === AUDIT ALERT — independente do e-mail de NC ===
-      // Só dispara se houver ao menos 1 evento de auditoria IA. Não bloqueia o save.
-      if (auditEvents.length > 0 && savedChecklist) {
-        const checklistUrl = typeof window !== "undefined"
-          ? `${window.location.origin}/checklist/${savedChecklist.id}`
-          : undefined;
-        const auditPayload = {
-          event_type: "audit_alert" as const,
-          checklist_id: savedChecklist.id,
-          checklist_url: checklistUrl,
-          veiculo_id: vehicleId,
-          placa: selectedVehicle?.placa,
-          modelo: selectedVehicle?.modelo,
-          condutor: selectedDriver?.full_name ?? null,
-          tecnico: selectedDriver?.full_name ?? "—",
-          data: format(now, "dd/MM/yyyy HH:mm"),
-          resultado: RESULTADO_LABELS[finalResultado]?.label ?? finalResultado,
-          observacoes: observacoes || null,
-          km_painel_nao_confirmado: kmPainelNaoConfirmado,
-          audit_events: auditEvents,
-        };
-        console.log(`[checklist:audit] enviando audit_alert (${auditEvents.length} evento(s))`);
-        supabase.functions.invoke("notify-checklist-nc", { body: auditPayload })
-          .then(({ error }) => {
-            if (error) {
-              console.error("[checklist:audit] falha ao enviar audit_alert:", error);
-              supabase.from("vehicle_checklists")
-                .update({ detalhes: { ...(checklistPayload.detalhes ?? {}), audit_email_error: String(error?.message ?? error) } } as any)
-                .eq("id", savedChecklist!.id)
-                .then(() => undefined, () => undefined);
-            } else {
-              console.log("[checklist:audit] audit_alert enviado com sucesso");
-            }
-          })
-          .catch((err) => console.error("[checklist:audit] erro inesperado no envio:", err));
+      if (pendencias.length > 0) {
+        setPendingActions(pendencias);
+        pendingActionsRef.current = pendencias;
+        await supabase.from("vehicle_checklists")
+          .update({ detalhes: { ...(checklistPayload.detalhes ?? {}), acoes_pendentes: pendencias } } as any)
+          .eq("id", checklistId)
+          .then(() => undefined, () => undefined);
       }
     },
+
     onSuccess: () => {
       setUploading(false);
       const hasPhotoIssuesOnSuccess = photoValidationSummary.invalid.length > 0 || photoValidationSummary.forced.length > 0;
       const hadProblems = hasAnyProblem || hasPhotoIssuesOnSuccess;
-      if (hadProblems) {
+      // Sem sucesso falso: se alguma ação pós-salvamento falhou, isso aparece.
+      const pendentes = pendingActionsRef.current;
+      if (pendentes.length > 0) {
+        toast.warning(
+          `Checklist salvo. Ação pendente: ${pendentes.join("; ")}. O checklist NÃO foi desfeito — a pendência ficou registrada para o gestor.`,
+          { duration: 12000 },
+        );
+      } else if (hadProblems) {
         toast.success("Checklist salvo! Chamado criado e notificação enviada por e-mail.", { duration: 5000 });
       } else {
         toast.success("Checklist salvo com sucesso!");
       }
       queryClient.invalidateQueries({ queryKey: ["vehicle-checklists"] });
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["checklist-ai-audit"] });
       setOpen(false); resetForm();
     },
+
     onError: (err: any) => {
       setUploading(false);
       if (err?.message?.includes("duplicate key") || err?.code === "23505") {
@@ -1801,36 +1994,33 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     if (currentStep.id === "danos" && answers.danos_veiculo === "sim") {
       return !!answers.obs_danos_veiculo?.trim() && getAvailablePhotoCount(photos, photoUploads, "avaria") > 0;
     }
-    // Check mandatory photos for photo steps
+    // Check mandatory photos for photo steps.
+    // Só exigimos que a foto EXISTA e esteja persistida — resultado da IA
+    // (invalid/forced/ai_error/pending) NUNCA bloqueia o avanço (contrato).
     const requiredPhotos = STEP_PHOTOS[currentStep.id];
     if (requiredPhotos) {
-      const missing = requiredPhotos.filter((cat) => getAvailablePhotoCount(photos, photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1));
       if (currentStep.id === "danos") {
         // danos photos only required if danos_veiculo === "sim"
         return true;
       }
-      if (missing.length > 0 || missing.some((cat) => (photoUploads[cat] ?? []).some((upload) => upload?.status === "uploading" || upload?.status === "error"))) return false;
+      const missing = requiredPhotos.filter((cat) => getAvailablePhotoCount(photos, photoUploads, cat) < (PHOTO_META[cat]?.min ?? 1));
+      if (missing.length > 0) return false;
+      // Upload ainda em andamento bloqueia (a foto precisa existir no storage);
+      // upload com erro NÃO bloqueia — o técnico pode tentar de novo ou seguir.
+      if (requiredPhotos.some((cat) => (photoUploads[cat] ?? []).some((upload) => upload?.status === "uploading"))) return false;
     }
-    // PAINEL: foto aprovada (verde) + KM atual OBRIGATÓRIOS (impacta a programação da troca de óleo)
+    // PAINEL: exige a foto enviada + KM digitado. A classificação da IA
+    // (valid/invalid/forced/ai_error) é apenas auditoria e não trava o técnico.
     if (currentStep.id === "painel") {
-      const painelVals = photoValidations.painel ?? [];
-      // Precisa ter PELO MENOS UMA foto aprovada (verde). O KM pode ser digitado manualmente.
-      // Status "forced" NÃO conta — não permitimos forçar foto do painel.
       const painelUploadSalvo = getUploadedPhotoUrls(photoUploads.painel).length >= (PHOTO_META.painel?.min ?? 1);
-      const temFotoValida = painelUploadSalvo && painelVals.some(
-        (v) => v?.status === "valid"
-      );
-      if (!temFotoValida) return false;
+      if (!painelUploadSalvo) return false;
 
       const kmManualNum = kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) : null;
       if (kmManualNum === null || isNaN(kmManualNum) || kmManualNum < 100) return false;
-      // Bloqueia leitura com menos dígitos que o cadastro (ex.: esqueceu o "1" inicial)
-      if (selectedVehicle) {
-        const cadDigits = String(selectedVehicle.km_atual).length;
-        const digDigits = String(kmManualNum).length;
-        if (cadDigits > 0 && digDigits < cadDigits) return false;
-      }
+      // Divergência de dígitos vira ALERTA + evento de auditoria (km_divergence),
+      // nunca bloqueio: o hodômetro pode ter sido trocado ou o cadastro estar errado.
     }
+
     // CAPÔ: KM da próxima troca de óleo é OBRIGATÓRIO (item mais crítico do checklist)
     if (currentStep.id === "capo") {
       const kmTrocaInput = kmProximaTroca.trim();
@@ -1914,19 +2104,21 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const temFotoValida = painelVals.some((v) => v?.status === "valid" || isPainelAceitoKmNaoConfirmado(v));
       const validandoAgora = painelVals.some((v) => v?.status === "validating");
       const temFotoInvalida = painelVals.some((v) => v?.status === "invalid" && !isPainelAceitoKmNaoConfirmado(v));
+      // A foto do painel precisa ESTAR ENVIADA. O parecer da IA é auditoria, não trava.
+      const painelEnviado = getUploadedPhotoUrls(photoUploads.painel).length > 0;
       return (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground font-medium">📷 Ligue o veículo e tire a foto do painel com KM visível:</p>
           <CameraCapture category="painel" photos={photos["painel"] ?? []} onCapture={handleCapture} onRemove={handleRemovePhoto} required validations={photoValidations["painel"]} uploadStates={photoUploads["painel"]} onValidationUpdate={handleValidationUpdate} vehicleMarca={selectedVehicle?.marca} vehicleModelo={selectedVehicle?.modelo} vehicleKmAtual={selectedVehicle?.km_atual} limpezaClaim={answers.limpeza_organizacao} />
 
-          {/* BANNER de bloqueio: foto NÃO mostra o painel */}
+          {/* ALERTA (não bloqueia): a IA não reconheceu o painel */}
           {temFotoInvalida && !temFotoValida && (
             <div className="rounded-xl border-2 border-destructive bg-destructive/10 p-3 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-sm font-bold text-destructive">Foto fora do padrão do painel</p>
                 <p className="text-xs text-destructive/90">
-                  A foto precisa mostrar o painel/cluster do veículo com o display do hodômetro. Reenquadre e tire outra. <strong>Sem foto válida do painel o checklist não pode seguir.</strong>
+                  A foto deveria mostrar o painel/cluster com o display do hodômetro. Recomendado tirar outra — se preferir, use “Usar mesmo assim”: o checklist segue e o caso vai para auditoria.
                 </p>
               </div>
             </div>
@@ -1939,14 +2131,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               <div className="space-y-1">
                 <p className="text-sm font-bold">Painel aceito. KM não atualizado automaticamente.</p>
                 <p className="text-xs text-muted-foreground">
-                  O KM não foi atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança. Se desejar preenchimento automático do KM, tire uma foto mais próxima do display.
+                  O KM não foi atualizado automaticamente porque a leitura do hodômetro não foi confirmada com segurança. Digite o KM do painel abaixo — o caso fica registrado na auditoria.
                 </p>
               </div>
             </div>
           )}
 
-          {/* KM atual do painel — só liberado após foto válida */}
-          <div className={`space-y-2 rounded-xl border-2 p-3 transition-opacity ${temFotoValida ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/30 opacity-60"}`}>
+          {/* KM atual do painel — liberado assim que a foto é enviada */}
+          <div className={`space-y-2 rounded-xl border-2 p-3 transition-opacity ${painelEnviado ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/30 opacity-60"}`}>
             <Label className="text-sm font-bold flex items-center gap-1.5">
               <Gauge className="w-4 h-4 text-primary" />
               KM atual do painel <span className="text-destructive">*</span>
@@ -1954,40 +2146,42 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
             <Input
               type="number"
               inputMode="numeric"
-              placeholder={temFotoValida ? "Ex: 176803" : "Tire a foto do painel primeiro"}
+              placeholder={painelEnviado ? "Ex: 176803" : "Tire a foto do painel primeiro"}
               value={kmPainelManual}
-              disabled={!temFotoValida}
+              disabled={!painelEnviado}
               onChange={(e) => {
                 setKmPainelManual(e.target.value);
                 kmPainelEditadoManualmenteRef.current = true;
               }}
               className="h-12 text-base font-semibold tabular-nums"
             />
-            {!temFotoValida && !validandoAgora && (
+            {!painelEnviado && (
               <p className="text-[11px] text-muted-foreground font-medium">
-                Bloqueado até a foto do painel ficar aprovada.
+                Tire a foto do painel para liberar o campo.
               </p>
             )}
             {validandoAgora && (
               <p className="text-[11px] text-primary font-medium flex items-center gap-1.5">
-                <Loader2 className="w-3 h-3 animate-spin" /> Validando foto…
+                <Loader2 className="w-3 h-3 animate-spin" /> Validando foto… (você pode continuar)
               </p>
             )}
-            {temFotoValida && !kmManualValido && (
+            {painelEnviado && !kmManualValido && (
               <p className="text-[11px] text-destructive font-medium">
                 ⚠ Confirme/digite o KM exato do painel (mínimo 3 dígitos). Sem isso a programação da troca de óleo fica comprometida.
               </p>
             )}
-            {temFotoValida && kmManualValido && selectedVehicle && (
+
+            {painelEnviado && kmManualValido && selectedVehicle && (
               <p className="text-[11px] text-muted-foreground">
                 Cadastro: {selectedVehicle.km_atual.toLocaleString("pt-BR")} km · Diferença: {(kmManualNum - selectedVehicle.km_atual > 0 ? "+" : "")}{(kmManualNum - selectedVehicle.km_atual).toLocaleString("pt-BR")} km
               </p>
             )}
             {kmFaltaDigito && (
-              <p className="text-[11px] text-destructive font-bold">
-                ⚠ Parece faltar dígito! Você digitou {digitadoDigits} dígitos, mas o cadastro tem {cadastroDigits} ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira se não esqueceu o primeiro número (ex.: o "1" inicial).
+              <p className="text-[11px] text-warning font-bold">
+                ⚠ Parece faltar dígito: você digitou {digitadoDigits} e o cadastro tem {cadastroDigits} ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). Confira — se o número estiver certo, siga: a divergência fica registrada para o gestor.
               </p>
             )}
+
             {kmRegredido && !kmFaltaDigito && (
               <p className="text-[11px] text-warning font-bold">
                 ⚠ KM informado é menor que o cadastro ({selectedVehicle!.km_atual.toLocaleString("pt-BR")} km). O checklist pode seguir; isso ficará registrado para conferência do gestor.
@@ -2514,9 +2708,17 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
               <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
-          <p className="text-xs text-muted-foreground tabular-nums">
-            Etapa {step + 1} de {STEPS.length} — {format(now, "dd/MM/yyyy HH:mm")}
+          <p className="text-xs text-muted-foreground tabular-nums flex items-center gap-2 flex-wrap">
+            <span>Etapa {step + 1} de {STEPS.length} — {format(now, "dd/MM/yyyy HH:mm")}</span>
+            {draftSaveState === "saving" && <span className="text-primary">salvando rascunho…</span>}
+            {draftSaveState === "saved" && <span className="text-success">rascunho salvo</span>}
+            {draftSaveState === "error" && (
+              <span className="text-destructive font-semibold">
+                ⚠ rascunho NÃO salvo{draftSaveError ? `: ${draftSaveError}` : ""}
+              </span>
+            )}
           </p>
+
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-4">
