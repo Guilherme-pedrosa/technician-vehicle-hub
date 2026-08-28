@@ -3043,7 +3043,7 @@ export default function Checklist() {
       toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
       return;
     }
-    setForceDraftId(cl.created_by === user?.id ? null : cl.id);
+    setForceDraftId(cl.id);
     setFormOpenTrigger((n) => n + 1);
   };
 
