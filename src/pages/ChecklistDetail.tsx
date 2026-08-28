@@ -136,7 +136,7 @@ const DETAIL_SECTIONS = [
 // Photo row
 // ═══════════════════════════════════════════
 
-function PhotoRow({ category, urls, isFlagged, flagReasons, onRevalidate, isRevalidating }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[]; onRevalidate?: () => void; isRevalidating?: boolean }) {
+function PhotoRow({ category, urls, isFlagged, flagReasons, onRevalidate, isRevalidating, analisada }: { category: PhotoCategory; urls: string[]; isFlagged?: boolean; flagReasons?: string[]; onRevalidate?: () => void; isRevalidating?: boolean; analisada?: boolean }) {
   if (!urls || urls.length === 0) return null;
   const meta = PHOTO_META[category];
   return (
@@ -154,10 +154,14 @@ function PhotoRow({ category, urls, isFlagged, flagReasons, onRevalidate, isReva
             <Badge variant="destructive" className="text-[10px] gap-1 px-1.5 py-0">
               <AlertTriangle className="w-2.5 h-2.5" /> Inadequada
             </Badge>
-          ) : (
+          ) : analisada ? (
+            // Só existe "sem alerta" quando houve análise registrada — nunca
+            // chamamos de OK o que a IA não avaliou.
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
-              <CheckCircle className="w-3.5 h-3.5" /> OK
+              <CheckCircle className="w-3.5 h-3.5" /> Sem alerta registrado
             </span>
+          ) : (
+            <span className="text-xs font-medium text-muted-foreground">Não analisada</span>
           )}
         </div>
       </div>
@@ -271,32 +275,60 @@ type RevalidationResult = {
   motivos: string[];
 };
 
+/** Categorias avaliadas em CONJUNTO (contrato): mandam as fotos irmãs junto. */
+export const REVALIDATION_SET_CATEGORIES = new Set([
+  "interior", "reservatorio_agua", "exterior_esquerda", "exterior_direita",
+]);
+
+async function urlToBase64(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Download failed");
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+export type RevalidationRecord = {
+  categoria: string;
+  photo_index: number;
+  photo_url: string;
+  status: "valid" | "invalid" | "ai_error";
+  reason: string | null;
+  confidence: number | null;
+  model_used: string | null;
+  prompt_version: string | null;
+  em: string;
+};
+
 async function revalidatePhotos(
   fotosData: Record<string, string[]>,
   vehicleMarca?: string,
   vehicleModelo?: string
-): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null }> {
+): Promise<{ invalidas: RevalidationResult[]; erros: RevalidationResult[]; kmLidoPainel: number | null; registros: RevalidationRecord[] }> {
   const invalidas: RevalidationResult[] = [];
   const erros: RevalidationResult[] = [];
+  const registros: RevalidationRecord[] = [];
   let kmLidoPainel: number | null = null;
 
   for (const [category, urls] of Object.entries(fotosData)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
 
-    for (const url of urls) {
+    for (let photoIndex = 0; photoIndex < urls.length; photoIndex++) {
+      const url = urls[photoIndex];
       try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Download failed");
-        const blob = await response.blob();
-        const file = new File([blob], `${category}.jpg`, { type: blob.type || "image/jpeg" });
+        const base64 = await urlToBase64(url);
 
-        // Convert to base64
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+        // Avaliação em conjunto: manda até 3 fotos irmãs da mesma categoria.
+        let relatedImages: string[] | undefined;
+        if (REVALIDATION_SET_CATEGORIES.has(category) && urls.length > 1) {
+          const others = urls.filter((_, i) => i !== photoIndex).slice(0, 3);
+          relatedImages = (await Promise.all(others.map((u) => urlToBase64(u).catch(() => null))))
+            .filter((b): b is string => Boolean(b));
+        }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Not authenticated");
@@ -314,12 +346,25 @@ async function revalidatePhotos(
               category,
               vehicle_marca: vehicleMarca || null,
               vehicle_modelo: vehicleModelo || null,
+              ...(relatedImages && relatedImages.length > 0 ? { related_images: relatedImages } : {}),
             }),
           }
         );
 
         if (!valResponse.ok) throw new Error("Validation request failed");
         const result = await valResponse.json();
+
+        registros.push({
+          categoria: category,
+          photo_index: photoIndex,
+          photo_url: url,
+          status: result.ai_error ? "ai_error" : result.valid ? "valid" : "invalid",
+          reason: result.reason ?? null,
+          confidence: typeof result.confidence === "number" ? result.confidence : null,
+          model_used: result.model_used ?? null,
+          prompt_version: result.prompt_version ?? null,
+          em: new Date().toISOString(),
+        });
 
         // Painel: NUNCA sobrescrever o KM com leitura insegura (contrato).
         if (category === "painel" && result.valid && result.km_legivel === true && result.km_auto_update_allowed === true) {
@@ -351,11 +396,22 @@ async function revalidatePhotos(
         const existing = erros.find((e) => e.categoria === category);
         if (existing) { if (!existing.motivos.includes("Falha na revalidação")) existing.motivos.push("Falha na revalidação"); }
         else erros.push({ categoria: category, label: PHOTO_META[category as PhotoCategory]?.label ?? category, motivos: ["Falha na revalidação"] });
+        registros.push({
+          categoria: category,
+          photo_index: photoIndex,
+          photo_url: url,
+          status: "ai_error",
+          reason: "Falha na revalidação",
+          confidence: null,
+          model_used: null,
+          prompt_version: null,
+          em: new Date().toISOString(),
+        });
       }
     }
   }
 
-  return { invalidas, erros, kmLidoPainel };
+  return { invalidas, erros, kmLidoPainel, registros };
 }
 
 // ═══════════════════════════════════════════
@@ -512,6 +568,29 @@ export default function ChecklistDetail() {
   const detalhes = (cl as any)?.detalhes as any;
   const latestLiberacao = releaseLogs.find((log) => log.action === "liberacao");
 
+  /**
+   * Só consideramos uma categoria "analisada" quando existe evidência real de
+   * validação (parecer salvo, revalidação registrada ou evento de auditoria).
+   * Sem isso a UI mostra "Não analisada" — nunca "OK".
+   */
+  const categoriasAnalisadas = useMemo(() => {
+    const set = new Set<string>();
+    const add = (c?: string | null) => { if (c) set.add(c); };
+    (detalhes?.fotos_invalidas ?? []).forEach((f: any) => add(f?.categoria));
+    (detalhes?.fotos_forcadas ?? []).forEach((f: any) => add(f?.categoria));
+    (detalhes?.fotos_erro_validacao ?? []).forEach((f: any) => add(f?.categoria));
+    (detalhes?.fotos_validacao_pendente ?? []).forEach((f: any) => add(f?.categoria));
+    (detalhes?.audit_events ?? []).forEach((e: any) => add(e?.categoria));
+    (detalhes?.revalidacoes ?? []).forEach((r: any) => {
+      (r?.registros ?? []).forEach((reg: any) => add(reg?.categoria));
+    });
+    Object.entries(detalhes?.draft_validations ?? {}).forEach(([cat, list]: [string, any]) => {
+      if (Array.isArray(list) && list.some((v: any) => v && v.status && v.status !== "idle")) add(cat);
+    });
+    return set;
+  }, [detalhes]);
+  const categoriaFoiAnalisada = (cat: string) => categoriasAnalisadas.has(cat);
+
   const startEditing = () => {
     const fields: Record<string, string> = {};
     const obs: Record<string, string> = {};
@@ -664,7 +743,7 @@ export default function ChecklistDetail() {
     setRevalidating(true);
     try {
       toast.info("Revalidando fotos... isso pode levar alguns segundos.");
-      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros, kmLidoPainel, registros } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
 
       // APPEND-ONLY: preserva fotos forçadas e o histórico das análises anteriores.
       const agoraIso = new Date().toISOString();
@@ -687,6 +766,7 @@ export default function ChecklistDetail() {
             forcadas_no_momento: detalhes?.fotos_forcadas ?? [],
             invalidas_depois: invalidas,
             erros_depois: erros,
+            registros,
             km_lido_painel: kmLidoPainel,
           },
         ],
@@ -725,7 +805,7 @@ export default function ChecklistDetail() {
       if (!urls || urls.length === 0) { toast.error("Nenhuma foto nesta categoria."); return; }
 
       const singleFotosData: Record<string, string[]> = { [category]: urls };
-      const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
+      const { invalidas, erros, kmLidoPainel, registros } = await revalidatePhotos(singleFotosData, vehicle?.marca, vehicle?.modelo);
 
       const existingInvalidas: any[] = (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria !== category);
       const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
@@ -751,6 +831,7 @@ export default function ChecklistDetail() {
             forcadas_no_momento: (detalhes?.fotos_forcadas ?? []).filter((f: any) => f.categoria === category),
             invalidas_depois: invalidas,
             erros_depois: erros,
+            registros,
             km_lido_painel: category === "painel" ? kmLidoPainel : null,
           },
         ],
@@ -1173,7 +1254,7 @@ export default function ChecklistDetail() {
 
               <div className="space-y-1 divide-y divide-border">
                 {sectionPhotos.map((cat) => (
-                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} onRevalidate={isAdmin ? () => handleRevalidateSinglePhoto(cat) : undefined} isRevalidating={revalidatingSingle === cat} />
+                  <PhotoRow key={cat} category={cat} urls={fotosData[cat]} isFlagged={!!flaggedMap[cat]} flagReasons={flaggedMap[cat]} analisada={categoriaFoiAnalisada(cat)} onRevalidate={isAdmin ? () => handleRevalidateSinglePhoto(cat) : undefined} isRevalidating={revalidatingSingle === cat} />
                 ))}
 
                 {sectionFields.map((f) => {
