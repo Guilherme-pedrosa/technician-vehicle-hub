@@ -33,16 +33,72 @@ export const CRITICAL_AUDIT_CATEGORIES = new Set<string>([
   "itens_seguranca",
 ]);
 
-export function auditSeverityFor(category: string, status: AuditStatus | string): AuditSeverity {
+/**
+ * Códigos estáveis por TIPO de pendência. Entram na event_key (junto com o
+ * servidor) para que duas pendências diferentes da MESMA categoria sem foto
+ * não colidam (ex.: "etiqueta ausente" × "KM da próxima troca ausente").
+ */
+export const AUDIT_EVENT_CODES = {
+  PHOTO_NO_OPINION: "photo_sem_parecer",
+  PHOTO_VALIDATING: "photo_validando",
+  PHOTO_AI_ERROR: "photo_erro_ia",
+  PHOTO_FORCED: "photo_forcada",
+  PHOTO_INVALID: "photo_reprovada",
+  PANEL_KM_NOT_CONFIRMED: "painel_km_nao_confirmado",
+  INTERIOR_COVERAGE: "interior_cobertura",
+  ANSWER_MISSING: "resposta_faltante",
+  OBSERVATION_MISSING: "observacao_faltante",
+  PHOTO_MISSING: "evidencia_faltante",
+  UPLOAD_PENDING: "upload_pendente",
+  UPLOAD_ERROR: "upload_erro",
+  KM_PANEL_MISSING: "km_painel_ausente",
+  KM_NEXT_OIL_MISSING: "km_proxima_troca_ausente",
+  KM_NEXT_OIL_RANGE: "km_proxima_troca_intervalo",
+  TERM_NOT_ACCEPTED: "termo_nao_aceito",
+  RESULT_WITHOUT_REASON: "resultado_sem_motivo",
+  DAMAGE_NO_DESCRIPTION: "avaria_sem_descricao",
+  DAMAGE_NO_PHOTO: "avaria_sem_foto",
+  KM_DIVERGENCE: "km_divergencia_manual",
+} as const;
+
+export type AuditEventCode = (typeof AUDIT_EVENT_CODES)[keyof typeof AUDIT_EVENT_CODES];
+
+/**
+ * Códigos que representam EVIDÊNCIA CRÍTICA ausente/não confirmada.
+ * Contrato: isso é `critical`, mesmo que o status seja "pending_at_submit".
+ * Indisponibilidade da IA (pending/erro) continua `warning`.
+ */
+const MISSING_CRITICAL_EVIDENCE_CODES = new Set<string>([
+  AUDIT_EVENT_CODES.ANSWER_MISSING,
+  AUDIT_EVENT_CODES.OBSERVATION_MISSING,
+  AUDIT_EVENT_CODES.PHOTO_MISSING,
+  AUDIT_EVENT_CODES.UPLOAD_ERROR,
+  AUDIT_EVENT_CODES.KM_PANEL_MISSING,
+  AUDIT_EVENT_CODES.KM_NEXT_OIL_MISSING,
+]);
+
+export function auditSeverityFor(
+  category: string,
+  status: AuditStatus | string,
+  opts?: { eventCode?: string | null; criticalCategory?: boolean },
+): AuditSeverity {
+  const isCriticalCategory =
+    opts?.criticalCategory === true || CRITICAL_AUDIT_CATEGORIES.has(category);
+
   // Painel/KM não confirmado é sempre crítico.
   if (status === "km_not_confirmed") return "critical";
-  // IA pendente, erro de IA e interior incompleto são warning por contrato,
-  // salvo quando a categoria é crítica e a foto foi forçada/reprovada.
+
+  // Evidência crítica AUSENTE (não é indisponibilidade da IA) → critical.
+  if (opts?.eventCode && MISSING_CRITICAL_EVIDENCE_CODES.has(opts.eventCode)) {
+    return isCriticalCategory ? "critical" : "warning";
+  }
+
+  // IA pendente, erro de IA e interior incompleto são warning por contrato.
   if (status === "pending_at_submit" || status === "ai_error" || status === "interior_incomplete") {
     return "warning";
   }
   if (status === "forced" || status === "invalid") {
-    return CRITICAL_AUDIT_CATEGORIES.has(category) ? "critical" : "warning";
+    return isCriticalCategory ? "critical" : "warning";
   }
   if (status === "km_divergence") return "warning";
   return "warning";
@@ -54,21 +110,25 @@ export function auditStatusBlocksTechnician(_status: AuditStatus | string): bool
 }
 
 /**
- * Chave estável de idempotência de evento. O banco também recalcula/garante
- * unicidade — o cliente apenas coopera para evitar duplicatas óbvias.
+ * Chave estável de idempotência de evento. Inclui o `eventCode` para que
+ * pendências distintas na mesma categoria/índice/status não se sobreponham.
+ * O banco recalcula a mesma fórmula no trigger.
  */
 export function buildAuditEventKey(params: {
   checklistId: string;
   categoria: string;
   photoIndex?: number | null;
   status: AuditStatus | string;
+  eventCode?: string | null;
 }): string {
   const idx =
     typeof params.photoIndex === "number" && Number.isFinite(params.photoIndex)
       ? String(params.photoIndex)
       : "na";
-  return `${params.checklistId}|${params.categoria}|${idx}|${params.status}`;
+  const code = (params.eventCode ?? "").trim() || "generico";
+  return `${params.checklistId}|${params.categoria}|${idx}|${params.status}|${code}`;
 }
+
 
 /** Deduplica eventos pela event_key preservando o primeiro ocorrido. */
 export function dedupeAuditEvents<T extends { event_key?: string | null }>(events: T[]): T[] {

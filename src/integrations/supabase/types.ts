@@ -119,6 +119,7 @@ export type Database = {
           created_at: string
           driver_id: string | null
           duration_ms: number | null
+          event_code: string
           event_key: string
           forced_at: string | null
           forced_by: string | null
@@ -147,6 +148,7 @@ export type Database = {
           created_at?: string
           driver_id?: string | null
           duration_ms?: number | null
+          event_code?: string
           event_key: string
           forced_at?: string | null
           forced_by?: string | null
@@ -175,6 +177,7 @@ export type Database = {
           created_at?: string
           driver_id?: string | null
           duration_ms?: number | null
+          event_code?: string
           event_key?: string
           forced_at?: string | null
           forced_by?: string | null
@@ -619,6 +622,8 @@ export type Database = {
       }
       email_send_log: {
         Row: {
+          attempt_count: number
+          attempted_at: string | null
           checklist_id: string | null
           created_at: string
           dedupe_key: string | null
@@ -629,8 +634,11 @@ export type Database = {
           resend_id: string | null
           status: string
           subject: string | null
+          updated_at: string
         }
         Insert: {
+          attempt_count?: number
+          attempted_at?: string | null
           checklist_id?: string | null
           created_at?: string
           dedupe_key?: string | null
@@ -641,8 +649,11 @@ export type Database = {
           resend_id?: string | null
           status?: string
           subject?: string | null
+          updated_at?: string
         }
         Update: {
+          attempt_count?: number
+          attempted_at?: string | null
           checklist_id?: string | null
           created_at?: string
           dedupe_key?: string | null
@@ -653,6 +664,7 @@ export type Database = {
           resend_id?: string | null
           status?: string
           subject?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1104,127 +1116,127 @@ export type Database = {
       }
       vehicle_checklists: {
         Row: {
-          acessorios: string
+          acessorios: string | null
           avaria_descricao: string | null
-          avaria_nova: string
-          calibragem_ok: string
-          cambio: string
+          avaria_nova: string | null
+          calibragem_ok: string | null
+          cambio: string | null
           checklist_date: string
-          conducao_ok: string
+          conducao_ok: string | null
           created_at: string
           created_by: string
-          danos_veiculo: string
+          danos_veiculo: string | null
           destino: string | null
           detalhes: Json | null
           driver_id: string | null
-          farois_lanternas: string
-          fluidos_ok: string
+          farois_lanternas: string | null
+          fluidos_ok: string | null
           fotos: Json | null
-          freios: string
+          freios: string | null
           id: string
-          itens_seguranca: string
-          kit_ok: string
-          limpeza_organizacao: string
-          motor: string
-          nivel_agua: string
-          nivel_oleo: string
+          itens_seguranca: string | null
+          kit_ok: string | null
+          limpeza_organizacao: string | null
+          motor: string | null
+          nivel_agua: string | null
+          nivel_oleo: string | null
           observacoes: string | null
-          pneu_estepe: string
-          pneus: string
-          pneus_visual_ok: string
+          pneu_estepe: string | null
+          pneus: string | null
+          pneus_visual_ok: string | null
           resultado: string
           resultado_motivo: string | null
-          ruido_anormal: string
-          som: string
+          ruido_anormal: string | null
+          som: string | null
           status: string
           termo_aceito: boolean
           tripulacao: string | null
-          troca_oleo: string
+          troca_oleo: string | null
           updated_at: string
           vehicle_id: string
-          vidros: string
+          vidros: string | null
         }
         Insert: {
-          acessorios?: string
+          acessorios?: string | null
           avaria_descricao?: string | null
-          avaria_nova?: string
-          calibragem_ok?: string
-          cambio?: string
+          avaria_nova?: string | null
+          calibragem_ok?: string | null
+          cambio?: string | null
           checklist_date?: string
-          conducao_ok?: string
+          conducao_ok?: string | null
           created_at?: string
           created_by: string
-          danos_veiculo?: string
+          danos_veiculo?: string | null
           destino?: string | null
           detalhes?: Json | null
           driver_id?: string | null
-          farois_lanternas?: string
-          fluidos_ok?: string
+          farois_lanternas?: string | null
+          fluidos_ok?: string | null
           fotos?: Json | null
-          freios?: string
+          freios?: string | null
           id?: string
-          itens_seguranca?: string
-          kit_ok?: string
-          limpeza_organizacao?: string
-          motor?: string
-          nivel_agua?: string
-          nivel_oleo?: string
+          itens_seguranca?: string | null
+          kit_ok?: string | null
+          limpeza_organizacao?: string | null
+          motor?: string | null
+          nivel_agua?: string | null
+          nivel_oleo?: string | null
           observacoes?: string | null
-          pneu_estepe?: string
-          pneus?: string
-          pneus_visual_ok?: string
-          resultado?: string
+          pneu_estepe?: string | null
+          pneus?: string | null
+          pneus_visual_ok?: string | null
+          resultado: string
           resultado_motivo?: string | null
-          ruido_anormal?: string
-          som?: string
+          ruido_anormal?: string | null
+          som?: string | null
           status?: string
           termo_aceito?: boolean
           tripulacao?: string | null
-          troca_oleo?: string
+          troca_oleo?: string | null
           updated_at?: string
           vehicle_id: string
-          vidros?: string
+          vidros?: string | null
         }
         Update: {
-          acessorios?: string
+          acessorios?: string | null
           avaria_descricao?: string | null
-          avaria_nova?: string
-          calibragem_ok?: string
-          cambio?: string
+          avaria_nova?: string | null
+          calibragem_ok?: string | null
+          cambio?: string | null
           checklist_date?: string
-          conducao_ok?: string
+          conducao_ok?: string | null
           created_at?: string
           created_by?: string
-          danos_veiculo?: string
+          danos_veiculo?: string | null
           destino?: string | null
           detalhes?: Json | null
           driver_id?: string | null
-          farois_lanternas?: string
-          fluidos_ok?: string
+          farois_lanternas?: string | null
+          fluidos_ok?: string | null
           fotos?: Json | null
-          freios?: string
+          freios?: string | null
           id?: string
-          itens_seguranca?: string
-          kit_ok?: string
-          limpeza_organizacao?: string
-          motor?: string
-          nivel_agua?: string
-          nivel_oleo?: string
+          itens_seguranca?: string | null
+          kit_ok?: string | null
+          limpeza_organizacao?: string | null
+          motor?: string | null
+          nivel_agua?: string | null
+          nivel_oleo?: string | null
           observacoes?: string | null
-          pneu_estepe?: string
-          pneus?: string
-          pneus_visual_ok?: string
+          pneu_estepe?: string | null
+          pneus?: string | null
+          pneus_visual_ok?: string | null
           resultado?: string
           resultado_motivo?: string | null
-          ruido_anormal?: string
-          som?: string
+          ruido_anormal?: string | null
+          som?: string | null
           status?: string
           termo_aceito?: boolean
           tripulacao?: string | null
-          troca_oleo?: string
+          troca_oleo?: string | null
           updated_at?: string
           vehicle_id?: string
-          vidros?: string
+          vidros?: string | null
         }
         Relationships: [
           {
@@ -1395,6 +1407,20 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      reserve_email_send: {
+        Args: {
+          p_checklist_id: string
+          p_dedupe_key: string
+          p_metadata?: Json
+          p_recipient_email: string
+          p_stale_after?: string
+          p_subject: string
+        }
+        Returns: {
+          decision: string
+          log_id: string
+        }[]
       }
       sync_replace_day_telemetry: {
         Args: {

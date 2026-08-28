@@ -203,11 +203,13 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   if (cl.troca_oleo || detalhes?.km_proxima_troca) {
     let oilY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
     doc.setFontSize(9);
-    const oleoLabel = cl.troca_oleo === "vencido"
-      ? "⚠ VENCIDO"
-      : cl.troca_oleo === "proximo"
-        ? "⚠ PRÓXIMO DA TROCA"
-        : "OK";
+    const oleoLabel = !cl.troca_oleo
+      ? "NÃO INFORMADO"
+      : cl.troca_oleo === "vencido"
+        ? "⚠ VENCIDO"
+        : cl.troca_oleo === "proximo"
+          ? "⚠ PRÓXIMO DA TROCA"
+          : "OK";
     doc.text(`Troca de óleo: ${oleoLabel}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
   }
 
@@ -220,7 +222,7 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
       const opt = f.options.find((o) => o.value === val);
       const nc = isNonConforme(f.key, val);
       const obsValue = cl[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`] ?? detalhes?.observacoes_itens?.[f.key] ?? detalhes?.draft_answers?.[`obs_${f.key}`] ?? "";
-      rows.push([f.label, opt?.label ?? val ?? "—", nc && obsValue ? obsValue : ""]);
+      rows.push([f.label, opt?.label ?? (val ? String(val) : "Não informado"), nc && obsValue ? obsValue : ""]);
     });
   });
 
@@ -1094,6 +1096,9 @@ export default function ChecklistDetail() {
               <span className="text-sm">Status</span>
               {(() => {
                 const status = (cl as any).troca_oleo;
+                if (!status) {
+                  return <span className="text-sm font-semibold text-muted-foreground">— Não informado</span>;
+                }
                 if (status === "vencido") {
                   return <span className="text-sm font-semibold text-destructive">⚠️ VENCIDO</span>;
                 }
@@ -1281,10 +1286,11 @@ export default function ChecklistDetail() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                            {nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            {opt?.label ?? currentVal ?? "—"}
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${!currentVal ? "text-muted-foreground" : nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                            {!currentVal ? <AlertTriangle className="w-3.5 h-3.5" /> : nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            {!currentVal ? "Não informado" : (opt?.label ?? String(currentVal))}
                           </span>
+
                         )}
                       </div>
                       {editing && isNonConforme(f.key, editFields[f.key]) && (

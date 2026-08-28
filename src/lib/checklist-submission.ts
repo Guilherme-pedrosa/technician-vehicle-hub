@@ -4,9 +4,15 @@
 // Regra soberana do contrato: NADA além de "sem veículo" ou
 // "sem técnico responsável" impede finalizar o formulário.
 // Toda incompletude vira PENDÊNCIA + evento de auditoria.
+// E NUNCA inventamos "conforme/ok" para resposta ausente.
 // ═══════════════════════════════════════════════════════════════
 
-import { auditSeverityFor, type AuditStatus, type AuditSeverity } from "./checklist-audit";
+import {
+  AUDIT_EVENT_CODES,
+  auditSeverityFor,
+  type AuditStatus,
+  type AuditSeverity,
+} from "./checklist-audit";
 
 export type PhotoValidationLike = {
   status: "idle" | "validating" | "valid" | "invalid" | "forced" | string;
@@ -26,11 +32,19 @@ export type PhotoValidationLike = {
   } | null;
 };
 
+export type PhotoUploadLike = {
+  status?: string;
+  uploadedUrl?: string;
+  storagePath?: string;
+} | null | undefined;
+
 export type SubmissionAuditEvent = {
   categoria: string;
   label: string;
   status: AuditStatus;
   severity: AuditSeverity;
+  /** Código estável do TIPO de pendência — entra na event_key. */
+  event_code: string;
   motivo: string;
   reason?: string;
   reject_code?: string | null;
@@ -48,8 +62,31 @@ export type SubmissionAuditEvent = {
 
 export type Pendencia = { codigo: string; mensagem: string };
 
-function severity(category: string, status: AuditStatus): AuditSeverity {
-  return auditSeverityFor(category, status);
+function severity(
+  category: string,
+  status: AuditStatus,
+  opts?: { eventCode?: string; criticalCategory?: boolean },
+): AuditSeverity {
+  return auditSeverityFor(category, status, opts);
+}
+
+/**
+ * URL da foto no MESMO índice do slot. Nunca usa uma lista filtrada
+ * (isso deslocaria a URL quando um índice anterior falhou no upload).
+ */
+export function photoUrlForSlot(
+  uploads: PhotoUploadLike[] | undefined,
+  urls: string[] | undefined,
+  index: number,
+): string | undefined {
+  const fromUpload = uploads?.[index]?.uploadedUrl;
+  if (fromUpload) return fromUpload;
+  if (!urls) return undefined;
+  // Sem estados de upload, `urls` É a lista de slots.
+  if (!uploads || uploads.length === 0) return urls[index];
+  // Fallback seguro: só usa a lista persistida quando ela tem o MESMO
+  // comprimento dos slots (senão o índice não é comparável).
+  return urls.length === uploads.length ? urls[index] : undefined;
 }
 
 /** Categorias presentes em QUALQUER uma das fontes (arquivos, uploads, URLs, validações). */
@@ -76,7 +113,7 @@ export type BuildAuditInput = {
   /** Arquivos capturados nesta sessão (pode estar vazio em rascunho restaurado). */
   photos?: Record<string, unknown[]>;
   /** Estados de upload (pode conter URLs restauradas). */
-  photoUploads?: Record<string, unknown[]>;
+  photoUploads?: Record<string, PhotoUploadLike[]>;
   /** URLs já persistidas no banco/storage. */
   fotosUrls?: Record<string, string[]>;
   validations?: Record<string, PhotoValidationLike[]>;
@@ -102,7 +139,7 @@ export function buildAuditEvents(input: BuildAuditInput): {
 
   const categories = collectPhotoCategories(
     input.photos,
-    input.photoUploads,
+    input.photoUploads as Record<string, unknown[]> | undefined,
     input.fotosUrls,
     input.validations,
   );
@@ -117,7 +154,7 @@ export function buildAuditEvents(input: BuildAuditInput): {
 
     for (let idx = 0; idx < total; idx++) {
       const v = validations[idx];
-      const photo_url = urls[idx];
+      const photo_url = photoUrlForSlot(uploads, urls, idx);
       const baseMeta = {
         reason: v?.result?.reason,
         reject_code: v?.result?.reject_code ?? null,
@@ -137,7 +174,10 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "pending_at_submit",
-          severity: severity(category, "pending_at_submit"),
+          event_code: AUDIT_EVENT_CODES.PHOTO_NO_OPINION,
+          severity: severity(category, "pending_at_submit", {
+            eventCode: AUDIT_EVENT_CODES.PHOTO_NO_OPINION,
+          }),
           motivo: "Foto sem parecer de IA registrado — enviada para análise posterior",
         });
         continue;
@@ -149,7 +189,10 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "pending_at_submit",
-          severity: severity(category, "pending_at_submit"),
+          event_code: AUDIT_EVENT_CODES.PHOTO_VALIDATING,
+          severity: severity(category, "pending_at_submit", {
+            eventCode: AUDIT_EVENT_CODES.PHOTO_VALIDATING,
+          }),
           motivo: "Checklist salvo antes da conclusão da validação por IA",
         });
         continue;
@@ -161,7 +204,8 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "ai_error",
-          severity: severity(category, "ai_error"),
+          event_code: AUDIT_EVENT_CODES.PHOTO_AI_ERROR,
+          severity: severity(category, "ai_error", { eventCode: AUDIT_EVENT_CODES.PHOTO_AI_ERROR }),
           motivo: v.result?.reason ?? "Falha na validação automática da IA",
         });
         continue;
@@ -173,7 +217,8 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "forced",
-          severity: severity(category, "forced"),
+          event_code: AUDIT_EVENT_CODES.PHOTO_FORCED,
+          severity: severity(category, "forced", { eventCode: AUDIT_EVENT_CODES.PHOTO_FORCED }),
           motivo: v.result?.reason
             ? `Foto reprovada pela IA e usada mesmo assim: ${v.result.reason}`
             : "Foto reprovada pela IA e usada mesmo assim",
@@ -187,7 +232,8 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "invalid",
-          severity: severity(category, "invalid"),
+          event_code: AUDIT_EVENT_CODES.PHOTO_INVALID,
+          severity: severity(category, "invalid", { eventCode: AUDIT_EVENT_CODES.PHOTO_INVALID }),
           motivo: v.result?.reason ?? "Foto reprovada pela IA",
         });
       }
@@ -199,6 +245,7 @@ export function buildAuditEvents(input: BuildAuditInput): {
           categoria: category,
           label,
           status: "km_not_confirmed",
+          event_code: AUDIT_EVENT_CODES.PANEL_KM_NOT_CONFIRMED,
           severity: severity(category, "km_not_confirmed"),
           motivo: "KM do hodômetro não confirmado pela IA — verificar valor manual digitado",
         });
@@ -212,6 +259,7 @@ export function buildAuditEvents(input: BuildAuditInput): {
       categoria: "interior",
       label: labelFor("interior"),
       status: "interior_incomplete",
+      event_code: AUDIT_EVENT_CODES.INTERIOR_COVERAGE,
       severity: severity("interior", "interior_incomplete"),
       motivo: `Cobertura parcial do interior. Faltam: ${cov.missing.join(", ")}`,
       audit_required: true,
@@ -308,14 +356,89 @@ export function summarizePhotoValidations(input: {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PAYLOAD HONESTO — resposta ausente vira NULL, nunca "conforme"
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Monta o payload das colunas operacionais SEMPRE com todas as chaves.
+ * Resposta não preenchida vai explicitamente como `null` — isso impede
+ * tanto o default do banco ("conforme"/"sim") quanto valor stale num
+ * rascunho retomado.
+ */
+export function buildAnswerPayload(
+  answers: Record<string, string | null | undefined>,
+  dbFieldKeys: Iterable<string>,
+): Record<string, string | null> {
+  const payload: Record<string, string | null> = {};
+  for (const key of dbFieldKeys) {
+    const value = String(answers?.[key] ?? "").trim();
+    payload[key] = value.length > 0 ? value : null;
+  }
+  return payload;
+}
+
+/**
+ * Estado honesto da troca de óleo. Sem KM da próxima troca informado,
+ * NUNCA devolve "ok" — devolve `null` ("Não informado").
+ */
+export function resolveTrocaOleoStatus(params: {
+  kmProximaTrocaValido: boolean;
+  vencida: boolean;
+  quaseVencida: boolean;
+  proxima: boolean;
+}): "vencido" | "proximo" | "ok" | null {
+  if (!params.kmProximaTrocaValido) return null;
+  if (params.vencida || params.quaseVencida) return "vencido";
+  if (params.proxima) return "proximo";
+  return "ok";
+}
+
+export const RESULTADO_SEVERITY: Record<string, number> = {
+  liberado: 0,
+  liberado_obs: 1,
+  bloqueado: 2,
+};
+
+/**
+ * Resultado operacional final. Nunca termina em "liberado" silencioso quando
+ * existe qualquer pendência: eleva para no mínimo "liberado_obs" (aguardando
+ * análise). Um resultado mais grave já escolhido/sugerido é preservado.
+ */
+export function resolveOperationalResultado(params: {
+  userChoice?: string | null;
+  suggested?: string | null;
+  hasPendencias: boolean;
+}): { resultado: string; elevadoPorPendencia: boolean } {
+  const sev = (v?: string | null) => RESULTADO_SEVERITY[v ?? ""] ?? -1;
+  const user = params.userChoice || "";
+  const suggested = params.suggested || "liberado";
+  let resultado = sev(suggested) > sev(user) ? suggested : user || suggested;
+  if (!RESULTADO_SEVERITY[resultado]) resultado = resultado || "liberado";
+
+  if (params.hasPendencias && sev(resultado) < RESULTADO_SEVERITY.liberado_obs) {
+    return { resultado: "liberado_obs", elevadoPorPendencia: true };
+  }
+  return { resultado, elevadoPorPendencia: false };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PENDÊNCIAS DE PREENCHIMENTO
 // ═══════════════════════════════════════════════════════════════
 
+export type MissingAnswerRef = {
+  key: string;
+  label: string;
+  /** Categoria de auditoria (default: a própria key). */
+  categoria?: string;
+  /** Item crítico do contrato (painel/KM, pneus, óleo, água, etiqueta, segurança). */
+  critical?: boolean;
+};
+
 export type PendenciaInput = {
-  missingAnswers: Array<{ key: string; label: string }>;
-  missingObservations: Array<{ key: string; label: string }>;
+  missingAnswers: MissingAnswerRef[];
+  missingObservations: MissingAnswerRef[];
   /** Categorias obrigatórias sem nenhuma evidência disponível. */
-  missingPhotos: Array<{ categoria: string; label: string }>;
+  missingPhotos: Array<{ categoria: string; label: string; critical?: boolean }>;
   uploadsPending: Array<{ categoria: string; label: string }>;
   uploadsError: Array<{ categoria: string; label: string }>;
   kmPainelInformado: boolean;
@@ -349,13 +472,16 @@ export function buildChecklistPendencias(input: PendenciaInput): {
     categoria: string,
     label: string,
     status: AuditStatus,
+    eventCode: string,
     motivo: string,
+    criticalCategory?: boolean,
   ) => {
     auditEvents.push({
       categoria,
       label,
       status,
-      severity: severity(categoria, status),
+      event_code: eventCode,
+      severity: severity(categoria, status, { eventCode, criticalCategory }),
       motivo,
       audit_required: true,
     });
@@ -363,7 +489,14 @@ export function buildChecklistPendencias(input: PendenciaInput): {
 
   for (const field of input.missingAnswers) {
     pendencias.push({ codigo: `resposta_faltante:${field.key}`, mensagem: `Resposta não preenchida: ${field.label}` });
-    addEvent(field.key, field.label, "pending_at_submit", `Resposta não preenchida: ${field.label}`);
+    addEvent(
+      field.categoria ?? field.key,
+      field.label,
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.ANSWER_MISSING,
+      `Resposta não preenchida: ${field.label}`,
+      field.critical,
+    );
   }
 
   for (const field of input.missingObservations) {
@@ -371,7 +504,14 @@ export function buildChecklistPendencias(input: PendenciaInput): {
       codigo: `observacao_faltante:${field.key}`,
       mensagem: `Não conformidade sem observação: ${field.label}`,
     });
-    addEvent(field.key, field.label, "pending_at_submit", `Não conformidade sem observação do técnico: ${field.label}`);
+    addEvent(
+      field.categoria ?? field.key,
+      field.label,
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.OBSERVATION_MISSING,
+      `Não conformidade sem observação do técnico: ${field.label}`,
+      field.critical,
+    );
   }
 
   for (const photo of input.missingPhotos) {
@@ -379,7 +519,14 @@ export function buildChecklistPendencias(input: PendenciaInput): {
       codigo: `foto_faltante:${photo.categoria}`,
       mensagem: `Evidência obrigatória ausente: ${photo.label}`,
     });
-    addEvent(photo.categoria, photo.label, "pending_at_submit", `Evidência obrigatória ausente: ${photo.label}`);
+    addEvent(
+      photo.categoria,
+      photo.label,
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.PHOTO_MISSING,
+      `Evidência obrigatória ausente: ${photo.label}`,
+      photo.critical,
+    );
   }
 
   for (const photo of input.uploadsPending) {
@@ -387,12 +534,24 @@ export function buildChecklistPendencias(input: PendenciaInput): {
       codigo: `upload_pendente:${photo.categoria}`,
       mensagem: `Upload não finalizado: ${photo.label}`,
     });
-    addEvent(photo.categoria, photo.label, "pending_at_submit", `Upload da foto ainda em andamento no envio: ${photo.label}`);
+    addEvent(
+      photo.categoria,
+      photo.label,
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.UPLOAD_PENDING,
+      `Upload da foto ainda em andamento no envio: ${photo.label}`,
+    );
   }
 
   for (const photo of input.uploadsError) {
     pendencias.push({ codigo: `upload_erro:${photo.categoria}`, mensagem: `Falha no envio da foto: ${photo.label}` });
-    addEvent(photo.categoria, photo.label, "pending_at_submit", `Falha no upload da foto: ${photo.label}`);
+    addEvent(
+      photo.categoria,
+      photo.label,
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.UPLOAD_ERROR,
+      `Falha no upload da foto: ${photo.label}`,
+    );
   }
 
   if (!input.kmPainelInformado || !input.kmPainelValido) {
@@ -400,7 +559,7 @@ export function buildChecklistPendencias(input: PendenciaInput): {
       ? "KM do painel digitado é inválido — não confirmado"
       : "KM do painel não informado pelo técnico";
     pendencias.push({ codigo: "km_painel", mensagem: motivo });
-    addEvent("painel", labelFor("painel"), "km_not_confirmed", motivo);
+    addEvent("painel", labelFor("painel"), "km_not_confirmed", AUDIT_EVENT_CODES.KM_PANEL_MISSING, motivo);
   }
 
   if (!input.kmProximaTrocaInformado || !input.kmProximaTrocaValido) {
@@ -408,31 +567,67 @@ export function buildChecklistPendencias(input: PendenciaInput): {
       ? "KM da próxima troca de óleo inválido"
       : "KM da próxima troca de óleo não informado";
     pendencias.push({ codigo: "km_proxima_troca", mensagem: motivo });
-    addEvent("etiqueta_oleo", labelFor("etiqueta_oleo"), "pending_at_submit", motivo);
+    addEvent(
+      "etiqueta_oleo",
+      labelFor("etiqueta_oleo"),
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.KM_NEXT_OIL_MISSING,
+      motivo,
+    );
   } else if (input.kmProximaTrocaForaDoIntervalo) {
     const motivo = "KM da próxima troca de óleo fora do intervalo esperado — conferir hodômetro/etiqueta";
     pendencias.push({ codigo: "km_proxima_troca_intervalo", mensagem: motivo });
-    addEvent("etiqueta_oleo", labelFor("etiqueta_oleo"), "km_divergence", motivo);
+    addEvent(
+      "etiqueta_oleo",
+      labelFor("etiqueta_oleo"),
+      "km_divergence",
+      AUDIT_EVENT_CODES.KM_NEXT_OIL_RANGE,
+      motivo,
+    );
   }
 
   if (!input.termoAceito) {
     pendencias.push({ codigo: "termo", mensagem: "Termo de responsabilidade não aceito" });
-    addEvent("termo", "Termo de responsabilidade", "pending_at_submit", "Termo de responsabilidade não aceito no envio");
+    addEvent(
+      "termo",
+      "Termo de responsabilidade",
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.TERM_NOT_ACCEPTED,
+      "Termo de responsabilidade não aceito no envio",
+    );
   }
 
   if (input.resultadoExigeMotivo && !input.resultadoMotivoInformado) {
     pendencias.push({ codigo: "resultado_motivo", mensagem: "Resultado sem justificativa" });
-    addEvent("resultado", "Resultado da inspeção", "pending_at_submit", "Resultado diferente de liberado sem justificativa");
+    addEvent(
+      "resultado",
+      "Resultado da inspeção",
+      "pending_at_submit",
+      AUDIT_EVENT_CODES.RESULT_WITHOUT_REASON,
+      "Resultado diferente de liberado sem justificativa",
+    );
   }
 
   if (input.avariaDeclarada) {
     if (!input.avariaDescricaoInformada) {
       pendencias.push({ codigo: "avaria_descricao", mensagem: "Avaria declarada sem descrição" });
-      addEvent("avaria", labelFor("avaria"), "pending_at_submit", "Avaria declarada sem descrição do técnico");
+      addEvent(
+        "avaria",
+        labelFor("avaria"),
+        "pending_at_submit",
+        AUDIT_EVENT_CODES.DAMAGE_NO_DESCRIPTION,
+        "Avaria declarada sem descrição do técnico",
+      );
     }
     if (!input.avariaEvidencia) {
       pendencias.push({ codigo: "avaria_foto", mensagem: "Avaria declarada sem evidência fotográfica" });
-      addEvent("avaria", labelFor("avaria"), "pending_at_submit", "Avaria declarada sem foto de evidência");
+      addEvent(
+        "avaria",
+        labelFor("avaria"),
+        "pending_at_submit",
+        AUDIT_EVENT_CODES.DAMAGE_NO_PHOTO,
+        "Avaria declarada sem foto de evidência",
+      );
     }
   }
 
@@ -463,7 +658,8 @@ export function buildKmDivergenceEvent(params: {
     categoria: "painel",
     label: labelFor("painel"),
     status: "km_divergence",
-    severity: severity("painel", "km_divergence"),
+    event_code: AUDIT_EVENT_CODES.KM_DIVERGENCE,
+    severity: severity("painel", "km_divergence", { eventCode: AUDIT_EVENT_CODES.KM_DIVERGENCE }),
     motivo: `KM do painel ${sentido} que o cadastro: painel ${kmPainel.toLocaleString("pt-BR")} km, cadastro ${kmCadastro.toLocaleString("pt-BR")} km (diferença ${diff.toLocaleString("pt-BR")} km)`,
     audit_required: true,
   };
