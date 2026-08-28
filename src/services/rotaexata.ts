@@ -4,6 +4,13 @@ const FUNCTION_NAME = "rotaexata-proxy";
 
 type RotaExataEnvelope<T> = T | { data: T };
 
+export class RotaExataApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+    this.name = "RotaExataApiError";
+  }
+}
+
 export type RotaExataAdesaoResponse = {
   id: number;
   placa: string;
@@ -178,7 +185,16 @@ async function rotaExataFetch<T = unknown>(
     if (res.status === 404) {
       return [] as unknown as T;
     }
-    throw new Error(`Rota Exata API error [${res.status}]: ${errorBody}`);
+    let message = `Falha na integração com o Rota Exata (${res.status}).`;
+    let code: string | undefined;
+    try {
+      const parsed = JSON.parse(errorBody) as { error?: unknown; code?: unknown };
+      if (typeof parsed.error === "string") message = parsed.error;
+      if (typeof parsed.code === "string") code = parsed.code;
+    } catch {
+      // Keep the safe fallback without exposing an upstream HTML response.
+    }
+    throw new RotaExataApiError(message, res.status, code);
   }
 
   return res.json();
