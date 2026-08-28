@@ -3066,6 +3066,24 @@ export default function Checklist() {
     },
   });
 
+  // Rascunhos pendentes do usuário — independentes do filtro de data
+  const { data: pendingDrafts = [] } = useQuery({
+    queryKey: ["vehicle-checklists", "pendentes", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_checklists")
+        .select("*")
+        .eq("status", "rascunho" as any)
+        .eq("created_by", user!.id)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+
   const vehicleOptions = useMemo(() => 
     vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.marca} ${v.modelo}` })),
     [vehicles]
