@@ -128,14 +128,23 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
         if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
         return "orphan_removed";
       }
-      const id = await ticket.recordId;
-      if (discardedGenerations.has(ticket.generation)) {
-        if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
-        return "orphan_removed";
-      }
-      await enqueue(() => deps.attachPhoto(id, storageKey, url));
-      return "attached";
+      // Entra na fila IMEDIATAMENTE (síncrono): a finalização enfileirada logo
+      // depois roda sempre DEPOIS deste attach — sem janela de corrida.
+      return enqueue(async () => {
+        if (discardedGenerations.has(ticket.generation)) {
+          if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
+          return "orphan_removed" as const;
+        }
+        const id = await ticket.recordId;
+        if (discardedGenerations.has(ticket.generation)) {
+          if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
+          return "orphan_removed" as const;
+        }
+        await deps.attachPhoto(id, storageKey, url);
+        return "attached" as const;
+      });
     },
+
     /** Serializa qualquer trabalho na mesma fila das fotos. */
     enqueue,
     /** Espera a fila drenar (usado antes de finalizar). */
