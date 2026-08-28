@@ -176,3 +176,91 @@ describe("coordenador de rascunho × upload", () => {
     expect(calls).toBe(2);
   });
 });
+
+describe("descarte de rascunho RETOMADO (fotos de sessões anteriores)", () => {
+  it("apaga também os objetos que só existem no banco", async () => {
+    const store = emptyStore();
+    store.records.set("rec-antigo", { status: "rascunho", fotos: { painel: ["u1"] } });
+    store.objects.add("antigo/painel-1.jpg");
+    store.objects.add("antigo/painel-2.jpg");
+
+    const base = makeDeps(store);
+    const listRemoteStoragePaths = vi.fn(async () => ["antigo/painel-1.jpg", "antigo/painel-2.jpg"]);
+    const coord = createDraftCoordinator({ ...base, listRemoteStoragePaths });
+
+    coord.adopt("rec-antigo");
+    const result = await coord.discard();
+
+    expect(listRemoteStoragePaths).toHaveBeenCalledWith("rec-antigo");
+    expect(result.deletedRecord).toBe(true);
+    expect(result.removedObjects).toBe(2);
+    expect(store.objects.size).toBe(0);
+    expect(store.records.size).toBe(0);
+  });
+
+  it("não busca paths remotos de checklist finalizado", async () => {
+    const store = emptyStore();
+    store.records.set("rec-final", { status: "finalizado", fotos: {} });
+    const base = makeDeps(store);
+    const listRemoteStoragePaths = vi.fn(async () => ["nao/deve/apagar.jpg"]);
+    const coord = createDraftCoordinator({ ...base, listRemoteStoragePaths });
+
+    coord.adopt("rec-final");
+    coord.markFinalized("rec-final");
+    const result = await coord.discard();
+
+    expect(listRemoteStoragePaths).not.toHaveBeenCalled();
+    expect(result.deletedRecord).toBe(false);
+    expect(store.records.size).toBe(1);
+  });
+});
+
+describe("finalização serializada com uploads", () => {
+  it("upload já em voo entra na fila antes da finalização e não é perdido", async () => {
+    const store = emptyStore();
+    const gate = deferred<void>();
+    const base = makeDeps(store);
+    const attachPhoto = vi.fn(async (id: string, key: string, url: string) => {
+      await gate.promise;
+      const rec = store.records.get(id)!;
+      rec.fotos[key] = [...(rec.fotos[key] ?? []), url];
+    });
+    const coord = createDraftCoordinator({ ...base, attachPhoto });
+
+    const ticket = coord.beginUpload();
+    await ticket.recordId; // registro criado; attach entra na fila a seguir
+    const uploading = coord.completeUpload(ticket, "painel", "url-painel", "p/painel.jpg");
+
+    // Finalização entra na MESMA fila: só roda depois do attach terminar.
+    const finalizing = coord.enqueue(async () => {
+      const id = await coord.resolveRecordIdForSubmit();
+      const rec = store.records.get(id)!;
+      rec.status = "finalizado";
+      return { id, fotos: { ...rec.fotos } };
+    });
+
+    gate.resolve();
+    await uploading;
+    const saved = await finalizing;
+
+    expect(saved.fotos.painel).toEqual(["url-painel"]);
+  });
+
+  it("upload que termina DEPOIS da finalização faz merge no mesmo registro", async () => {
+    const store = emptyStore();
+    const coord = createDraftCoordinator(makeDeps(store));
+
+    const ticket = coord.beginUpload();
+    const id = await ticket.recordId;
+
+    await coord.enqueue(async () => {
+      store.records.get(id)!.status = "finalizado";
+    });
+    coord.markFinalized(id);
+
+    await coord.completeUpload(ticket, "painel", "url-tardia", "p/tardia.jpg");
+
+    expect(store.records.get(id)!.fotos.painel).toEqual(["url-tardia"]);
+    expect(store.records.get(id)!.status).toBe("finalizado");
+  });
+});

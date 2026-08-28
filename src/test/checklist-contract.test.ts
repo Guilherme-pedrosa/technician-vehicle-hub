@@ -234,7 +234,10 @@ describe("notify-checklist-nc", () => {
 
   it("chave de deduplicação é gerada no servidor, por destinatário", () => {
     expect(notify).toContain("const dedupeKeyFor = (email: string)");
-    expect(notify).toContain("sanitize(dedupe_key, 40)");
+    // Idempotência NÃO pode ser forjada pelo cliente: o discriminador é o
+    // hash do conteúdo, calculado no servidor.
+    expect(notify).toContain('crypto.subtle.digest("SHA-256"');
+    expect(notify).not.toContain("sanitize(dedupe_key");
   });
 
   it("nunca devolve sucesso quando falta chave ou o envio falha", () => {

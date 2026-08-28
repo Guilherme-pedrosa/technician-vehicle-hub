@@ -27,7 +27,13 @@ export type DraftCoordinatorDeps = {
   deleteRecord: (recordId: string) => Promise<void>;
   /** Remove um objeto do storage (best-effort). */
   removeStorageObject: (storagePath: string) => Promise<void>;
+  /**
+   * Paths já persistidos no registro (rascunho RETOMADO em outra sessão).
+   * Sem isto, descartar só apagaria as fotos capturadas nesta sessão.
+   */
+  listRemoteStoragePaths?: (recordId: string) => Promise<string[]>;
 };
+
 
 export type UploadTicket = {
   /** Geração viva no momento da captura. */
@@ -122,14 +128,23 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
         if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
         return "orphan_removed";
       }
-      const id = await ticket.recordId;
-      if (discardedGenerations.has(ticket.generation)) {
-        if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
-        return "orphan_removed";
-      }
-      await enqueue(() => deps.attachPhoto(id, storageKey, url));
-      return "attached";
+      // Entra na fila IMEDIATAMENTE (síncrono): a finalização enfileirada logo
+      // depois roda sempre DEPOIS deste attach — sem janela de corrida.
+      return enqueue(async () => {
+        if (discardedGenerations.has(ticket.generation)) {
+          if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
+          return "orphan_removed" as const;
+        }
+        const id = await ticket.recordId;
+        if (discardedGenerations.has(ticket.generation)) {
+          if (storagePath) await deps.removeStorageObject(storagePath).catch(() => undefined);
+          return "orphan_removed" as const;
+        }
+        await deps.attachPhoto(id, storageKey, url);
+        return "attached" as const;
+      });
     },
+
     /** Serializa qualquer trabalho na mesma fila das fotos. */
     enqueue,
     /** Espera a fila drenar (usado antes de finalizar). */
@@ -171,8 +186,18 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
         id = null;
       }
 
+      // Rascunho retomado: as fotos das sessões anteriores só existem no banco.
+      const allPaths = new Set(paths);
+      if (id && !wasFinalized && deps.listRemoteStoragePaths) {
+        try {
+          for (const p of await deps.listRemoteStoragePaths(id)) allPaths.add(p);
+        } catch {
+          /* best-effort: seguimos apagando o que conhecemos */
+        }
+      }
+
       let removed = 0;
-      for (const path of paths) {
+      for (const path of allPaths) {
         try {
           await deps.removeStorageObject(path);
           removed += 1;
@@ -187,5 +212,6 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
       }
       return { deletedRecord: false, removedObjects: removed };
     },
+
   };
 }

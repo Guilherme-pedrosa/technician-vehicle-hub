@@ -126,7 +126,7 @@ serve(async (req) => {
       condutor,
       km_painel_nao_confirmado,
       pendencias,
-      dedupe_key,
+      // dedupe_key do cliente é IGNORADO de propósito (não pode forjar idempotência)
     } = body;
 
     const pendenciasSafe: string[] = Array.isArray(pendencias)
@@ -219,16 +219,35 @@ serve(async (req) => {
     const isAudit = event_type === "audit_alert";
     const auditEventsSafe = Array.isArray(audit_events) ? audit_events.slice(0, MAX_AUDIT_EVENTS) : [];
 
-    // ── DEDUPLICAÇÃO: chave gerada NO SERVIDOR ──
-    // O cliente só influencia um discriminador curto e sanitizado; nunca a
-    // chave global. A decisão de reservar/reenviar é feita por DESTINATÁRIO
-    // dentro da função SQL transacional `reserve_email_send`.
+    // ── DEDUPLICAÇÃO: chave 100% derivada NO SERVIDOR ──
+    // O cliente NÃO influencia a chave (o campo `dedupe_key` do body é
+    // ignorado de propósito): o discriminador é o hash do CONTEÚDO relevante,
+    // então reenviar o mesmo alerta nunca duplica e um conteúdo realmente novo
+    // gera um novo envio. A decisão é por DESTINATÁRIO, dentro de
+    // `reserve_email_send` (transacional, com advisory lock).
     const sanitize = (v: unknown, max: number) =>
       String(v ?? "").trim().replace(/[|\s]+/g, "_").slice(0, max);
     const eventTypeKey = isAudit ? "audit_alert" : "nc";
-    const discriminator = sanitize(dedupe_key, 40);
+
+    const contentFingerprint = JSON.stringify({
+      t: eventTypeKey,
+      c: sanitize(checklist_id, 64),
+      r: String(resultado ?? ""),
+      i: (Array.isArray(itens_problema) ? itens_problema : []).map((i: any) => `${i?.label}:${i?.valor}`).sort(),
+      f: (Array.isArray(fotos_problema) ? fotos_problema : []).map((f: any) => `${f?.categoria}:${f?.tipo}`).sort(),
+      a: auditEventsSafe.map((e: any) => `${e?.categoria}:${e?.status}:${e?.photo_index ?? ""}`).sort(),
+      p: pendenciasSafe.slice().sort(),
+      o: troca_oleo_vencida ? 1 : 0,
+    });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(contentFingerprint));
+    const discriminator = Array.from(new Uint8Array(digest))
+      .slice(0, 8)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
     const dedupeKeyFor = (email: string) =>
-      `${eventTypeKey}|${sanitize(checklist_id, 64) || "sem-checklist"}|${sanitize(email, 160).toLowerCase()}${discriminator ? `|${discriminator}` : ""}`;
+      `${eventTypeKey}|${sanitize(checklist_id, 64) || "sem-checklist"}|${sanitize(email, 160).toLowerCase()}|${discriminator}`;
+
 
 
     // ============= AUDITORIA DE IA =============
