@@ -366,3 +366,44 @@ describe("URL da foto não desloca de índice", () => {
     expect(ev0.photo_url).toBeUndefined();
   });
 });
+
+describe("cenário: formulário vazio exceto veículo + técnico", () => {
+  const answers: Record<string, string> = {};
+  const missing = DB_KEYS.map((k) => ({ key: k, label: k, categoria: k, critical: k !== "som" }));
+
+  it("salva com respostas NULL, óleo não-OK, resultado não liberado e trilha de auditoria", () => {
+    // 1) payload: nenhuma resposta inventada
+    const payload = buildAnswerPayload(answers, DB_KEYS);
+    expect(Object.values(payload).every((v) => v === null)).toBe(true);
+
+    // 2) pendências existem e não bloqueiam
+    const { pendencias, auditEvents } = buildChecklistPendencias({
+      ...baseFull,
+      missingAnswers: missing,
+      missingPhotos: [{ categoria: "painel", label: "Painel", critical: true }],
+      kmPainelInformado: false,
+      kmPainelValido: false,
+      kmProximaTrocaInformado: false,
+      kmProximaTrocaValido: false,
+      termoAceito: false,
+    });
+    expect(pendencias.length).toBeGreaterThan(0);
+    expect(auditEvents.length).toBeGreaterThan(0);
+    expect(auditEvents.some((e) => e.severity === "critical")).toBe(true);
+
+    // 3) troca de óleo NÃO fica OK
+    const oleo = resolveTrocaOleoStatus({
+      kmProximaTrocaValido: false, vencida: false, quaseVencida: false, proxima: false,
+    });
+    expect(oleo).toBeNull();
+    expect(oleo).not.toBe("ok");
+
+    // 4) resultado NÃO fica liberado
+    const { resultado, elevadoPorPendencia } = resolveOperationalResultado({
+      userChoice: "", suggested: "liberado", hasPendencias: pendencias.length > 0,
+    });
+    expect(resultado).not.toBe("liberado");
+    expect(resultado).toBe("liberado_obs");
+    expect(elevadoPorPendencia).toBe(true);
+  });
+});
