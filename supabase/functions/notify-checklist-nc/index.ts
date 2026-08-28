@@ -126,7 +126,7 @@ serve(async (req) => {
       condutor,
       km_painel_nao_confirmado,
       pendencias,
-      dedupe_key,
+      // dedupe_key do cliente é IGNORADO de propósito (não pode forjar idempotência)
     } = body;
 
     const pendenciasSafe: string[] = Array.isArray(pendencias)
