@@ -1,12 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const ROTAEXATA_API = "https://api.rotaexata.com.br";
+
+class RotaExataLoginError extends Error {
+  constructor(message: string, readonly status: number, readonly code: string) {
+    super(message);
+    this.name = "RotaExataLoginError";
+  }
+}
 
 // Simple in-memory token cache
 let cachedToken: string | null = null;
@@ -31,8 +33,8 @@ async function getRotaExataToken(): Promise<string> {
 }
 
 async function doLogin(): Promise<string> {
-  const email = Deno.env.get("ROTAEXATA_EMAIL");
-  const password = Deno.env.get("ROTAEXATA_PASSWORD");
+  const email = Deno.env.get("ROTAEXATA_EMAIL")?.trim();
+  const password = Deno.env.get("ROTAEXATA_PASSWORD")?.trim();
 
   if (!email) throw new Error("ROTAEXATA_EMAIL is not configured");
   if (!password) throw new Error("ROTAEXATA_PASSWORD is not configured");
@@ -41,7 +43,7 @@ async function doLogin(): Promise<string> {
   const MAX_RETRIES = 5;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`Login attempt ${attempt}/${MAX_RETRIES} with email: ${email}`);
+    console.log(`Login attempt ${attempt}/${MAX_RETRIES}`);
 
     let res: Response;
     try {
@@ -78,15 +80,28 @@ async function doLogin(): Promise<string> {
       return token;
     }
 
-    // Retry on 502/503/504/429, fail immediately on other errors (e.g., 401/404 = bad creds)
+    // Retry only transient upstream failures. A 404 is used by Rota Exata both
+    // for invalid credentials and, occasionally, for gateway failures, so the
+    // response body must be inspected before classifying it.
     const isRetryable = res.status === 502 || res.status === 503 || res.status === 504 || res.status === 429;
     if (!isRetryable) {
-      if (res.status === 401 || res.status === 404) {
-        throw new Error(
-          "Credenciais do Rota Exata inválidas ou expiradas. Atualize ROTAEXATA_EMAIL e ROTAEXATA_PASSWORD."
+      const normalizedBody = responseText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const invalidCredentials =
+        res.status === 401 ||
+        (res.status === 404 && /usuario e\/ou senha invalido|credenciais? invalida/.test(normalizedBody));
+
+      if (invalidCredentials) {
+        throw new RotaExataLoginError(
+          "A integração com o Rota Exata precisa de novas credenciais.",
+          503,
+          "ROTAEXATA_AUTH_FAILED",
         );
       }
-      throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
+      throw new RotaExataLoginError(
+        `Rota Exata indisponível durante a autenticação (${res.status}).`,
+        503,
+        "ROTAEXATA_UPSTREAM_UNAVAILABLE",
+      );
     }
 
 
@@ -95,7 +110,11 @@ async function doLogin(): Promise<string> {
       console.log(`Retrying login in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));
     } else {
-      throw new Error(`Rota Exata API instável (${res.status}). Tente novamente em alguns minutos.`);
+      throw new RotaExataLoginError(
+        "Rota Exata temporariamente indisponível. Tente novamente em alguns minutos.",
+        503,
+        "ROTAEXATA_UPSTREAM_UNAVAILABLE",
+      );
     }
   }
 
@@ -266,6 +285,8 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error("Rota Exata proxy error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    const status = error instanceof RotaExataLoginError ? error.status : 500;
+    const code = error instanceof RotaExataLoginError ? error.code : "ROTAEXATA_PROXY_ERROR";
 
     // If token expired, clear cache
     if (message.includes("401") || message.includes("login")) {
@@ -273,9 +294,13 @@ Deno.serve(async (req) => {
       tokenExpiry = 0;
     }
 
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: message, code }), {
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        ...(status === 503 ? { "Retry-After": "60" } : {}),
+      },
     });
   }
 });

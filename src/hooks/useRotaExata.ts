@@ -7,6 +7,7 @@ import {
   getRespostas,
   getRelatorioKmRodado,
   getResumoDia,
+  RotaExataApiError,
   type RotaExataAdesaoResponse,
   type RotaExataPosicaoResponse,
   type RotaExataUsuarioResponse,
@@ -40,7 +41,10 @@ export function useUltimaPosicaoTodos() {
     queryFn: () => getUltimaPosicaoTodos(),
     refetchInterval: 60 * 1000,
     staleTime: 30 * 1000,
-    retry: 1,
+    // Credential failures cannot recover through a client retry and would
+    // otherwise multiply login requests against the upstream API.
+    retry: (failureCount, error) =>
+      !(error instanceof RotaExataApiError && error.code === "ROTAEXATA_AUTH_FAILED") && failureCount < 1,
   });
 }
 
