@@ -2705,6 +2705,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   };
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [discardError, setDiscardError] = useState<string | null>(null);
 
   const hasProgress = step > 0 || Object.keys(photos).length > 0 || vehicleId !== "";
 
@@ -2717,11 +2719,39 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     if (!newOpen) resetForm();
   };
 
-  const confirmExit = () => {
+  /** (a) Sair MANTENDO o rascunho — nada é apagado no servidor. */
+  const exitKeepingDraft = () => {
+    setDiscardError(null);
     setShowExitConfirm(false);
     setOpen(false);
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
     resetForm();
+    toast.info("Rascunho mantido. Ele continua na lista de pendências para você terminar depois.");
   };
+
+  /** (b) DESCARTAR de verdade — remove o rascunho e as fotos dele. */
+  const discardDraftForReal = async () => {
+    setDiscarding(true);
+    setDiscardError(null);
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    try {
+      const result = await coordinator.discard();
+      setShowExitConfirm(false);
+      setOpen(false);
+      resetForm();
+      toast.success(
+        result.deletedRecord
+          ? `Rascunho descartado. ${result.removedObjects} foto(s) removida(s) do servidor.`
+          : "Preenchimento descartado.",
+      );
+    } catch (err: any) {
+      console.error("Falha ao descartar rascunho:", err);
+      setDiscardError(err?.message ?? "Falha ao descartar o rascunho no servidor.");
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={handleDialogClose}>
