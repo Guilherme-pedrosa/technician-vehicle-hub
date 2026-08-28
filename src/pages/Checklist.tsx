@@ -1521,14 +1521,24 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
   const pendenciaResult = useMemo(() => {
     const finalRes = effectiveResultado(resultado || suggestedResult, suggestedResult);
-    const missingAnswers = getMissingChecklistAnswers(answers).map((f) => ({ key: f.key, label: f.label }));
+    const missingAnswers = getMissingAnswerRefs(answers);
     const missingObservations = CHECKLIST_FIELDS
       .filter((f) => isNonConforme(f.key, answers[f.key]) && !answers[`obs_${f.key}`]?.trim())
-      .map((f) => ({ key: f.key, label: f.label }));
+      .map((f) => ({
+        key: f.key,
+        label: f.label,
+        categoria: f.key,
+        critical: Boolean(f.critical) || CRITICAL_AUDIT_CATEGORIES_SHARED.has(f.key),
+      }));
 
     const missingPhotos = REQUIRED_PHOTO_CATEGORIES
       .filter((cat) => getAvailablePhotoCount(photos, photoUploads, cat) < 1)
-      .map((cat) => ({ categoria: cat as string, label: photoLabelFor(cat) }));
+      .map((cat) => ({
+        categoria: cat as string,
+        label: photoLabelFor(cat),
+        critical: CRITICAL_AUDIT_CATEGORIES_SHARED.has(cat as string),
+      }));
+
 
     const uploadsPending: Array<{ categoria: string; label: string }> = [];
     const uploadsError: Array<{ categoria: string; label: string }> = [];
