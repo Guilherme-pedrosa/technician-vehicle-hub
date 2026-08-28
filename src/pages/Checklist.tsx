@@ -1127,6 +1127,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
         if (!data) return;
         setDraftId(data.id);
+        // Adota o rascunho existente: uploads e finalização usam ESTE id.
+        coordinator.adopt(data.id);
+
         // Bump checklist_date para HOJE ao retomar rascunho — a data do checklist
         // deve refletir o dia do PREENCHIMENTO, não o dia em que o rascunho foi iniciado.
         const todayStr = format(new Date(), "yyyy-MM-dd");
