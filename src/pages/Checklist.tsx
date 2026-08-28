@@ -52,6 +52,8 @@ import {
   type SubmissionAuditEvent,
 } from "@/lib/checklist-submission";
 import { createDraftCoordinator } from "@/lib/checklist-draft";
+import { CHECKLIST_PHOTO_BUCKET, collectChecklistPhotoPaths } from "@/lib/checklist-storage";
+
 
 import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 
