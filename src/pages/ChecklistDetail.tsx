@@ -26,6 +26,7 @@ import { normalizeOdometerReading } from "@/lib/checklist-km";
 import { updateOdometro } from "@/services/rotaexata";
 import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
+import { AiAuditTimeline } from "@/components/checklist/AiAuditTimeline";
 
 // ═══════════════════════════════════════════
 // Shared constants (duplicated from Checklist.tsx for isolation)
@@ -1277,6 +1278,7 @@ export default function ChecklistDetail() {
       </Card>
 
       {/* Timeline de bloqueio/liberação */}
+      <AiAuditTimeline checklistId={(cl as any).id} legacyDetalhes={detalhes} />
       <ReleaseLogTimeline checklistId={(cl as any).id} refreshKey={releaseLogKey} />
 
       {releaseDialog && (
