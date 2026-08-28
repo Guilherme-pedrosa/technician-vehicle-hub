@@ -1468,6 +1468,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     });
   }, []);
 
+  /**
+   * Limpa a tela. NÃO muda o destino de uploads já iniciados (cada um guarda
+   * seu próprio ticket) e NÃO apaga nada no servidor.
+   */
   const resetForm = () => {
     setStep(0); setVehicleId(""); setSelectedDriverId(autoDriverId);
     setTripulacao(""); setDestino(""); setObservacoes("");
@@ -1477,8 +1481,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     setKmPainelManual("");
     kmPainelEditadoManualmenteRef.current = false;
     setDraftId(null);
+    draftIdRef.current = null;
+    coordinator.releaseKeepingDraft();
     if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
   };
+
 
   // Troca de óleo:
   // - "vencida" (crítico) só quando KM atual ≥ KM próxima troca (kmRestante ≤ 0)
