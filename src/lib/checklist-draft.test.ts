@@ -216,7 +216,7 @@ describe("descarte de rascunho RETOMADO (fotos de sessões anteriores)", () => {
 });
 
 describe("finalização serializada com uploads", () => {
-  it("upload que termina durante a finalização não é perdido", async () => {
+  it("upload já em voo entra na fila antes da finalização e não é perdido", async () => {
     const store = emptyStore();
     const gate = deferred<void>();
     const base = makeDeps(store);
@@ -228,6 +228,7 @@ describe("finalização serializada com uploads", () => {
     const coord = createDraftCoordinator({ ...base, attachPhoto });
 
     const ticket = coord.beginUpload();
+    await ticket.recordId; // registro criado; attach entra na fila a seguir
     const uploading = coord.completeUpload(ticket, "painel", "url-painel", "p/painel.jpg");
 
     // Finalização entra na MESMA fila: só roda depois do attach terminar.
@@ -243,5 +244,23 @@ describe("finalização serializada com uploads", () => {
     const saved = await finalizing;
 
     expect(saved.fotos.painel).toEqual(["url-painel"]);
+  });
+
+  it("upload que termina DEPOIS da finalização faz merge no mesmo registro", async () => {
+    const store = emptyStore();
+    const coord = createDraftCoordinator(makeDeps(store));
+
+    const ticket = coord.beginUpload();
+    const id = await ticket.recordId;
+
+    await coord.enqueue(async () => {
+      store.records.get(id)!.status = "finalizado";
+    });
+    coord.markFinalized(id);
+
+    await coord.completeUpload(ticket, "painel", "url-tardia", "p/tardia.jpg");
+
+    expect(store.records.get(id)!.fotos.painel).toEqual(["url-tardia"]);
+    expect(store.records.get(id)!.status).toBe("finalizado");
   });
 });
