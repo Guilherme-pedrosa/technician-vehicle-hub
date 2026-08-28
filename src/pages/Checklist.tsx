@@ -3161,6 +3161,50 @@ export default function Checklist() {
         {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} onNewChecklist={() => setForceDraftId(null)} />}
       </div>
 
+      {pendingDrafts.length > 0 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-3 sm:p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning" />
+              <p className="text-sm font-semibold">
+                Checklists pendentes ({pendingDrafts.length})
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Você tem preenchimentos não finalizados. Toque para continuar de onde parou.
+            </p>
+            <ul className="space-y-2">
+              {pendingDrafts.map((cl: any) => {
+                const v = vehicles.find((x: any) => x.id === cl.vehicle_id);
+                return (
+                  <li key={cl.id}>
+                    <button
+                      type="button"
+                      onClick={() => openDraft(cl)}
+                      className="w-full text-left rounded-lg border bg-card p-3 hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">
+                          {v ? `${v.placa} — ${v.marca} ${v.modelo}` : "Veículo não selecionado"}
+                        </span>
+                        <span className="block text-xs text-muted-foreground tabular-nums">
+                          Iniciado em {format(new Date(cl.created_at), "dd/MM/yyyy HH:mm")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-primary flex items-center gap-1">
+                        <Loader2 className="w-3.5 h-3.5" /> Continuar
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card>
           <CardContent className="p-3 sm:p-5">
