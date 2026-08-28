@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
+import { normalizeOdometerReading } from "@/lib/checklist-km";
 import { updateOdometro } from "@/services/rotaexata";
 import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 import { ReleaseLogTimeline } from "@/components/checklist/ReleaseLogTimeline";
@@ -364,7 +365,8 @@ export default function ChecklistDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const userId = user?.id ?? null;
   const [exportingPdf, setExportingPdf] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
