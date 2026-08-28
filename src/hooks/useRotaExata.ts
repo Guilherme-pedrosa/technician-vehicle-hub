@@ -38,7 +38,20 @@ export function useRotaExataAdesoes() {
 export function useUltimaPosicaoTodos() {
   return useQuery<RotaExataPosicao[]>({
     queryKey: ["rotaexata", "ultima-posicao-todos"],
-    queryFn: () => getUltimaPosicaoTodos(),
+    queryFn: async () => {
+      try {
+        return await getUltimaPosicaoTodos();
+      } catch (error) {
+        if (
+          error instanceof RotaExataApiError &&
+          (error.code === "ROTAEXATA_AUTH_FAILED" || error.code === "ROTAEXATA_UPSTREAM_UNAVAILABLE")
+        ) {
+          console.warn("Posições em tempo real indisponíveis; mantendo os dados locais.");
+          return [];
+        }
+        throw error;
+      }
+    },
     refetchInterval: 60 * 1000,
     staleTime: 30 * 1000,
     // Credential failures cannot recover through a client retry and would
