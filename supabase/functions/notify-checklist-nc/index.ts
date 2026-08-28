@@ -219,24 +219,17 @@ serve(async (req) => {
     const isAudit = event_type === "audit_alert";
     const auditEventsSafe = Array.isArray(audit_events) ? audit_events.slice(0, MAX_AUDIT_EVENTS) : [];
 
-    // ── DEDUPLICAÇÃO: mesmo alerta não é enviado duas vezes ──
-    const dedupeKey = typeof dedupe_key === "string" && dedupe_key.length > 0
-      ? dedupe_key.slice(0, 200)
-      : `${isAudit ? "audit" : "nc"}|${checklist_id ?? "sem-checklist"}`;
-    if (checklist_id) {
-      const { data: alreadySent } = await supabase
-        .from("email_send_log")
-        .select("id")
-        .like("dedupe_key", `${dedupeKey}|%`)
-        .in("status", ["sent", "pending"])
-        .limit(1);
-      if (alreadySent && alreadySent.length > 0) {
-        console.log(`[NOTIFY-NC] Ignorado por deduplicação: ${dedupeKey}`);
-        return new Response(JSON.stringify({ success: true, deduplicated: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
+    // ── DEDUPLICAÇÃO: chave gerada NO SERVIDOR ──
+    // O cliente só influencia um discriminador curto e sanitizado; nunca a
+    // chave global. A decisão de reservar/reenviar é feita por DESTINATÁRIO
+    // dentro da função SQL transacional `reserve_email_send`.
+    const sanitize = (v: unknown, max: number) =>
+      String(v ?? "").trim().replace(/[|\s]+/g, "_").slice(0, max);
+    const eventTypeKey = isAudit ? "audit_alert" : "nc";
+    const discriminator = sanitize(dedupe_key, 40);
+    const dedupeKeyFor = (email: string) =>
+      `${eventTypeKey}|${sanitize(checklist_id, 64) || "sem-checklist"}|${sanitize(email, 160).toLowerCase()}${discriminator ? `|${discriminator}` : ""}`;
+
 
     // ============= AUDITORIA DE IA =============
     // Renderiza um template diferente quando o evento for de auditoria
@@ -368,50 +361,60 @@ serve(async (req) => {
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       console.log(`[NOTIFY-NC] RESEND_API_KEY not configured. Skipping email for checklist ${checklist_id}`);
-      // Log as failed
+      // Log as failed (upsert: uma linha por destinatário, retentável)
       for (const email of emails) {
-        await supabase.from("email_send_log").insert({
+        await supabase.from("email_send_log").upsert({
           checklist_id,
           recipient_email: email,
           subject,
           status: "failed",
-          dedupe_key: `${dedupeKey}|${email}`,
+          dedupe_key: dedupeKeyFor(email),
           error_message: "RESEND_API_KEY não configurada",
           metadata: { placa, modelo, tecnico, resultado },
-        });
+        }, { onConflict: "dedupe_key" });
       }
       return new Response(JSON.stringify({ success: false, error: "RESEND_API_KEY não configurada" }), {
         status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ── RESERVA ATÔMICA POR DESTINATÁRIO, ANTES de chamar o Resend ──
-    // A chave única (evento + checklist + destinatário) garante que duas
-    // execuções concorrentes nunca enviem o mesmo e-mail duas vezes.
+    // ── RESERVA TRANSACIONAL POR DESTINATÁRIO, ANTES de chamar o Resend ──
+    // `reserve_email_send` faz SELECT ... FOR UPDATE e decide:
+    //   reserved | retry      → pode enviar (linha marcada pending)
+    //   already_sent          → nunca reenviar
+    //   in_flight             → outra execução recente está enviando
+    // Erro de banco NÃO é deduplicação: conta como falha e devolve não-2xx.
     const results: Array<{ email: string; status: string; resend_id?: string; error?: unknown }> = [];
     for (const email of emails) {
-      const recipientKey = `${dedupeKey}|${email}`;
-      const { data: reserved, error: reserveError } = await supabase
-        .from("email_send_log")
-        .insert({
-          checklist_id,
-          recipient_email: email,
-          subject,
-          status: "pending",
-          dedupe_key: recipientKey,
-          metadata: { placa, modelo, tecnico, resultado, event_type: isAudit ? "audit_alert" : "nc" },
-        })
-        .select("id")
-        .maybeSingle();
+      const { data: reservation, error: reserveError } = await supabase.rpc("reserve_email_send", {
+        p_dedupe_key: dedupeKeyFor(email),
+        p_checklist_id: checklist_id ?? null,
+        p_recipient_email: email,
+        p_subject: subject,
+        p_metadata: { placa, modelo, tecnico, resultado, event_type: eventTypeKey },
+      });
 
-      if (reserveError || !reserved?.id) {
-        // 23505 = já reservado/enviado por outra execução → idempotente.
-        console.log(`[NOTIFY-NC] Reserva não obtida para ${email}: ${reserveError?.code ?? "sem id"}`);
+      if (reserveError) {
+        console.error(`[NOTIFY-NC] Falha na reserva para ${email}:`, reserveError);
+        results.push({ email, status: "failed", error: reserveError.message ?? String(reserveError) });
+        continue;
+      }
+
+      const row = Array.isArray(reservation) ? reservation[0] : reservation;
+      const decision = row?.decision as string | undefined;
+      const logId = row?.log_id as string | undefined;
+
+      if (decision === "already_sent" || decision === "in_flight") {
+        console.log(`[NOTIFY-NC] ${email}: ${decision}`);
         results.push({ email, status: "deduplicated" });
         continue;
       }
 
-      const logId = reserved.id;
+      if (!logId) {
+        results.push({ email, status: "failed", error: "reserva sem log_id" });
+        continue;
+      }
+
       try {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",

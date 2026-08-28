@@ -30,22 +30,29 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeKmPainelDivergence } from "@/lib/km-painel-divergence";
 import {
+  AUDIT_EVENT_CODES,
   auditSeverityFor as auditSeverityForShared,
   buildAuditEventKey,
   dedupeAuditEvents,
   restoredPhotoStatus,
+  CRITICAL_AUDIT_CATEGORIES as CRITICAL_AUDIT_CATEGORIES_SHARED,
   type AuditStatus,
 } from "@/lib/checklist-audit";
 import { classifyKmDivergence, normalizeOdometerReading } from "@/lib/checklist-km";
 import {
+  buildAnswerPayload,
   buildAuditEvents as buildAuditEventsShared,
   buildChecklistPendencias,
   buildKmDivergenceEvent,
+  resolveOperationalResultado,
+  resolveTrocaOleoStatus,
   summarizePhotoValidations as summarizePhotoValidationsShared,
   type Pendencia,
   type PhotoValidationLike,
   type SubmissionAuditEvent,
 } from "@/lib/checklist-submission";
+import { createDraftCoordinator } from "@/lib/checklist-draft";
+
 import { LiberarBloqueioDialog } from "@/components/checklist/LiberarBloqueioDialog";
 
 
@@ -215,6 +222,23 @@ function getBlankChecklistAnswers(): FormData {
 function getMissingChecklistAnswers(answers: FormData) {
   return CHECKLIST_FIELDS.filter((field) => !answers[field.key]);
 }
+
+/** Respostas faltantes já com metadado de criticidade/categoria para a auditoria. */
+function getMissingAnswerRefs(answers: FormData) {
+  return getMissingChecklistAnswers(answers).map((field) => ({
+    key: field.key,
+    label: field.label,
+    categoria: field.key,
+    critical: Boolean(field.critical) || CRITICAL_AUDIT_CATEGORIES_SHARED.has(field.key),
+  }));
+}
+
+/** NULL/vazio NUNCA vira "Conforme/OK" na exibição. */
+export function displayAnswerValue(value: unknown): string {
+  const v = String(value ?? "").trim();
+  return v.length > 0 ? v : "Não informado";
+}
+
 
 const RESULTADO_SEVERITY: Record<string, number> = { liberado: 0, liberado_obs: 1, bloqueado: 2 };
 /** Returns the more restrictive of user choice and system suggestion */
@@ -916,8 +940,6 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftIdRef = useRef<string | null>(null);
-  const draftCreationPromiseRef = useRef<Promise<string | null> | null>(null);
-  const draftPhotoPersistQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     draftIdRef.current = draftId;
@@ -969,9 +991,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
   const buildDraftPayload = useCallback((fotosUrls?: Record<string, string[]>) => {
     const date = format(new Date(), "yyyy-MM-dd");
-    const draftPersistedAnswers = Object.fromEntries(
-      Object.entries(answers).filter(([key]) => CHECKLIST_DB_FIELD_KEYS.has(key))
-    );
+    // TODAS as colunas operacionais são enviadas explicitamente. Resposta não
+    // preenchida vai como NULL — nunca "conforme" por default do banco, nunca
+    // valor stale herdado de uma sessão anterior do rascunho.
+    const draftPersistedAnswers = buildAnswerPayload(answers, CHECKLIST_DB_FIELD_KEYS);
 
     return {
       vehicle_id: vehicleId,
@@ -983,10 +1006,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       observacoes: observacoes || null,
       avaria_descricao: (answers.obs_danos_veiculo || "").trim() || null,
       ...(fotosUrls ? { fotos: fotosUrls } : {}),
-      resultado: resultado || "liberado",
+      // Rascunho não tem resultado operacional decidido: fica em "aguardando análise".
+      resultado: resultado || "liberado_obs",
       resultado_motivo: resultadoMotivo || null,
       termo_aceito: termoAceito,
+      troca_oleo: null,
       status: "rascunho",
+
       detalhes: {
         km_proxima_troca: kmProximaTroca ? parseInt(kmProximaTroca.replace(/[.\s]/g, "").replace(",", "."), 10) || null : null,
         km_lido_painel: kmPainelManual ? parseInt(kmPainelManual.replace(/[^\d]/g, ""), 10) || null : null,
@@ -1006,75 +1032,85 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
   }, [answers, destino, kmPainelManual, kmProximaTroca, observacoes, photoValidations, resultado, resultadoMotivo, selectedDriverId, step, termoAceito, tripulacao, userId, vehicleId]);
 
 
-  const ensureDraftExists = useCallback(async () => {
-    if (draftIdRef.current) return draftIdRef.current;
-    if (!vehicleId) return null;
-    if (draftCreationPromiseRef.current) return draftCreationPromiseRef.current;
+  // ═══════════════════════════════════════════════════════════
+  // COORDENADOR DE RASCUNHO × UPLOAD (src/lib/checklist-draft.ts)
+  // A primeira captura já dispara a criação do registro; a finalização
+  // espera essa MESMA promessa; uploads tardios fazem merge no mesmo id.
+  // ═══════════════════════════════════════════════════════════
+  const buildDraftPayloadRef = useRef(buildDraftPayload);
+  useEffect(() => { buildDraftPayloadRef.current = buildDraftPayload; }, [buildDraftPayload]);
+  const vehicleIdRef = useRef(vehicleId);
+  useEffect(() => { vehicleIdRef.current = vehicleId; }, [vehicleId]);
 
-    const creationPromise = (async () => {
-      const { data, error } = await supabase
-        .from("vehicle_checklists")
-        .insert(buildDraftPayload({}))
-        .select("id")
-        .maybeSingle();
-
-      if (error) {
-        const { data: existingDraft } = await supabase
+  const coordinatorRef = useRef<ReturnType<typeof createDraftCoordinator> | null>(null);
+  if (!coordinatorRef.current) {
+    coordinatorRef.current = createDraftCoordinator({
+      createRecord: async () => {
+        if (!vehicleIdRef.current) throw new Error("Selecione o veículo antes de iniciar o checklist.");
+        const { data, error } = await supabase
           .from("vehicle_checklists")
+          .insert(buildDraftPayloadRef.current({}))
           .select("id")
-          .eq("created_by", userId)
-          .eq("vehicle_id", vehicleId)
-          .eq("status", "rascunho" as any)
-          .order("updated_at", { ascending: false })
-          .limit(1)
           .maybeSingle();
 
-        if (!existingDraft?.id) throw error;
-        setDraftId(existingDraft.id);
-        draftIdRef.current = existingDraft.id;
-        return existingDraft.id;
-      }
+        if (error || !data?.id) {
+          const { data: existingDraft } = await supabase
+            .from("vehicle_checklists")
+            .select("id")
+            .eq("created_by", userId)
+            .eq("vehicle_id", vehicleIdRef.current)
+            .eq("status", "rascunho" as any)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!existingDraft?.id) throw error ?? new Error("Falha ao criar rascunho");
+          setDraftId(existingDraft.id);
+          draftIdRef.current = existingDraft.id;
+          return existingDraft.id;
+        }
 
-      if (data?.id) {
         setDraftId(data.id);
         draftIdRef.current = data.id;
         return data.id;
-      }
-
-      return null;
-    })().finally(() => {
-      draftCreationPromiseRef.current = null;
-    });
-
-    draftCreationPromiseRef.current = creationPromise;
-    return creationPromise;
-  }, [buildDraftPayload, userId, vehicleId]);
-
-  const persistUploadedPhotoToDraft = useCallback(async (storageKey: string, url: string) => {
-    draftPhotoPersistQueueRef.current = draftPhotoPersistQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        const activeDraftId = await ensureDraftExists();
-        if (!activeDraftId) throw new Error("Rascunho não encontrado para vincular a foto");
-
-        const { data: existingDraft, error: fetchError } = await supabase
+      },
+      attachPhoto: async (recordId, storageKey, url) => {
+        const { data: existing, error: fetchError } = await supabase
           .from("vehicle_checklists")
-          .select("fotos")
-          .eq("id", activeDraftId)
+          .select("fotos, status")
+          .eq("id", recordId)
           .maybeSingle();
         if (fetchError) throw fetchError;
+        if (!existing) throw new Error("Checklist alvo não encontrado para vincular a foto");
 
-        const existingFotos = (existingDraft?.fotos && typeof existingDraft.fotos === "object" ? existingDraft.fotos : {}) as Record<string, string[]>;
+        const existingFotos = (existing.fotos && typeof existing.fotos === "object" ? existing.fotos : {}) as Record<string, string[]>;
         const nextFotos = mergePhotoUrlMaps(existingFotos, { [storageKey]: [url] });
+        // Merge no MESMO registro — mesmo já finalizado. Nunca cria rascunho novo.
+        const patch: Record<string, unknown> = { fotos: nextFotos };
+        if ((existing as any).status === "rascunho") {
+          patch.checklist_date = format(new Date(), "yyyy-MM-dd");
+        }
         const { error: updateError } = await supabase
           .from("vehicle_checklists")
-          .update({ fotos: nextFotos, checklist_date: format(new Date(), "yyyy-MM-dd") } as any)
-          .eq("id", activeDraftId);
+          .update(patch as any)
+          .eq("id", recordId);
         if (updateError) throw updateError;
-      });
+      },
+      deleteRecord: async (recordId) => {
+        // Segurança: só remove enquanto for rascunho.
+        const { error } = await supabase
+          .from("vehicle_checklists")
+          .delete()
+          .eq("id", recordId)
+          .eq("status", "rascunho" as any);
+        if (error) throw error;
+      },
+      removeStorageObject: async (path) => {
+        await supabase.storage.from("checklist-photos").remove([path]);
+      },
+    });
+  }
+  const coordinator = coordinatorRef.current;
 
-    await draftPhotoPersistQueueRef.current;
-  }, [ensureDraftExists]);
 
   // Load existing draft when dialog opens — SOMENTE quando o usuário escolheu
   // continuar uma pendência (forceDraftId). "Novo Checklist" sempre começa em branco.
@@ -1193,7 +1229,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         const { error } = await supabase.from("vehicle_checklists").update(updatePayload).eq("id", draftIdRef.current);
         if (error) throw error;
       } else {
-        await ensureDraftExists();
+        await coordinator.resolveRecordIdForSubmit();
       }
       setDraftSaveState("saved");
       setDraftSaveError(null);
@@ -1203,7 +1239,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       setDraftSaveError(err?.message ?? "Falha ao salvar rascunho");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, open, photoUploads, buildDraftPayload, ensureDraftExists]);
+  }, [vehicleId, open, photoUploads, buildDraftPayload, coordinator]);
+
 
 
   // Debounced auto-save: 3 seconds after last change
@@ -1261,6 +1298,11 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     const compressed = await prepareCapturedImages(files);
     const startIndex = Math.max(photos[storageKey]?.length ?? 0, photoUploads[storageKey]?.length ?? 0);
 
+    // CONTRATO: a captura JÁ inicia a criação do registro (promessa estável).
+    // Assim, salvar antes de o upload terminar nunca gera rascunho fantasma.
+    const ticket = coordinator.beginUpload();
+    ticket.recordId.catch(() => undefined);
+
     setPhotos((prev) => {
       const arr = [...(prev[storageKey] ?? [])];
       compressed.forEach((file, offset) => { arr[startIndex + offset] = file; });
@@ -1280,12 +1322,14 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       const path = `${date}/${vehicleId}/${storageKey}/${crypto.randomUUID()}.${ext}`;
       try {
         const url = await uploadWithRetry(path, file);
+        coordinator.registerStoragePath(path);
         setPhotoUploads((prev) => {
           const arr = [...(prev[storageKey] ?? [])];
           arr[startIndex + offset] = { status: "uploaded", uploadedUrl: url, storagePath: path };
           return { ...prev, [storageKey]: arr };
         });
-        await persistUploadedPhotoToDraft(storageKey, url);
+        // Merge no MESMO registro capturado no início — rascunho OU finalizado.
+        await coordinator.completeUpload(ticket, storageKey, url, path);
       } catch (error) {
         console.error("Photo upload error:", error);
         setPhotoUploads((prev) => {
@@ -1297,7 +1341,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     })).catch(() => undefined);
 
     return compressed;
-  }, [persistUploadedPhotoToDraft, photoUploads, photos, uploadWithRetry, vehicleId]);
+  }, [coordinator, photoUploads, photos, uploadWithRetry, vehicleId]);
+
 
   const handleCapture = useCallback(async (cat: PhotoCategory, files: File[]) => {
     if (cat === "painel" && files.length > 0) {
@@ -1320,9 +1365,9 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     setPhotoValidations((prev) => ({ ...prev, [storageKey]: (prev[storageKey] ?? []).filter((_, i) => i !== idx) }));
 
     if (!removedUrl) return;
-    draftPhotoPersistQueueRef.current = draftPhotoPersistQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
+    // Mesma fila serial dos uploads — evita corrida de leitura/escrita do JSON.
+    await coordinator
+      .enqueue(async () => {
         const activeDraftId = draftIdRef.current;
         if (activeDraftId) {
           const { data: existingDraft } = await supabase
@@ -1347,8 +1392,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         console.error("Falha ao sincronizar remoção de foto:", err);
         toast.warning("Foto removida da tela, mas a limpeza no servidor falhou. Ela será revista na auditoria.");
       });
-    await draftPhotoPersistQueueRef.current;
-  }, [photoUploads]);
+  }, [coordinator, photoUploads]);
+
 
   const handleRemovePhoto = useCallback((cat: PhotoCategory, idx: number) => {
     if (cat === "painel") {
@@ -1572,7 +1617,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         .filter((p) => p.codigo.startsWith("upload_"))
         .map((p) => p.mensagem);
 
-      await draftPhotoPersistQueueRef.current.catch(() => undefined);
+      await coordinator.settle();
 
       const date = format(now, "yyyy-MM-dd");
 
@@ -1591,17 +1636,29 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       }
 
 
-      const finalResultado = effectiveResultado(resultado || suggestedResult, suggestedResult);
+      const pendenciasPreenchimentoList = pendenciaResult.pendencias.map((p) => p.mensagem);
+      // Qualquer pendência ⇒ o resultado operacional NÃO pode terminar em
+      // "liberado" silencioso. Eleva para no mínimo "liberado_obs"
+      // (aguardando análise). Resultado mais grave já escolhido é preservado.
+      const { resultado: finalResultado, elevadoPorPendencia } = resolveOperationalResultado({
+        userChoice: resultado,
+        suggested: suggestedResult,
+        hasPendencias: pendenciasPreenchimentoList.length > 0 || uploadPendencias.length > 0,
+      });
 
-      // Save checklist
-      // Calcula troca_oleo automaticamente: "vencido" só passou da troca; "proximo" se ≤1000km; senão "ok"
-      const trocaOleoStatus = trocaOleoVencida ? "vencido" : trocaOleoQuaseVencida ? "vencido" : trocaOleoProxima ? "proximo" : "ok";
+      // troca_oleo honesto: sem KM da próxima troca válido NUNCA fica "ok".
+      const trocaOleoStatus = resolveTrocaOleoStatus({
+        kmProximaTrocaValido: kmTrocaNum !== null && Number.isFinite(kmTrocaNum) && kmTrocaNum > 0,
+        vencida: trocaOleoVencida,
+        quaseVencida: trocaOleoQuaseVencida,
+        proxima: trocaOleoProxima,
+      });
 
-      // Respostas em branco são OMITIDAS (colunas text NOT NULL) — nunca gravamos
-      // string vazia. A falta fica registrada em detalhes + auditoria.
-      const persistedAnswers = Object.fromEntries(
-        Object.entries(answers).filter(([key, value]) => CHECKLIST_DB_FIELD_KEYS.has(key) && String(value ?? "").trim().length > 0)
-      );
+      // Resposta não preenchida vai explicitamente como NULL — nunca omitida
+      // (a omissão deixaria o default do banco inventar "conforme"/"sim") e
+      // nunca herdando valor stale de um rascunho retomado.
+      const persistedAnswers = buildAnswerPayload(answers, CHECKLIST_DB_FIELD_KEYS);
+
       const answerObservations = Object.fromEntries(
         Object.entries(answers)
           .filter(([key, value]) => key.startsWith("obs_") && value.trim().length > 0)
@@ -1615,7 +1672,7 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       // Pendências de preenchimento também entram na trilha (respostas, fotos
       // ausentes, uploads, KM, termo, avaria, divergência de KM nos 2 sentidos).
       const auditEvents = [...photoAuditEvents, ...pendenciaResult.auditEvents];
-      const pendenciasPreenchimento = pendenciaResult.pendencias.map((p) => p.mensagem);
+      const pendenciasPreenchimento = pendenciasPreenchimentoList;
       console.log(`[checklist:audit] ${auditEvents.length} evento(s) de auditoria montado(s)`, {
         km_painel_nao_confirmado: kmPainelNaoConfirmado,
         statuses: auditEvents.map((e) => e.status),
@@ -1649,6 +1706,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           // a falta fica registrada de forma auditável.
           pendencias_preenchimento: pendenciasPreenchimento,
           respostas_faltantes: getMissingChecklistAnswers(answers).map((f) => f.key),
+          // Preenchimento finalizado × análise operacional são estados SEPARADOS.
+          preenchimento_finalizado: true,
+          analise_operacional: pendenciasPreenchimento.length > 0 || uploadPendencias.length > 0
+            ? "pendente"
+            : "concluida",
+          resultado_elevado_por_pendencia: elevadoPorPendencia,
+          troca_oleo_status: trocaOleoStatus,
           audit_events: auditEvents,
           // Alias mantido durante a transição para a tabela checklist_ai_audit_events
           ai_audit: auditEvents,
@@ -1664,21 +1728,23 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         ...persistedAnswers,
       } as any;
 
-      let savedChecklist: { id: string } | null = null;
-      if (draftId) {
-        // Finalize existing draft — preserva created_by original (admin pode estar ajudando)
-        const { created_by: _omit, ...updatePayload } = checklistPayload;
-        const { data, error } = await supabase.from("vehicle_checklists")
-          .update(updatePayload).eq("id", draftId).select("id").single();
-        if (error) throw error;
-        savedChecklist = data;
-      } else {
-        const { data, error } = await supabase.from("vehicle_checklists")
-          .insert(checklistPayload).select("id").single();
-        if (error) throw error;
-        savedChecklist = data;
-      }
+      // ID ESTÁVEL: sempre o registro que os uploads também estão usando.
+      // Nunca decidimos pelo state do React (pode não ter atualizado ainda).
+      const targetId = await coordinator.resolveRecordIdForSubmit();
+      const { created_by: _omit, ...updatePayload } = checklistPayload;
+      const { data: finalized, error: finalizeError } = await supabase
+        .from("vehicle_checklists")
+        .update(updatePayload)
+        .eq("id", targetId)
+        .select("id")
+        .single();
+      if (finalizeError) throw finalizeError;
+      const savedChecklist = finalized;
       if (!savedChecklist) throw new Error("Falha ao salvar checklist");
+      coordinator.markFinalized(savedChecklist.id);
+      setDraftId(savedChecklist.id);
+      draftIdRef.current = savedChecklist.id;
+
 
       // ═══════════════════════════════════════════════════════════
       // PÓS-SALVAMENTO — sequencial, idempotente e sem sucesso falso.
@@ -1698,7 +1764,10 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
                 categoria: e.categoria,
                 photoIndex: e.photo_index ?? null,
                 status: e.status,
+                eventCode: e.event_code,
               }),
+              event_code: e.event_code ?? "generico",
+
               checklist_id: checklistId,
               vehicle_id: vehicleId,
               driver_id: selectedDriverId || null,
