@@ -35,17 +35,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const fetchRoles = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    if (data && data.length > 0) {
-      setRoles(data.map((r) => r.role));
-    } else {
-      // Se não tem role atribuída, assume admin (owner do sistema)
-      setRoles(["admin"]);
+    if (error) {
+      // Falha de rede/consulta: NÃO promove ninguém. Sem role = sem permissão.
+      console.error("Falha ao carregar permissões:", error);
+      setRoles([]);
+      return;
     }
+    // FAIL-CLOSED: usuário sem role em user_roles não recebe nenhum privilégio.
+    setRoles((data ?? []).map((r) => r.role));
   };
+
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
