@@ -2811,23 +2811,40 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
           )}
         </div>
 
-        {/* Exit confirmation dialog */}
-        <AlertDialog open={showExitConfirm} onOpenChange={setShowExitConfirm}>
+        {/* Sair: manter rascunho × descartar de verdade (semântica real) */}
+        <AlertDialog open={showExitConfirm} onOpenChange={(o) => { if (!discarding) setShowExitConfirm(o); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Descartar checklist?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Você tem um preenchimento em andamento. Todo o progresso (fotos e respostas) será perdido.
+              <AlertDialogTitle>Sair do checklist?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-left">
+                  <p>Escolha o que fazer com o preenchimento em andamento:</p>
+                  <p><strong>Sair e manter rascunho</strong> — nada é perdido. O rascunho e as fotos já enviadas continuam salvos e aparecem na lista de pendências.</p>
+                  <p><strong>Descartar de verdade</strong> — apaga o rascunho e as fotos dele no servidor. Não dá para desfazer.</p>
+                  {discardError && (
+                    <p className="text-destructive font-semibold">⚠ {discardError}</p>
+                  )}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Continuar preenchendo</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmExit} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Descartar
-              </AlertDialogAction>
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+              <AlertDialogCancel disabled={discarding}>Continuar preenchendo</AlertDialogCancel>
+              <Button variant="outline" onClick={exitKeepingDraft} disabled={discarding} className="h-11">
+                Sair e manter rascunho
+              </Button>
+              <Button
+                variant="destructive"
+                className="h-11 gap-2"
+                disabled={discarding}
+                onClick={() => { void discardDraftForReal(); }}
+              >
+                {discarding && <Loader2 className="w-4 h-4 animate-spin" />}
+                {discarding ? "Descartando…" : "Descartar de verdade"}
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </DialogContent>
     </Dialog>
   );
