@@ -233,3 +233,136 @@ describe("helpers de união", () => {
     expect(collectPhotoCategories({ a: [1] }, { b: [] }, { c: ["x"] }).sort()).toEqual(["a", "c"]);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// TERCEIRA CORREÇÃO — testes de comportamento
+// ═══════════════════════════════════════════════════════════════
+
+import {
+  buildAnswerPayload,
+  photoUrlForSlot,
+  resolveOperationalResultado,
+  resolveTrocaOleoStatus,
+} from "./checklist-submission";
+import { AUDIT_EVENT_CODES, buildAuditEventKey } from "./checklist-audit";
+
+const DB_KEYS = [
+  "nivel_oleo", "nivel_agua", "motor", "freios", "pneus", "itens_seguranca", "danos_veiculo",
+];
+
+describe("payload honesto: resposta ausente NUNCA vira 'conforme'", () => {
+  it("formulário vazio grava NULL explícito em todas as colunas operacionais", () => {
+    const payload = buildAnswerPayload({}, DB_KEYS);
+    expect(Object.keys(payload).sort()).toEqual([...DB_KEYS].sort());
+    for (const key of DB_KEYS) {
+      expect(payload[key]).toBeNull();
+    }
+  });
+
+  it("nenhuma chave é omitida (omitir deixaria o default do banco inventar resposta)", () => {
+    const payload = buildAnswerPayload({ freios: "conforme" }, DB_KEYS);
+    expect(Object.prototype.hasOwnProperty.call(payload, "pneus")).toBe(true);
+    expect(payload.pneus).toBeNull();
+    expect(payload.freios).toBe("conforme");
+  });
+
+  it("valor stale de rascunho é sobrescrito por null quando a resposta é limpa", () => {
+    const payload = buildAnswerPayload({ pneus: "   " }, DB_KEYS);
+    expect(payload.pneus).toBeNull();
+  });
+});
+
+describe("troca de óleo honesta", () => {
+  it("sem KM da próxima troca NÃO fica 'ok'", () => {
+    expect(resolveTrocaOleoStatus({
+      kmProximaTrocaValido: false, vencida: false, quaseVencida: false, proxima: false,
+    })).toBeNull();
+  });
+  it("vencida e quase vencida viram 'vencido'", () => {
+    expect(resolveTrocaOleoStatus({ kmProximaTrocaValido: true, vencida: true, quaseVencida: false, proxima: false })).toBe("vencido");
+    expect(resolveTrocaOleoStatus({ kmProximaTrocaValido: true, vencida: false, quaseVencida: true, proxima: false })).toBe("vencido");
+  });
+  it("dentro do intervalo com KM informado é 'ok'", () => {
+    expect(resolveTrocaOleoStatus({ kmProximaTrocaValido: true, vencida: false, quaseVencida: false, proxima: false })).toBe("ok");
+  });
+});
+
+describe("resultado operacional nunca fica 'liberado' silencioso", () => {
+  it("qualquer pendência eleva para liberado_obs (aguardando análise)", () => {
+    const r = resolveOperationalResultado({ userChoice: "liberado", suggested: "liberado", hasPendencias: true });
+    expect(r.resultado).toBe("liberado_obs");
+    expect(r.elevadoPorPendencia).toBe(true);
+  });
+  it("resultado mais grave já sugerido é preservado", () => {
+    const r = resolveOperationalResultado({ userChoice: "liberado", suggested: "bloqueado", hasPendencias: true });
+    expect(r.resultado).toBe("bloqueado");
+    expect(r.elevadoPorPendencia).toBe(false);
+  });
+  it("sem pendência e sem problema continua liberado", () => {
+    const r = resolveOperationalResultado({ userChoice: "liberado", suggested: "liberado", hasPendencias: false });
+    expect(r.resultado).toBe("liberado");
+  });
+});
+
+describe("chaves de auditoria distintas por tipo de pendência", () => {
+  it("dois eventos pendentes na MESMA categoria sem foto não colidem", () => {
+    const { auditEvents } = buildChecklistPendencias({
+      ...baseFull,
+      missingPhotos: [{ categoria: "etiqueta_oleo", label: "Etiqueta de óleo", critical: true }],
+      kmProximaTrocaInformado: false,
+      kmProximaTrocaValido: false,
+    });
+    const etiqueta = auditEvents.filter((e) => e.categoria === "etiqueta_oleo");
+    expect(etiqueta).toHaveLength(2);
+    const keys = etiqueta.map((e) => buildAuditEventKey({
+      checklistId: "cl1", categoria: e.categoria, photoIndex: e.photo_index ?? null,
+      status: e.status, eventCode: e.event_code,
+    }));
+    expect(new Set(keys).size).toBe(2);
+    expect(etiqueta.map((e) => e.event_code).sort()).toEqual(
+      [AUDIT_EVENT_CODES.KM_NEXT_OIL_MISSING, AUDIT_EVENT_CODES.PHOTO_MISSING].sort(),
+    );
+  });
+
+  it("evidência crítica ausente é critical; indisponibilidade da IA continua warning", () => {
+    const { auditEvents } = buildChecklistPendencias({
+      ...baseFull,
+      missingAnswers: [{ key: "pneus", label: "Pneus", categoria: "pneus", critical: true }],
+      missingPhotos: [{ categoria: "painel", label: "Painel", critical: true }],
+      uploadsPending: [{ categoria: "painel", label: "Painel" }],
+    });
+    expect(auditEvents.find((e) => e.event_code === AUDIT_EVENT_CODES.ANSWER_MISSING)!.severity).toBe("critical");
+    expect(auditEvents.find((e) => e.event_code === AUDIT_EVENT_CODES.PHOTO_MISSING)!.severity).toBe("critical");
+    expect(auditEvents.find((e) => e.event_code === AUDIT_EVENT_CODES.UPLOAD_PENDING)!.severity).toBe("warning");
+  });
+
+  it("resposta não crítica ausente permanece warning", () => {
+    const { auditEvents } = buildChecklistPendencias({
+      ...baseFull,
+      missingAnswers: [{ key: "som", label: "Som", categoria: "som", critical: false }],
+    });
+    expect(auditEvents[0].severity).toBe("warning");
+  });
+});
+
+describe("URL da foto não desloca de índice", () => {
+  it("erro no índice anterior não empurra a URL para o slot errado", () => {
+    const uploads = [{ status: "error" }, { status: "uploaded", uploadedUrl: "https://cdn/segunda.jpg" }];
+    expect(photoUrlForSlot(uploads, undefined, 0)).toBeUndefined();
+    expect(photoUrlForSlot(uploads, undefined, 1)).toBe("https://cdn/segunda.jpg");
+  });
+
+  it("evento de auditoria da foto 1 carrega a URL da foto 1", () => {
+    const { auditEvents } = buildAuditEvents({
+      photoUploads: { pneus: [{ status: "error" }, { status: "uploaded", uploadedUrl: "https://cdn/b.jpg" }] },
+      // lista filtrada (com apenas 1 URL) NÃO pode ser usada por índice
+      fotosUrls: { pneus: ["https://cdn/b.jpg"] },
+      validations: { pneus: [{ status: "idle" }, { status: "invalid", result: { reason: "borrada" } }] },
+      userId: "u1",
+    });
+    const ev1 = auditEvents.find((e) => e.photo_index === 1)!;
+    const ev0 = auditEvents.find((e) => e.photo_index === 0)!;
+    expect(ev1.photo_url).toBe("https://cdn/b.jpg");
+    expect(ev0.photo_url).toBeUndefined();
+  });
+});
