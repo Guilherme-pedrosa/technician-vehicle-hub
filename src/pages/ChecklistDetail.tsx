@@ -319,11 +319,17 @@ async function revalidatePhotos(
         if (!valResponse.ok) throw new Error("Validation request failed");
         const result = await valResponse.json();
 
-        // Para a foto do painel, capturar o KM lido pela IA quando aprovado e legível.
-        if (category === "painel" && result.valid && result.km_legivel === true) {
-          const raw = typeof result.km_lido === "string" ? result.km_lido.replace(/[^\d]/g, "") : "";
-          if (/^\d{5,7}$/.test(raw)) {
-            kmLidoPainel = Number(raw);
+        // Painel: NUNCA sobrescrever o KM com leitura insegura (contrato).
+        if (category === "painel" && result.valid && result.km_legivel === true && result.km_auto_update_allowed === true) {
+          const reading = normalizeOdometerReading({
+            raw: result.km_lido_raw || result.km_lido,
+            km_lido: result.km_lido,
+            decimal_detected: result.km_decimal_detected,
+            ambiguous: result.km_ambiguous || result.km_suspeito,
+            legivel: result.km_legivel,
+          });
+          if (reading.autoUpdateAllowed && reading.normalized !== null) {
+            kmLidoPainel = reading.normalized;
           }
         }
 
@@ -657,13 +663,30 @@ export default function ChecklistDetail() {
       toast.info("Revalidando fotos... isso pode levar alguns segundos.");
       const { invalidas, erros, kmLidoPainel } = await revalidatePhotos(fotosData, vehicle?.marca, vehicle?.modelo);
 
-      // Update detalhes with new validation results
+      // APPEND-ONLY: preserva fotos forçadas e o histórico das análises anteriores.
+      const agoraIso = new Date().toISOString();
+      const historico = Array.isArray(detalhes?.revalidacoes) ? detalhes.revalidacoes : [];
       const newDetalhes: any = {
         ...detalhes,
-          fotos_invalidas: invalidas.filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
+        fotos_invalidas: invalidas.filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: erros,
-        fotos_forcadas: [], // Clear forced since admin is revalidating
-        revalidado_em: new Date().toISOString(),
+        // NÃO limpar fotos_forcadas: a trilha de auditoria é imutável.
+        fotos_forcadas: detalhes?.fotos_forcadas ?? [],
+        revalidado_em: agoraIso,
+        revalidacoes: [
+          ...historico,
+          {
+            em: agoraIso,
+            escopo: "todas",
+            por: userId ?? null,
+            invalidas_antes: detalhes?.fotos_invalidas ?? [],
+            erros_antes: detalhes?.fotos_erro_validacao ?? [],
+            forcadas_no_momento: detalhes?.fotos_forcadas ?? [],
+            invalidas_depois: invalidas,
+            erros_depois: erros,
+            km_lido_painel: kmLidoPainel,
+          },
+        ],
       };
       if (kmLidoPainel !== null) {
         newDetalhes.km_lido_painel = kmLidoPainel;
@@ -705,12 +728,29 @@ export default function ChecklistDetail() {
       const existingErros: any[] = (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria !== category);
       const existingForcadas: any[] = (detalhes?.fotos_forcadas ?? []).filter((f: any) => f.categoria !== category);
 
+      const agoraIso = new Date().toISOString();
+      const historico = Array.isArray(detalhes?.revalidacoes) ? detalhes.revalidacoes : [];
       const newDetalhes: any = {
         ...detalhes,
         fotos_invalidas: [...existingInvalidas, ...invalidas].filter((ff: any) => !isPanelKmNotConfirmedIssue(ff)),
         fotos_erro_validacao: [...existingErros, ...erros],
-        fotos_forcadas: existingForcadas,
-        revalidado_em: new Date().toISOString(),
+        // Preserva TODAS as forçadas, inclusive as da categoria revalidada.
+        fotos_forcadas: detalhes?.fotos_forcadas ?? existingForcadas,
+        revalidado_em: agoraIso,
+        revalidacoes: [
+          ...historico,
+          {
+            em: agoraIso,
+            escopo: category,
+            por: userId ?? null,
+            invalidas_antes: (detalhes?.fotos_invalidas ?? []).filter((f: any) => f.categoria === category),
+            erros_antes: (detalhes?.fotos_erro_validacao ?? []).filter((f: any) => f.categoria === category),
+            forcadas_no_momento: (detalhes?.fotos_forcadas ?? []).filter((f: any) => f.categoria === category),
+            invalidas_depois: invalidas,
+            erros_depois: erros,
+            km_lido_painel: category === "painel" ? kmLidoPainel : null,
+          },
+        ],
       };
       if (category === "painel" && kmLidoPainel !== null) {
         newDetalhes.km_lido_painel = kmLidoPainel;
