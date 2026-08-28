@@ -2883,7 +2883,8 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
   if (cl.troca_oleo || detalhes?.km_proxima_troca) {
     let oilY = cl.destino ? 58 : cl.tripulacao ? 54 : 48;
     doc.setFontSize(9);
-    doc.text(`Troca de óleo: ${cl.troca_oleo === "vencido" ? "⚠ VENCIDO" : "OK"}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
+    const oleoLabelPdf = !cl.troca_oleo ? "NÃO INFORMADO" : cl.troca_oleo === "vencido" ? "⚠ VENCIDO" : cl.troca_oleo === "proximo" ? "⚠ PRÓXIMO DA TROCA" : "OK";
+    doc.text(`Troca de óleo: ${oleoLabelPdf}${detalhes?.km_proxima_troca ? ` | Próxima troca: ${Number(detalhes.km_proxima_troca).toLocaleString("pt-BR")} km` : ""}`, 14, oilY);
   }
 
   const categories = [...new Set(CHECKLIST_FIELDS.map((f) => f.category))];
@@ -2897,7 +2898,7 @@ async function exportChecklistPDF(cl: any, vehicle: any, driverName: string) {
       const obsValue = cl[`obs_${f.key}`] ?? detalhes?.[`obs_${f.key}`] ?? "";
       rows.push([
         f.label,
-        opt?.label ?? val ?? "—",
+        opt?.label ?? (val ? String(val) : "Não informado"),
         nc && obsValue ? obsValue : "",
       ]);
     });
@@ -3168,8 +3169,8 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
               </h4>
               <div className="flex items-center justify-between py-1">
                 <span className="text-sm">Status da troca de óleo</span>
-                <span className={`text-xs font-semibold ${cl.troca_oleo === "vencido" ? "text-destructive" : "text-success"}`}>
-                  {cl.troca_oleo === "vencido" ? "⚠️ VENCIDO" : "✅ OK"}
+                <span className={`text-xs font-semibold ${!cl.troca_oleo ? "text-muted-foreground" : cl.troca_oleo === "vencido" ? "text-destructive" : cl.troca_oleo === "proximo" ? "text-warning" : "text-success"}`}>
+                  {!cl.troca_oleo ? "— Não informado" : cl.troca_oleo === "vencido" ? "⚠️ VENCIDO" : cl.troca_oleo === "proximo" ? "⚠️ PRÓXIMO DA TROCA" : "✅ OK"}
                 </span>
               </div>
               {detalhes?.km_proxima_troca && (
@@ -3239,6 +3240,7 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
                   })}
                   {sectionFields.map((f) => {
                     const nc = isNonConforme(f.key, cl[f.key]);
+                    const naoInformado = !cl[f.key];
                     const opt = f.options.find((o) => o.value === cl[f.key]);
                     const obsKey = `obs_${f.key}`;
                     const obsValue = cl[obsKey] ?? detalhes?.[obsKey];
@@ -3246,9 +3248,9 @@ function ChecklistDetailDialog({ checklist: cl, vehicles, localDrivers, onDelete
                       <div key={f.key} className="py-1.5">
                         <div className="flex items-center justify-between">
                           <span className="text-sm flex-1">{f.label}</span>
-                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                            {nc ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                            {opt?.label ?? cl[f.key] ?? "—"}
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${naoInformado ? "text-muted-foreground" : nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                            {naoInformado ? <AlertTriangle className="w-3 h-3" /> : nc ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                            {naoInformado ? "Não informado" : (opt?.label ?? String(cl[f.key]))}
                           </span>
                         </div>
                         {nc && obsValue && (
