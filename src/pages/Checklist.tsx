@@ -1763,17 +1763,29 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
 
       // ID ESTÁVEL: sempre o registro que os uploads também estão usando.
       // Nunca decidimos pelo state do React (pode não ter atualizado ainda).
-      const targetId = await coordinator.resolveRecordIdForSubmit();
+      // A finalização roda DENTRO da fila serial dos uploads: nenhuma foto que
+      // termine de subir agora pode ser sobrescrita pelo payload local.
       const { created_by: _omit, ...updatePayload } = checklistPayload;
-      const { data: finalized, error: finalizeError } = await supabase
-        .from("vehicle_checklists")
-        .update(updatePayload)
-        .eq("id", targetId)
-        .select("id")
-        .single();
-      if (finalizeError) throw finalizeError;
-      const savedChecklist = finalized;
-      if (!savedChecklist) throw new Error("Falha ao salvar checklist");
+      const savedChecklist = await coordinator.enqueue(async () => {
+        const targetId = await coordinator.resolveRecordIdForSubmit();
+        const { data: current } = await supabase
+          .from("vehicle_checklists")
+          .select("fotos")
+          .eq("id", targetId)
+          .maybeSingle();
+        const remoteFotos = (current?.fotos && typeof current.fotos === "object" ? current.fotos : {}) as Record<string, string[]>;
+        const mergedFotos = mergePhotoUrlMaps(remoteFotos, fotosUrls);
+        const { data: finalized, error: finalizeError } = await supabase
+          .from("vehicle_checklists")
+          .update({ ...updatePayload, fotos: mergedFotos } as any)
+          .eq("id", targetId)
+          .select("id")
+          .single();
+        if (finalizeError) throw finalizeError;
+        if (!finalized) throw new Error("Falha ao salvar checklist");
+        return finalized;
+      });
+
       coordinator.markFinalized(savedChecklist.id);
       setDraftId(savedChecklist.id);
       draftIdRef.current = savedChecklist.id;
