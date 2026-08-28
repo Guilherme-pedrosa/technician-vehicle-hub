@@ -20,6 +20,7 @@ import EmailLogs from "./pages/EmailLogs";
 import ManutencaoPreventiva from "./pages/ManutencaoPreventiva";
 import CustosFlota from "./pages/CustosFlota";
 import AuditoriaLiberacoes from "./pages/AuditoriaLiberacoes";
+import AuditoriaIA from "./pages/AuditoriaIA";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/emails" element={<EmailLogs />} />
               <Route path="/auditoria-liberacoes" element={<AuditoriaLiberacoes />} />
+              <Route path="/auditoria-ia" element={<AuditoriaIA />} />
               <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />

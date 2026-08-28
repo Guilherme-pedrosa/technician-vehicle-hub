@@ -110,6 +110,115 @@ export type Database = {
           },
         ]
       }
+      checklist_ai_audit_events: {
+        Row: {
+          audit_required: boolean
+          categoria: string
+          checklist_id: string
+          confidence: number | null
+          created_at: string
+          driver_id: string | null
+          duration_ms: number | null
+          event_key: string
+          forced_at: string | null
+          forced_by: string | null
+          id: string
+          label: string | null
+          model_used: string | null
+          motivo: string | null
+          photo_index: number | null
+          photo_url: string | null
+          prompt_version: string | null
+          reason_original: string | null
+          reject_code: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string
+          user_id: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          audit_required?: boolean
+          categoria: string
+          checklist_id: string
+          confidence?: number | null
+          created_at?: string
+          driver_id?: string | null
+          duration_ms?: number | null
+          event_key: string
+          forced_at?: string | null
+          forced_by?: string | null
+          id?: string
+          label?: string | null
+          model_used?: string | null
+          motivo?: string | null
+          photo_index?: number | null
+          photo_url?: string | null
+          prompt_version?: string | null
+          reason_original?: string | null
+          reject_code?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status: string
+          user_id: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          audit_required?: boolean
+          categoria?: string
+          checklist_id?: string
+          confidence?: number | null
+          created_at?: string
+          driver_id?: string | null
+          duration_ms?: number | null
+          event_key?: string
+          forced_at?: string | null
+          forced_by?: string | null
+          id?: string
+          label?: string | null
+          model_used?: string | null
+          motivo?: string | null
+          photo_index?: number | null
+          photo_url?: string | null
+          prompt_version?: string | null
+          reason_original?: string | null
+          reject_code?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+          user_id?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_ai_audit_events_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_ai_audit_events_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_ai_audit_events_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checklist_config: {
         Row: {
           config_key: string
@@ -512,6 +621,7 @@ export type Database = {
         Row: {
           checklist_id: string | null
           created_at: string
+          dedupe_key: string | null
           error_message: string | null
           id: string
           metadata: Json | null
@@ -523,6 +633,7 @@ export type Database = {
         Insert: {
           checklist_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           error_message?: string | null
           id?: string
           metadata?: Json | null
@@ -534,6 +645,7 @@ export type Database = {
         Update: {
           checklist_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           error_message?: string | null
           id?: string
           metadata?: Json | null
@@ -754,6 +866,7 @@ export type Database = {
           last_sync_source: string | null
           maintenance_plan_id: string | null
           prioridade: Database["public"]["Enums"]["ticket_priority"]
+          source_checklist_id: string | null
           status: Database["public"]["Enums"]["ticket_status"]
           ticket_number: number
           tipo: Database["public"]["Enums"]["ticket_type"]
@@ -778,6 +891,7 @@ export type Database = {
           last_sync_source?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          source_checklist_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           ticket_number?: number
           tipo?: Database["public"]["Enums"]["ticket_type"]
@@ -802,6 +916,7 @@ export type Database = {
           last_sync_source?: string | null
           maintenance_plan_id?: string | null
           prioridade?: Database["public"]["Enums"]["ticket_priority"]
+          source_checklist_id?: string | null
           status?: Database["public"]["Enums"]["ticket_status"]
           ticket_number?: number
           tipo?: Database["public"]["Enums"]["ticket_type"]

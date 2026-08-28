@@ -6,9 +6,11 @@
 - **Date Filters**: Use explicit Start/End fields with `parseDateInput`, auto-invert if start > end.
 - **Terminology**: Use 'Telemetrias' instead of 'Viagens'.
 - **Data Exclusions**: ALWAYS ignore vehicles DIW9D20, IXO3G66, and OHW9F00 in all metrics and dashboards.
-- **Auth Fallback**: If permissions fail to load, temporarily fallback to 'admin' to prevent lockout.
+- **Auth FAIL-CLOSED**: usuário sem role em `user_roles` NÃO recebe privilégio algum (revoga o antigo fallback para 'admin').
 - **Telemetrias = sessões reais**: 1 entrada log_motorista = 1 telemetria. NUNCA pro-ratear dados do veículo.
 - **KM Painel é verdade**: Foto do painel com leitura clara prevalece sobre km_atual cadastrado. Nunca bloquear checklist por divergência de KM.
+- **IA nunca bloqueia**: invalid/forced/ai_error/pending/KM não confirmado/cobertura incompleta viram auditoria, nunca trava do técnico.
+
 
 ## Memories
 

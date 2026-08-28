@@ -79,6 +79,7 @@ const allMenuGroups: (MenuGroup & { adminOnly?: boolean; items: (MenuItem & { ad
     items: [
       { title: "E-mails", icon: Mail, href: "/emails" },
       { title: "Auditoria", icon: History, href: "/auditoria-liberacoes" },
+      { title: "Auditoria IA", icon: History, href: "/auditoria-ia" },
       { title: "Configurações", icon: Settings, href: "/configuracoes" },
     ],
     adminOnly: true,

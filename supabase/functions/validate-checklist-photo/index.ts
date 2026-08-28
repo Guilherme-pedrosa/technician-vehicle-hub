@@ -29,6 +29,21 @@ function severityForCategory(category: string): "critical" | "warning" {
   return CRITICAL_CATEGORIES.has(category) ? "critical" : "warning";
 }
 
+// Rate limit simples por usuário (janela deslizante em memória do isolate).
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 40;
+const rateBuckets = new Map<string, number[]>();
+function rateLimited(userId: string): boolean {
+  const now = Date.now();
+  const hits = (rateBuckets.get(userId) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  hits.push(now);
+  rateBuckets.set(userId, hits);
+  return hits.length > RATE_LIMIT_MAX;
+}
+
+// Limite de payload da imagem (base64) — evita abuso e estouro de custo.
+const MAX_IMAGE_BASE64_CHARS = 11_000_000; // ~8 MB binários
+
 /** Constrói payload padrão de erro de IA (não aprova foto, exige auditoria). */
 function aiErrorPayload(category: string, reason: string, startedAt: string) {
   const finishedAt = new Date().toISOString();
@@ -221,6 +236,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let currentCategory = "unknown";
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -245,13 +261,34 @@ Deno.serve(async (req) => {
 
     const validationStartedAt = new Date().toISOString();
 
-    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim, expected_vehicle_km } = await req.json();
+    if (rateLimited(user.id)) {
+      return new Response(JSON.stringify({ error: "Muitas validações em sequência. Aguarde alguns segundos." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    if (!image_base64 || !category) {
+    const body = await req.json();
+    const { image_base64, category, vehicle_marca, vehicle_modelo, limpeza_claim, expected_vehicle_km, related_images } = body;
+    currentCategory = typeof category === "string" ? category : "unknown";
+
+    if (!image_base64 || !category || typeof image_base64 !== "string" || typeof category !== "string") {
       return new Response(JSON.stringify({ error: "image_base64 e category são obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    if (image_base64.length > MAX_IMAGE_BASE64_CHARS) {
+      return new Response(JSON.stringify({ error: "Imagem muito grande. Reduza a resolução e tente novamente." }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fotos anteriores da MESMA categoria — usadas para avaliar cobertura em conjunto
+    // (interior, reservatório de água, laterais). Limitado para conter o payload.
+    const relatedImages: string[] = Array.isArray(related_images)
+      ? related_images.filter((i: unknown) => typeof i === "string" && i.length < MAX_IMAGE_BASE64_CHARS).slice(0, 3)
+      : [];
+    const relatedImageCount = relatedImages.length;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -329,6 +366,7 @@ Responda APENAS com um JSON válido, sem texto extra, no formato:
   "critical_visible": true,
   "quality": "boa",
   "reason": "motivo breve em português",
+  "inconclusive_items": [],
   "confidence": 0.95${category === "painel" ? `,
   "km_lido_raw": "277541",
   "km_lido": "277541",
@@ -367,7 +405,12 @@ Regras:
   - critical_visible = true (quando aplicável)
 - "reason": deve ser curta, objetiva e em português
 - "confidence": número de 0.00 a 1.00 indicando a confiança geral da análise
-- REGRA DE OURO: Nunca invente detalhes não visíveis na foto. Se não consegue identificar um objeto com certeza, NÃO diga que ele está presente. É preferível rejeitar do que afirmar algo falso. Na "reason", mencione SOMENTE o que você tem certeza de ver.
+- REGRA DE OURO (soberana): Nunca invente detalhes não visíveis na foto. Se não consegue identificar algo com certeza, NÃO afirme que está presente NEM que está defeituoso. Registre o item em "inconclusive_items" com o texto "não foi possível verificar <o quê> — faltou <o que faltou>" e diga exatamente o que impediu a verificação. A "reason" só pode citar o que há evidência visual de ver.
+- "inconclusive_items": lista de strings com tudo que ficou inconclusivo. Nunca deixe um item inconclusivo virar afirmação positiva nem acusação de defeito.
+- PNEUS: terra, barro ou sujeira NÃO significam pneu murcho ou careca. Se a banda de rodagem não aparece, escreva em "inconclusive_items" que não foi possível verificar a banda — não afirme desgaste.
+- CALIBRAÇÃO: não confunda evidência de calibração com inspeção de banda de rodagem; o valor do manômetro não é obrigatório.
+- ITENS DE SEGURANÇA: só confirme macaco, triângulo e chave de roda se CADA UM estiver individualmente identificável. Estojo fechado NÃO completa o conjunto por suposição — é inconclusivo.
+- VEÍCULO ERRADO / FOTO REAPROVEITADA: se houver incompatibilidade evidente de veículo, cor, placa ou contexto (ou sinais de reuso de foto antiga), sinalize em "reason" como suspeita, sem inventar certeza.
 - O CRITÉRIO ESPERADO abaixo é uma instrução obrigatória do campo atual. Leia e aplique esse critério literalmente antes de decidir.
 - Se o critério exigir vários itens, legibilidade, valor, estado ligado, dano visível, nível visível, KM legível ou qualquer condição específica, TODOS os requisitos devem ser atendidos para target_match/critical_visible/valid serem true. EXCEÇÃO ABSOLUTA: para categoria "painel", KM legível/OCR NÃO é requisito de valid; é apenas requisito de km_auto_update_allowed.
 - Não transforme listas de exemplos em regra permissiva. A presença de "qualquer elemento" só basta quando o próprio critério disser explicitamente que um único elemento é suficiente.
@@ -431,7 +474,7 @@ REJEITE a foto (valid=false, target_match=false) se o interior mostrar CLARAMENT
 Na "reason", descreva especificamente o que foi encontrado que contradiz a limpeza (ex: "Lixo visível no assoalho, embalagem no banco, colete jogado no chão").
 Pequenas imperfeições cosméticas (poeira leve, desgaste natural) NÃO são motivo de rejeição.
 ` : ''}
-Veículo esperado: ${vehicleInfo}
+${relatedImageCount > 0 ? `ANÁLISE EM CONJUNTO: além da foto principal, foram enviadas ${relatedImageCount} foto(s) da MESMA categoria já capturadas antes. Avalie a COBERTURA pelo conjunto: um item confirmado em qualquer foto do conjunto conta como visto. Fotos repetidas do mesmo ponto NÃO completam a cobertura. Em "reason", diga o que o conjunto cobre e o que ainda falta.\n` : ""}Veículo esperado: ${vehicleInfo}
 Categoria esperada: ${catConfig.label}
 Critério esperado: ${finalCriterio}`;
 
@@ -458,7 +501,16 @@ Critério esperado: ${finalCriterio}`;
             role: "user",
             content: [
               { type: "image_url", image_url: { url: `data:image/jpeg;base64,${image_base64}`, detail: "high" } },
-              { type: "text", text: "Valide esta foto conforme os critérios informados." },
+              ...relatedImages.map((img) => ({
+                type: "image_url" as const,
+                image_url: { url: `data:image/jpeg;base64,${img}`, detail: "low" as const },
+              })),
+              {
+                type: "text",
+                text: relatedImageCount > 0
+                  ? `Valide a PRIMEIRA foto conforme os critérios. As outras ${relatedImageCount} são do mesmo conjunto e servem apenas para avaliar a cobertura total.`
+                  : "Valide esta foto conforme os critérios informados.",
+              },
             ],
           },
         ],
@@ -705,6 +757,17 @@ Critério esperado: ${finalCriterio}`;
     // Sinaliza ao frontend que o KM do painel não foi confirmado pela IA.
     if (category === "painel" && (result.km_legivel !== true || !result.km_lido)) {
       result.km_painel_nao_confirmado = true;
+      result.km_auto_update_allowed = false;
+      result.audit_required = true;
+      // Contrato: painel/KM não confirmado é CRÍTICO.
+      result.severity = "critical";
+      result.status = result.valid === true ? "km_not_confirmed" : (result.status ?? "invalid");
+      if (result.valid === true && !/KM não atualizado automaticamente/i.test(String(result.reason ?? ""))) {
+        result.reason = `Painel aceito. KM não atualizado automaticamente. ${result.reason ?? ""}`.trim();
+      }
+    }
+    if (!result.status) {
+      result.status = result.ai_error ? "ai_error" : result.valid === true ? "valid" : "invalid";
     }
     if (result.reject_code === undefined || (result.reject_code === null && result.valid !== true)) {
       result.reject_code = result.valid === true ? null : "validation_failed";
@@ -715,9 +778,8 @@ Critério esperado: ${finalCriterio}`;
     });
   } catch (error: unknown) {
     console.error("Validation error:", error);
-    const cat = (typeof (globalThis as any).__lastCategory === "string") ? (globalThis as any).__lastCategory : "unknown";
     return new Response(JSON.stringify(
-      aiErrorPayload(cat, "Erro na validação IA. Checklist liberado operacionalmente, mas enviado para auditoria.", new Date().toISOString())
+      aiErrorPayload(currentCategory, "Erro na validação IA. Checklist liberado operacionalmente, mas enviado para auditoria.", new Date().toISOString())
     ), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
