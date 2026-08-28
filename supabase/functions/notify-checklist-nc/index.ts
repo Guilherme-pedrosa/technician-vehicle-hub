@@ -125,6 +125,7 @@ serve(async (req) => {
       veiculo_id,
       condutor,
       km_painel_nao_confirmado,
+      dedupe_key,
     } = body;
 
     // Get only ADMIN users
@@ -168,13 +169,13 @@ serve(async (req) => {
 
     const itensHtml = (itens_problema || [])
       .map((i: any) => {
-        const obs = i.observacao ? `<br><span style="font-weight:400;color:#666;font-size:13px;">↳ ${i.observacao}</span>` : "";
-        return `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${i.label}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${formatValor(i.valor)}${obs}</td></tr>`;
+        const obs = i.observacao ? `<br><span style="font-weight:400;color:#666;font-size:13px;">↳ ${esc(i.observacao)}</span>` : "";
+        return `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${esc(i.label)}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${esc(formatValor(String(i.valor ?? "")))}${obs}</td></tr>`;
       })
       .join("");
 
     const fotosHtml = (fotos_problema || [])
-      .map((f: any) => `<tr><td style="padding:8px;border-bottom:1px solid #eee;">📷 ${f.categoria}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${f.tipo === "reprovada" ? "Reprovada pela IA" : "Forçada pelo técnico"} — ${f.motivo}</td></tr>`)
+      .map((f: any) => `<tr><td style="padding:8px;border-bottom:1px solid #eee;">📷 ${esc(f.categoria)}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">${f.tipo === "reprovada" ? "Reprovada pela IA" : "Forçada pelo técnico"} — ${esc(f.motivo)}</td></tr>`)
       .join("");
 
     const oleoHtml = troca_oleo_vencida
@@ -182,6 +183,26 @@ serve(async (req) => {
       : "";
 
     const isAudit = event_type === "audit_alert";
+    const auditEventsSafe = Array.isArray(audit_events) ? audit_events.slice(0, MAX_AUDIT_EVENTS) : [];
+
+    // ── DEDUPLICAÇÃO: mesmo alerta não é enviado duas vezes ──
+    const dedupeKey = typeof dedupe_key === "string" && dedupe_key.length > 0
+      ? dedupe_key.slice(0, 200)
+      : `${isAudit ? "audit" : "nc"}|${checklist_id ?? "sem-checklist"}`;
+    if (checklist_id) {
+      const { data: alreadySent } = await supabase
+        .from("email_send_log")
+        .select("id")
+        .eq("dedupe_key", dedupeKey)
+        .eq("status", "sent")
+        .limit(1);
+      if (alreadySent && alreadySent.length > 0) {
+        console.log(`[NOTIFY-NC] Ignorado por deduplicação: ${dedupeKey}`);
+        return new Response(JSON.stringify({ success: true, deduplicated: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // ============= AUDITORIA DE IA =============
     // Renderiza um template diferente quando o evento for de auditoria
@@ -198,21 +219,22 @@ serve(async (req) => {
       return map[st] || st;
     };
 
-    const auditEventsHtml = isAudit && Array.isArray(audit_events)
-      ? audit_events
+    const auditEventsHtml = isAudit && auditEventsSafe.length > 0
+      ? auditEventsSafe
           .map(
             (e: any) => `
         <tr>
           <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
-            <strong>${e.label || e.categoria}</strong><br>
-            <span style="color:#666;font-size:12px;">${e.categoria}</span>
-            ${e.photo_url ? `<br><a href="${e.photo_url}" style="color:#2563eb;font-size:12px;">Ver foto</a>` : ""}
+            <strong>${esc(e.label || e.categoria)}</strong><br>
+            <span style="color:#666;font-size:12px;">${esc(e.categoria)}</span>
+            ${escUrl(e.photo_url) ? `<br><a href="${escUrl(e.photo_url)}" style="color:#2563eb;font-size:12px;">Ver foto</a>` : ""}
           </td>
           <td style="padding:10px;border-bottom:1px solid #eee;vertical-align:top;">
             <span style="display:inline-block;padding:3px 8px;border-radius:4px;color:white;background:${severityColor(e.severity || "warning")};font-size:11px;font-weight:600;">${(e.severity || "warning").toUpperCase()}</span><br>
             <strong style="color:${severityColor(e.severity || "warning")};">${statusLabel(e.status)}</strong>
-            ${e.motivo ? `<br><span style="color:#444;font-size:13px;">${e.motivo}</span>` : ""}
-            ${e.model_used ? `<br><span style="color:#999;font-size:11px;">modelo: ${e.model_used}${typeof e.confidence === "number" ? ` · conf: ${(e.confidence * 100).toFixed(0)}%` : ""}</span>` : ""}
+            ${e.motivo ? `<br><span style="color:#444;font-size:13px;">${esc(e.motivo)}</span>` : ""}
+            ${e.reason ? `<br><span style="color:#666;font-size:12px;">IA: ${esc(e.reason)}</span>` : ""}
+            ${e.model_used ? `<br><span style="color:#999;font-size:11px;">modelo: ${esc(e.model_used)}${e.prompt_version ? ` · prompt ${esc(e.prompt_version)}` : ""}${typeof e.confidence === "number" ? ` · conf: ${(e.confidence * 100).toFixed(0)}%` : ""}</span>` : ""}
           </td>
         </tr>`,
           )
@@ -220,8 +242,8 @@ serve(async (req) => {
       : "";
 
     const subject = isAudit
-      ? `🔍 Alerta de validação IA no checklist — ${placa} — ${data}`
-      : `⚠️ NC Checklist — ${placa} — ${data}`;
+      ? `🔍 Alerta de validação IA no checklist — ${String(placa ?? "")} — ${String(data ?? "")}`
+      : `⚠️ NC Checklist — ${String(placa ?? "")} — ${String(data ?? "")}`;
 
     const html = isAudit ? `
 <!DOCTYPE html>
@@ -235,22 +257,22 @@ serve(async (req) => {
     </div>
     <div style="padding:24px;">
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-        <tr><td style="padding:6px;color:#666;width:140px;">Veículo:</td><td style="padding:6px;font-weight:600;">${placa} — ${modelo}</td></tr>
-        <tr><td style="padding:6px;color:#666;">Condutor:</td><td style="padding:6px;">${condutor || "—"}</td></tr>
-        <tr><td style="padding:6px;color:#666;">Técnico que salvou:</td><td style="padding:6px;font-weight:600;">${tecnico}</td></tr>
-        <tr><td style="padding:6px;color:#666;">Data/Hora:</td><td style="padding:6px;">${data}</td></tr>
-        <tr><td style="padding:6px;color:#666;">Resultado operacional:</td><td style="padding:6px;">${resultado}</td></tr>
+        <tr><td style="padding:6px;color:#666;width:140px;">Veículo:</td><td style="padding:6px;font-weight:600;">${esc(placa)} — ${esc(modelo)}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Condutor:</td><td style="padding:6px;">${esc(condutor || "—")}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Técnico que salvou:</td><td style="padding:6px;font-weight:600;">${esc(tecnico)}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Data/Hora:</td><td style="padding:6px;">${esc(data)}</td></tr>
+        <tr><td style="padding:6px;color:#666;">Resultado operacional:</td><td style="padding:6px;">${esc(resultado)}</td></tr>
         ${km_painel_nao_confirmado ? `<tr><td style="padding:6px;color:#b91c1c;">⚠️ Painel:</td><td style="padding:6px;color:#b91c1c;font-weight:600;">KM do hodômetro NÃO confirmado pela IA — verificar valor manual</td></tr>` : ""}
       </table>
 
       ${auditEventsHtml ? `
-      <h2 style="font-size:16px;margin:20px 0 10px;color:#333;">Eventos de auditoria (${audit_events.length})</h2>
+      <h2 style="font-size:16px;margin:20px 0 10px;color:#333;">Eventos de auditoria (${auditEventsSafe.length})</h2>
       <table style="width:100%;border-collapse:collapse;background:#fefce8;border-radius:8px;">
         <thead><tr><th style="padding:10px;text-align:left;border-bottom:2px solid #fde68a;color:#854d0e;">Categoria</th><th style="padding:10px;text-align:left;border-bottom:2px solid #fde68a;color:#854d0e;">Status / Motivo</th></tr></thead>
         <tbody>${auditEventsHtml}</tbody>
       </table>` : ""}
 
-      ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${observacoes}</div>` : ""}
+      ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${esc(observacoes)}</div>` : ""}
 
       <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;">
         <p style="margin:0 0 8px;color:#1e40af;font-size:14px;"><strong>O que fazer:</strong></p>
@@ -259,7 +281,7 @@ serve(async (req) => {
           <li>Validar com o técnico responsável caso recorrente.</li>
           <li>Se necessário, reprocessar a foto na tela do checklist.</li>
         </ul>
-        ${checklist_url ? `<p style="margin:12px 0 0;text-align:center;"><a href="${checklist_url}" style="display:inline-block;padding:10px 16px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:600;">Abrir checklist</a></p>` : ""}
+        ${escUrl(checklist_url) ? `<p style="margin:12px 0 0;text-align:center;"><a href="${escUrl(checklist_url)}" style="display:inline-block;padding:10px 16px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:600;">Abrir checklist</a></p>` : ""}
       </div>
     </div>
     <div style="padding:16px;text-align:center;color:#999;font-size:12px;border-top:1px solid #eee;">
@@ -279,10 +301,10 @@ serve(async (req) => {
     </div>
     <div style="padding:24px;">
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-        <tr><td style="padding:8px;color:#666;width:120px;">Veículo:</td><td style="padding:8px;font-weight:600;">${placa} — ${modelo}</td></tr>
-        <tr><td style="padding:8px;color:#666;">Técnico:</td><td style="padding:8px;font-weight:600;">${tecnico}</td></tr>
-        <tr><td style="padding:8px;color:#666;">Data/Hora:</td><td style="padding:8px;">${data}</td></tr>
-        <tr><td style="padding:8px;color:#666;">Resultado:</td><td style="padding:8px;font-weight:600;color:#dc2626;">${resultado}</td></tr>
+        <tr><td style="padding:8px;color:#666;width:120px;">Veículo:</td><td style="padding:8px;font-weight:600;">${esc(placa)} — ${esc(modelo)}</td></tr>
+        <tr><td style="padding:8px;color:#666;">Técnico:</td><td style="padding:8px;font-weight:600;">${esc(tecnico)}</td></tr>
+        <tr><td style="padding:8px;color:#666;">Data/Hora:</td><td style="padding:8px;">${esc(data)}</td></tr>
+        <tr><td style="padding:8px;color:#666;">Resultado:</td><td style="padding:8px;font-weight:600;color:#dc2626;">${esc(resultado)}</td></tr>
       </table>
       
       ${(itensHtml || fotosHtml || oleoHtml) ? `
@@ -292,9 +314,9 @@ serve(async (req) => {
         <tbody>${itensHtml}${fotosHtml}${oleoHtml}</tbody>
       </table>` : ""}
 
-      ${avaria_descricao ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px;"><strong>🔍 Descrição da Avaria:</strong><br>${avaria_descricao}</div>` : ""}
+      ${avaria_descricao ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px;"><strong>🔍 Descrição da Avaria:</strong><br>${esc(avaria_descricao)}</div>` : ""}
 
-      ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${observacoes}</div>` : ""}
+      ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${esc(observacoes)}</div>` : ""}
       
       <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;text-align:center;">
         <p style="margin:0;color:#1e40af;font-size:14px;">Um chamado de manutenção foi criado automaticamente no sistema.</p>
