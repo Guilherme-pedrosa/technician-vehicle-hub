@@ -1173,22 +1173,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     await draftPhotoPersistQueueRef.current;
   }, [ensureDraftExists]);
 
-  // Load existing draft when dialog opens
+  // Load existing draft when dialog opens — SOMENTE quando o usuário escolheu
+  // continuar uma pendência (forceDraftId). "Novo Checklist" sempre começa em branco.
   useEffect(() => {
     if (!open) return;
+    if (!forceDraftId) return;
     (async () => {
       try {
-        let query = supabase.from("vehicle_checklists").select("*");
-        if (forceDraftId) {
-          query = query.eq("id", forceDraftId);
-        } else {
-          query = query
-            .eq("created_by", userId)
-            .eq("status", "rascunho" as any)
-            .order("updated_at", { ascending: false })
-            .limit(1);
-        }
-        const { data } = await query.maybeSingle();
+        const { data } = await supabase
+          .from("vehicle_checklists")
+          .select("*")
+          .eq("id", forceDraftId)
+          .maybeSingle();
+
         if (!data) return;
         setDraftId(data.id);
         // Bump checklist_date para HOJE ao retomar rascunho — a data do checklist
@@ -1258,7 +1255,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, forceDraftId]);
+
 
   // Save draft to DB (debounced)
   const saveDraftToDb = useCallback(async () => {
@@ -3045,7 +3043,7 @@ export default function Checklist() {
       toast.info("Apenas quem iniciou o rascunho pode continuar o preenchimento.");
       return;
     }
-    setForceDraftId(cl.created_by === user?.id ? null : cl.id);
+    setForceDraftId(cl.id);
     setFormOpenTrigger((n) => n + 1);
   };
 
@@ -3067,6 +3065,24 @@ export default function Checklist() {
       });
     },
   });
+
+  // Rascunhos pendentes do usuário — independentes do filtro de data
+  const { data: pendingDrafts = [] } = useQuery({
+    queryKey: ["vehicle-checklists", "pendentes", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicle_checklists")
+        .select("*")
+        .eq("status", "rascunho" as any)
+        .eq("created_by", user!.id)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
 
   const vehicleOptions = useMemo(() => 
     vehicles.map((v) => ({ value: v.id, label: `${v.placa} — ${v.marca} ${v.modelo}` })),
@@ -3144,6 +3160,50 @@ export default function Checklist() {
         </div>
         {user && <ChecklistFormDialog vehicles={vehicles} localDrivers={localDrivers} userId={user.id} openTrigger={formOpenTrigger} forceDraftId={forceDraftId} onNewChecklist={() => setForceDraftId(null)} />}
       </div>
+
+      {pendingDrafts.length > 0 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-3 sm:p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-warning" />
+              <p className="text-sm font-semibold">
+                Checklists pendentes ({pendingDrafts.length})
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Você tem preenchimentos não finalizados. Toque para continuar de onde parou.
+            </p>
+            <ul className="space-y-2">
+              {pendingDrafts.map((cl: any) => {
+                const v = vehicles.find((x: any) => x.id === cl.vehicle_id);
+                return (
+                  <li key={cl.id}>
+                    <button
+                      type="button"
+                      onClick={() => openDraft(cl)}
+                      className="w-full text-left rounded-lg border bg-card p-3 hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">
+                          {v ? `${v.placa} — ${v.marca} ${v.modelo}` : "Veículo não selecionado"}
+                        </span>
+                        <span className="block text-xs text-muted-foreground tabular-nums">
+                          Iniciado em {format(new Date(cl.created_at), "dd/MM/yyyy HH:mm")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-primary flex items-center gap-1">
+                        <Loader2 className="w-3.5 h-3.5" /> Continuar
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <Card>
