@@ -7,6 +7,39 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Segurança: escape de HTML em TUDO que vem do cliente ──
+function esc(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** URL segura para href/src: só http(s), já escapada. */
+function escUrl(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!/^https?:\/\//i.test(raw)) return null;
+  return esc(raw);
+}
+
+const MAX_BODY_BYTES = 256_000;
+const MAX_AUDIT_EVENTS = 60;
+
+// Rate limit por chamador (janela em memória do isolate)
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 20;
+const rateBuckets = new Map<string, number[]>();
+function rateLimited(key: string): boolean {
+  const now = Date.now();
+  const hits = (rateBuckets.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  hits.push(now);
+  rateBuckets.set(key, hits);
+  return hits.length > RATE_MAX;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,14 +48,64 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Missing Supabase credentials");
     }
 
+    // ── AUTENTICAÇÃO: JWT de usuário OU chave de serviço interna ──
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const callbackKey = req.headers.get("x-fleetdesk-key") ?? "";
+    const internalKey = Deno.env.get("FLEETDESK_CALLBACK_KEY") ?? "";
+    let callerId: string | null = null;
+
+    if (internalKey && callbackKey && callbackKey === internalKey) {
+      callerId = "internal";
+    } else if (authHeader.startsWith("Bearer ") && SUPABASE_ANON_KEY) {
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error } = await userClient.auth.getUser();
+      if (error || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = user.id;
+    } else {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (rateLimited(callerId)) {
+      return new Response(JSON.stringify({ error: "Too many notification requests" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: "Payload too large" }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return new Response(JSON.stringify({ error: "Invalid body" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const {
       event_type, // "nc" (default) | "audit_alert"
       checklist_id,
