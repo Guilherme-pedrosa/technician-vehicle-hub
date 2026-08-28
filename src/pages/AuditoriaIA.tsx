@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Bot, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
@@ -18,6 +22,7 @@ type AuditRow = {
   id: string;
   checklist_id: string;
   vehicle_id: string | null;
+  driver_id: string | null;
   user_id: string | null;
   categoria: string;
   label: string | null;
@@ -32,6 +37,7 @@ type AuditRow = {
   photo_url: string | null;
   created_at: string;
   resolved_at: string | null;
+  resolution_note: string | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -60,7 +66,12 @@ export default function AuditoriaIA() {
   const [statusFiltro, setStatusFiltro] = useState<string>("todos");
   const [severidadeFiltro, setSeveridadeFiltro] = useState<string>("todas");
   const [busca, setBusca] = useState("");
+  const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("todos");
+  const [veiculoFiltro, setVeiculoFiltro] = useState<string>("todos");
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>("todas");
   const [resolvendo, setResolvendo] = useState<string | null>(null);
+  const [rowParaResolver, setRowParaResolver] = useState<AuditRow | null>(null);
+  const [resolutionNote, setResolutionNote] = useState("");
 
   // Inverte automaticamente se o início for maior que o fim
   const [inicio, fim] = dataInicio > dataFim ? [dataFim, dataInicio] : [dataInicio, dataFim];
@@ -106,6 +117,23 @@ export default function AuditoriaIA() {
     [vehicles],
   );
 
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers-min"],
+    queryFn: async () => {
+      const { data } = await supabase.from("drivers").select("id, full_name").order("full_name");
+      return data ?? [];
+    },
+  });
+  const nomePorCondutor = useMemo(
+    () => new Map(drivers.map((d: any) => [d.id, d.full_name])),
+    [drivers],
+  );
+
+  const categoriasDisponiveis = useMemo(
+    () => Array.from(new Set(events.map((e) => e.categoria))).sort(),
+    [events],
+  );
+
   const reincidencias = useMemo(() => countRecurrences(events as any), [events]);
 
   const filtrados = useMemo(() => {
@@ -113,6 +141,9 @@ export default function AuditoriaIA() {
     return events
       .filter((e) => (statusFiltro === "todos" ? true : e.status === statusFiltro))
       .filter((e) => (severidadeFiltro === "todas" ? true : (e.severity ?? "warning") === severidadeFiltro))
+      .filter((e) => (tecnicoFiltro === "todos" ? true : (e as any).driver_id === tecnicoFiltro))
+      .filter((e) => (veiculoFiltro === "todos" ? true : e.vehicle_id === veiculoFiltro))
+      .filter((e) => (categoriaFiltro === "todas" ? true : e.categoria === categoriaFiltro))
       .filter((e) => {
         if (!termo) return true;
         const placa = placaPorVeiculo.get(e.vehicle_id ?? "") ?? "";
@@ -122,22 +153,37 @@ export default function AuditoriaIA() {
       })
       .slice()
       .sort(compareAuditQueue as any);
-  }, [events, statusFiltro, severidadeFiltro, busca, placaPorVeiculo]);
+  }, [events, statusFiltro, severidadeFiltro, tecnicoFiltro, veiculoFiltro, categoriaFiltro, busca, placaPorVeiculo]);
 
   const indicadores = useMemo(
     () => computeAuditIndicators({ finalizados, events: events as any }),
     [finalizados, events],
   );
 
-  const marcarAnalisado = async (row: AuditRow) => {
+  const confirmarAnalise = async () => {
+    const row = rowParaResolver;
+    if (!row) return;
+    const nota = resolutionNote.trim();
+    if (!nota) {
+      toast.error("Descreva a conclusão da análise antes de marcar como analisado.");
+      return;
+    }
     setResolvendo(row.id);
     try {
       const { data: userData } = await supabase.auth.getUser();
+      const resolvedBy = userData.user?.id;
+      if (!resolvedBy) throw new Error("Sessão expirada");
       const { error } = await (supabase.from("checklist_ai_audit_events" as any) as any)
-        .update({ resolved_at: new Date().toISOString(), resolved_by: userData.user?.id ?? null })
+        .update({
+          resolved_at: new Date().toISOString(),
+          resolved_by: resolvedBy,
+          resolution_note: nota,
+        })
         .eq("id", row.id);
       if (error) throw error;
       toast.success("Evento marcado como analisado.");
+      setRowParaResolver(null);
+      setResolutionNote("");
       queryClient.invalidateQueries({ queryKey: ["checklist-ai-audit"] });
     } catch (err: any) {
       toast.error("Não foi possível marcar como analisado: " + (err?.message ?? "erro"));
@@ -209,6 +255,42 @@ export default function AuditoriaIA() {
             </Select>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs">Técnico</Label>
+            <Select value={tecnicoFiltro} onValueChange={setTecnicoFiltro}>
+              <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {drivers.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Veículo</Label>
+            <Select value={veiculoFiltro} onValueChange={setVeiculoFiltro}>
+              <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {vehicles.map((v: any) => (
+                  <SelectItem key={v.id} value={v.id}>{v.placa} — {v.modelo}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Categoria</Label>
+            <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+              <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                {categoriasDisponiveis.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs">Buscar</Label>
             <Input placeholder="placa, categoria, motivo…" value={busca} onChange={(e) => setBusca(e.target.value)} className="h-10" />
           </div>
@@ -243,9 +325,13 @@ export default function AuditoriaIA() {
                   </div>
                   <p className="text-xs">
                     <strong>{placaPorVeiculo.get(e.vehicle_id ?? "") ?? "Veículo —"}</strong>{" "}
+                    <span className="text-muted-foreground">· {nomePorCondutor.get(e.driver_id ?? "") ?? "Técnico —"} ·</span>{" "}
                     <span className="text-muted-foreground">{new Date(e.created_at).toLocaleString("pt-BR")}</span>
                   </p>
                   {e.motivo && <p className="text-xs text-muted-foreground">{e.motivo}</p>}
+                  {e.resolution_note && (
+                    <p className="text-[11px] text-muted-foreground">Conclusão da análise: {e.resolution_note}</p>
+                  )}
                   {e.reason_original && e.reason_original !== e.motivo && (
                     <p className="text-[11px] text-muted-foreground italic">IA: {e.reason_original}</p>
                   )}
@@ -268,7 +354,7 @@ export default function AuditoriaIA() {
                     )}
                     {isAdmin && !e.resolved_at && (
                       <Button size="sm" className="h-8 text-xs gap-1" disabled={resolvendo === e.id}
-                        onClick={() => marcarAnalisado(e)}>
+                        onClick={() => { setRowParaResolver(e); setResolutionNote(""); }}>
                         {resolvendo === e.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                         Marcar analisado
                       </Button>
@@ -280,6 +366,29 @@ export default function AuditoriaIA() {
           })}
         </div>
       )}
+      <Dialog open={Boolean(rowParaResolver)} onOpenChange={(o) => { if (!o) { setRowParaResolver(null); setResolutionNote(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcar evento como analisado</DialogTitle>
+            <DialogDescription>
+              Registre a conclusão da análise. A nota fica na trilha junto com quem analisou e quando.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="O que foi verificado e qual a conclusão…"
+            value={resolutionNote}
+            onChange={(ev) => setResolutionNote(ev.target.value)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRowParaResolver(null); setResolutionNote(""); }}>Cancelar</Button>
+            <Button onClick={confirmarAnalise} disabled={Boolean(resolvendo) || resolutionNote.trim().length === 0}>
+              {resolvendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Confirmar análise
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

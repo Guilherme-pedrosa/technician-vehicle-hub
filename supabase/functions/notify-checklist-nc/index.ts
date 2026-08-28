@@ -125,8 +125,33 @@ serve(async (req) => {
       veiculo_id,
       condutor,
       km_painel_nao_confirmado,
+      pendencias,
       dedupe_key,
     } = body;
+
+    const pendenciasSafe: string[] = Array.isArray(pendencias)
+      ? pendencias.slice(0, 60).map((p: unknown) => String(p))
+      : [];
+
+    // ── AUTORIZAÇÃO: usuário só notifica checklist próprio (ou é admin) ──
+    if (callerId !== "internal") {
+      if (!checklist_id || typeof checklist_id !== "string") {
+        return new Response(JSON.stringify({ success: false, error: "checklist_id obrigatório" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: isAdminRow } = await supabase
+        .from("user_roles").select("user_id").eq("user_id", callerId).eq("role", "admin").maybeSingle();
+      if (!isAdminRow) {
+        const { data: checklistRow } = await supabase
+          .from("vehicle_checklists").select("created_by").eq("id", checklist_id).maybeSingle();
+        if (!checklistRow || checklistRow.created_by !== callerId) {
+          return new Response(JSON.stringify({ success: false, error: "Forbidden" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
 
     // Get only ADMIN users
     const { data: adminRoles, error: rolesError } = await supabase
@@ -182,6 +207,15 @@ serve(async (req) => {
       ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;">🛢️ Troca de Óleo</td><td style="padding:8px;border-bottom:1px solid #eee;color:#dc2626;font-weight:600;">VENCIDA</td></tr>`
       : "";
 
+    const pendenciasHtml = pendenciasSafe.length > 0
+      ? `<div style="margin-top:16px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:4px;">
+           <strong>Pendências de preenchimento (${pendenciasSafe.length}) — checklist salvo assim mesmo:</strong>
+           <ul style="margin:8px 0 0;padding-left:20px;color:#78350f;font-size:13px;">
+             ${pendenciasSafe.map((p) => `<li>${esc(p)}</li>`).join("")}
+           </ul>
+         </div>`
+      : "";
+
     const isAudit = event_type === "audit_alert";
     const auditEventsSafe = Array.isArray(audit_events) ? audit_events.slice(0, MAX_AUDIT_EVENTS) : [];
 
@@ -193,8 +227,8 @@ serve(async (req) => {
       const { data: alreadySent } = await supabase
         .from("email_send_log")
         .select("id")
-        .eq("dedupe_key", dedupeKey)
-        .eq("status", "sent")
+        .like("dedupe_key", `${dedupeKey}|%`)
+        .in("status", ["sent", "pending"])
         .limit(1);
       if (alreadySent && alreadySent.length > 0) {
         console.log(`[NOTIFY-NC] Ignorado por deduplicação: ${dedupeKey}`);
@@ -272,6 +306,7 @@ serve(async (req) => {
         <tbody>${auditEventsHtml}</tbody>
       </table>` : ""}
 
+      ${pendenciasHtml}
       ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${esc(observacoes)}</div>` : ""}
 
       <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;">
@@ -316,6 +351,7 @@ serve(async (req) => {
 
       ${avaria_descricao ? `<div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px;"><strong>🔍 Descrição da Avaria:</strong><br>${esc(avaria_descricao)}</div>` : ""}
 
+      ${pendenciasHtml}
       ${observacoes ? `<div style="margin-top:16px;padding:12px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:4px;"><strong>Observações:</strong> ${esc(observacoes)}</div>` : ""}
       
       <div style="margin-top:24px;padding:16px;background:#f0f9ff;border-radius:8px;text-align:center;">
@@ -339,18 +375,43 @@ serve(async (req) => {
           recipient_email: email,
           subject,
           status: "failed",
+          dedupe_key: `${dedupeKey}|${email}`,
           error_message: "RESEND_API_KEY não configurada",
           metadata: { placa, modelo, tecnico, resultado },
         });
       }
-      return new Response(JSON.stringify({ success: true, message: "No email service configured" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ success: false, error: "RESEND_API_KEY não configurada" }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Send via Resend with logging
-    const results = [];
+    // ── RESERVA ATÔMICA POR DESTINATÁRIO, ANTES de chamar o Resend ──
+    // A chave única (evento + checklist + destinatário) garante que duas
+    // execuções concorrentes nunca enviem o mesmo e-mail duas vezes.
+    const results: Array<{ email: string; status: string; resend_id?: string; error?: unknown }> = [];
     for (const email of emails) {
+      const recipientKey = `${dedupeKey}|${email}`;
+      const { data: reserved, error: reserveError } = await supabase
+        .from("email_send_log")
+        .insert({
+          checklist_id,
+          recipient_email: email,
+          subject,
+          status: "pending",
+          dedupe_key: recipientKey,
+          metadata: { placa, modelo, tecnico, resultado, event_type: isAudit ? "audit_alert" : "nc" },
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (reserveError || !reserved?.id) {
+        // 23505 = já reservado/enviado por outra execução → idempotente.
+        console.log(`[NOTIFY-NC] Reserva não obtida para ${email}: ${reserveError?.code ?? "sem id"}`);
+        results.push({ email, status: "deduplicated" });
+        continue;
+      }
+
+      const logId = reserved.id;
       try {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -370,48 +431,43 @@ serve(async (req) => {
 
         if (!res.ok) {
           console.error(`[NOTIFY-NC] Failed to send to ${email}:`, resBody);
-          await supabase.from("email_send_log").insert({
-            checklist_id,
-            recipient_email: email,
-            subject,
-            status: "failed",
-            error_message: JSON.stringify(resBody),
-            metadata: { placa, modelo, tecnico, resultado },
-          });
+          await supabase.from("email_send_log")
+            .update({ status: "failed", error_message: JSON.stringify(resBody) })
+            .eq("id", logId);
           results.push({ email, status: "failed", error: resBody });
         } else {
-          console.log(`[NOTIFY-NC] Sent to ${email}:`, resBody);
-          await supabase.from("email_send_log").insert({
-            checklist_id,
-            recipient_email: email,
-            subject,
-            status: "sent",
-            resend_id: resBody.id || null,
-            metadata: { placa, modelo, tecnico, resultado },
-          });
+          console.log(`[NOTIFY-NC] Sent to ${email}`);
+          await supabase.from("email_send_log")
+            .update({ status: "sent", resend_id: resBody.id || null })
+            .eq("id", logId);
           results.push({ email, status: "sent", resend_id: resBody.id });
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`[NOTIFY-NC] Error sending to ${email}:`, err);
-        await supabase.from("email_send_log").insert({
-          checklist_id,
-          recipient_email: email,
-          subject,
-          status: "failed",
-          error_message: errMsg,
-          metadata: { placa, modelo, tecnico, resultado },
-        });
+        await supabase.from("email_send_log")
+          .update({ status: "failed", error_message: errMsg })
+          .eq("id", logId);
         results.push({ email, status: "failed", error: errMsg });
       }
     }
 
     const sent = results.filter((r) => r.status === "sent").length;
     const failed = results.filter((r) => r.status === "failed").length;
-    console.log(`[NOTIFY-NC] Total: ${results.length}, Sent: ${sent}, Failed: ${failed}`);
+    const deduplicated = results.filter((r) => r.status === "deduplicated").length;
+    console.log(`[NOTIFY-NC] Total: ${results.length}, Sent: ${sent}, Failed: ${failed}, Dedup: ${deduplicated}`);
+
+    // Sem sucesso falso: qualquer falha devolve não-2xx para o frontend
+    // registrar pendência.
+    if (failed > 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Falha ao enviar parte dos e-mails", emails_sent: sent, emails_failed: failed, details: results }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ success: true, emails_sent: sent, emails_failed: failed, details: results }),
+      JSON.stringify({ success: true, emails_sent: sent, emails_failed: failed, deduplicated, details: results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
