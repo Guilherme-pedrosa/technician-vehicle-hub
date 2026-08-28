@@ -1255,7 +1255,8 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, forceDraftId]);
+
 
   // Save draft to DB (debounced)
   const saveDraftToDb = useCallback(async () => {
