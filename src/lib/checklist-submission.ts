@@ -81,11 +81,12 @@ export function photoUrlForSlot(
 ): string | undefined {
   const fromUpload = uploads?.[index]?.uploadedUrl;
   if (fromUpload) return fromUpload;
+  if (!urls) return undefined;
+  // Sem estados de upload, `urls` É a lista de slots.
+  if (!uploads || uploads.length === 0) return urls[index];
   // Fallback seguro: só usa a lista persistida quando ela tem o MESMO
   // comprimento dos slots (senão o índice não é comparável).
-  if (urls && uploads && urls.length === uploads.length) return urls[index];
-  if (urls && !uploads) return urls[index];
-  return undefined;
+  return urls.length === uploads.length ? urls[index] : undefined;
 }
 
 /** Categorias presentes em QUALQUER uma das fontes (arquivos, uploads, URLs, validações). */
