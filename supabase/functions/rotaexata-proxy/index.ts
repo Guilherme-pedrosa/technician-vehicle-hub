@@ -78,11 +78,17 @@ async function doLogin(): Promise<string> {
       return token;
     }
 
-    // Retry on 502/503/504/429, fail immediately on other errors (e.g., 401 = bad creds)
+    // Retry on 502/503/504/429, fail immediately on other errors (e.g., 401/404 = bad creds)
     const isRetryable = res.status === 502 || res.status === 503 || res.status === 504 || res.status === 429;
     if (!isRetryable) {
+      if (res.status === 401 || res.status === 404) {
+        throw new Error(
+          "Credenciais do Rota Exata inválidas ou expiradas. Atualize ROTAEXATA_EMAIL e ROTAEXATA_PASSWORD."
+        );
+      }
       throw new Error(`Rota Exata login failed [${res.status}]: ${responseText}`);
     }
+
 
     if (attempt < MAX_RETRIES) {
       const delay = Math.min(attempt * 3000, 15000); // 3s, 6s, 9s, 12s, 15s
