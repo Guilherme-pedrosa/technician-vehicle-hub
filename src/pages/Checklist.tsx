@@ -1105,8 +1105,19 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
         if (error) throw error;
       },
       removeStorageObject: async (path) => {
-        await supabase.storage.from("checklist-photos").remove([path]);
+        await supabase.storage.from(CHECKLIST_PHOTO_BUCKET).remove([path]);
       },
+      // Rascunho retomado em outra sessão: as fotos antigas só estão no banco.
+      listRemoteStoragePaths: async (recordId) => {
+        const { data } = await supabase
+          .from("vehicle_checklists")
+          .select("fotos, status")
+          .eq("id", recordId)
+          .maybeSingle();
+        if (!data || (data as any).status !== "rascunho") return [];
+        return collectChecklistPhotoPaths(data.fotos);
+      },
+
     });
   }
   const coordinator = coordinatorRef.current;
