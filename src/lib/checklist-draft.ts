@@ -27,7 +27,13 @@ export type DraftCoordinatorDeps = {
   deleteRecord: (recordId: string) => Promise<void>;
   /** Remove um objeto do storage (best-effort). */
   removeStorageObject: (storagePath: string) => Promise<void>;
+  /**
+   * Paths já persistidos no registro (rascunho RETOMADO em outra sessão).
+   * Sem isto, descartar só apagaria as fotos capturadas nesta sessão.
+   */
+  listRemoteStoragePaths?: (recordId: string) => Promise<string[]>;
 };
+
 
 export type UploadTicket = {
   /** Geração viva no momento da captura. */
