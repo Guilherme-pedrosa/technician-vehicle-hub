@@ -1286,10 +1286,11 @@ export default function ChecklistDetail() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
-                            {nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            {opt?.label ?? currentVal ?? "—"}
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold ${!currentVal ? "text-muted-foreground" : nc ? "text-destructive" : opt?.color === "warning" ? "text-warning" : "text-success"}`}>
+                            {!currentVal ? <AlertTriangle className="w-3.5 h-3.5" /> : nc ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            {!currentVal ? "Não informado" : (opt?.label ?? String(currentVal))}
                           </span>
+
                         )}
                       </div>
                       {editing && isNonConforme(f.key, editFields[f.key]) && (
