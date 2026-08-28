@@ -99,8 +99,14 @@ describe("não bloquear o preenchimento", () => {
     expect(corpo).not.toContain("Falha no envio das fotos de");
   });
 
-  it("não grava resposta em branco nas colunas do checklist", () => {
-    expect(checklist).toContain('CHECKLIST_DB_FIELD_KEYS.has(key) && String(value ?? "").trim().length > 0');
+  it("grava NULL explícito (nunca omite) para resposta em branco", () => {
+    expect(checklist).toContain("buildAnswerPayload(answers, CHECKLIST_DB_FIELD_KEYS)");
+    expect(checklist).not.toContain('CHECKLIST_DB_FIELD_KEYS.has(key) && String(value ?? "").trim().length > 0');
+  });
+
+  it("troca de óleo e resultado usam os helpers honestos", () => {
+    expect(checklist).toContain("resolveTrocaOleoStatus(");
+    expect(checklist).toContain("resolveOperationalResultado(");
   });
 
   it("resumo final lista as pendências enviadas ao gestor", () => {
@@ -211,13 +217,24 @@ describe("notify-checklist-nc", () => {
     expect(notify).toContain("dedupe_key");
   });
 
-  it("reserva a linha de log com dedupe_key ANTES de chamar o Resend", () => {
-    const reservaIdx = notify.indexOf("dedupe_key: recipientKey");
+  it("reserva transacional por destinatário ANTES de chamar o Resend", () => {
+    const reservaIdx = notify.indexOf('rpc("reserve_email_send"');
     const resendIdx = notify.indexOf("https://api.resend.com/emails");
     expect(reservaIdx).toBeGreaterThan(-1);
     expect(resendIdx).toBeGreaterThan(-1);
     expect(reservaIdx).toBeLessThan(resendIdx);
-    expect(notify).toContain('status: "pending"');
+  });
+
+  it("erro de banco na reserva vira falha — nunca 'deduplicated'", () => {
+    expect(notify).toContain("if (reserveError) {");
+    expect(notify).toContain('results.push({ email, status: "failed"');
+    // sem early-return global que mascare entrega parcial
+    expect(notify).not.toContain("success: true, deduplicated: true");
+  });
+
+  it("chave de deduplicação é gerada no servidor, por destinatário", () => {
+    expect(notify).toContain("const dedupeKeyFor = (email: string)");
+    expect(notify).toContain("sanitize(dedupe_key, 40)");
   });
 
   it("nunca devolve sucesso quando falta chave ou o envio falha", () => {

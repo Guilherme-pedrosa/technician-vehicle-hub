@@ -45,7 +45,14 @@ describe("idempotência", () => {
     const a = buildAuditEventKey({ checklistId: "c1", categoria: "painel", photoIndex: 0, status: "forced" });
     const b = buildAuditEventKey({ checklistId: "c1", categoria: "painel", photoIndex: 0, status: "forced" });
     expect(a).toBe(b);
-    expect(a).toBe("c1|painel|0|forced");
+    expect(a).toBe("c1|painel|0|forced|generico");
+  });
+
+  it("event_code distingue pendências diferentes na mesma categoria", () => {
+    const base = { checklistId: "c1", categoria: "etiqueta_oleo", photoIndex: null, status: "pending_at_submit" } as const;
+    const k1 = buildAuditEventKey({ ...base, eventCode: "evidencia_faltante" });
+    const k2 = buildAuditEventKey({ ...base, eventCode: "km_proxima_troca_ausente" });
+    expect(k1).not.toBe(k2);
   });
 
   it("dedupe remove repetidos preservando o primeiro", () => {
