@@ -1220,10 +1220,13 @@ function ChecklistFormDialog({ vehicles, localDrivers, userId, openTrigger, forc
     () => summarizePhotoValidations(photos, photoValidations, photoUploads),
     [photos, photoValidations, photoUploads],
   );
+  // Estado de upload por categoria — informativo (nunca bloqueia o envio).
   const photoUploadSummary = useMemo(
     () => summarizePhotoUploads(photos, photoUploads),
     [photos, photoUploads],
   );
+  void photoUploadSummary;
+
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   // Ref para o KM cadastrado — usada em callbacks estáveis (auto-preenchimento do painel).
