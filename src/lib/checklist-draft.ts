@@ -177,8 +177,18 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
         id = null;
       }
 
+      // Rascunho retomado: as fotos das sessões anteriores só existem no banco.
+      const allPaths = new Set(paths);
+      if (id && !wasFinalized && deps.listRemoteStoragePaths) {
+        try {
+          for (const p of await deps.listRemoteStoragePaths(id)) allPaths.add(p);
+        } catch {
+          /* best-effort: seguimos apagando o que conhecemos */
+        }
+      }
+
       let removed = 0;
-      for (const path of paths) {
+      for (const path of allPaths) {
         try {
           await deps.removeStorageObject(path);
           removed += 1;
@@ -193,5 +203,6 @@ export function createDraftCoordinator(deps: DraftCoordinatorDeps) {
       }
       return { deletedRecord: false, removedObjects: removed };
     },
+
   };
 }
